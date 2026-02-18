@@ -45,7 +45,7 @@ E2E テストは Vite dev server を自動起動して Playwright で検証す�
 
 Vite dev server を `http://localhost:5173` で起動します。
 
-- `index.html` → `src/main.ts` → `runner.ts` が全 5 問題を実行
+- `index.html` → `src/main.ts` → `runner.ts` が全 15 問題を実行
 - 各問題の PASS/FAIL 状態とテストケース結果がブラウザに表示される
 - HMR（Hot Module Replacement）対応 — コード変更が即座に反映
 
@@ -57,7 +57,7 @@ vitest をワンショット実行（`vitest run`）します。
 
 - テスト対象: `src/**/__tests__/**/*.test.ts`
 - 各問題の `.test.ts` が `compileProblem()` → `WebAssembly.instantiate()` → アサーションを実行
-- メモリを使う問題（Kadane, Coin Change, Binary Search）はテスト内でメモリに入力データを書き込み
+- メモリを使う問題はテスト内でメモリに入力データを書き込み
 
 **用途:** コード変更後の動作確認。CI でも利用。
 
@@ -66,7 +66,7 @@ vitest をワンショット実行（`vitest run`）します。
 Playwright でブラウザベースの E2E テストを実行します。
 
 - `playwright.config.ts` で Vite dev server を自動起動
-- `e2e/app.test.ts`: 全 5 問題が PASS することを検証
+- `e2e/app.test.ts`: 全 15 問題が PASS することを検証
 - CI 環境（`process.env.CI`）では dev server を新規起動、ローカルでは既存サーバーを再利用
 
 **用途:** UI レイヤーを含めた統合テスト。PR 前の最終確認。

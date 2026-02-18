@@ -22,7 +22,7 @@ src/
     interpreter.ts # compile() — 3 フェーズ Module interpreter
     compiler.ts    # Re-export エントリポイント
   wasm/       # IR 定義・Codegen・Module Builder・Encoder・Opcodes
-  problems/   # 5 つのアルゴリズム実装（各 .ts + __tests__/）
+  problems/   # 15 のアルゴリズム実装（各 .ts + __tests__/）
   ui/         # ブラウザ UI（renderer + styles）
   runner.ts   # 全問題の実行・検証
   main.ts     # エントリーポイント
@@ -44,6 +44,7 @@ docs/         # 技術ドキュメント
 ## Docs
 
 - [Architecture](docs/architecture.md) — コンパイルパイプライン詳細
-- [Problems](docs/problems.md) — 5 問題のカタログ
+- [Problems](docs/problems.md) — 15 問題のカタログ
 - [Testing](docs/testing.md) — テスト戦略・追加手順
 - [Workflow](docs/workflow.md) — コマンドの使い分け・開発フロー
+- [Roadmap](docs/roadmap.md) — DSL 改善・Spec Coverage 拡大方針

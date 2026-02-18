@@ -113,7 +113,7 @@ Mem.store(0, n.add(1)) の処理フロー:
 
 ### IRNode
 
-20 種の discriminated union（`op` フィールドで判別）。
+22 種の discriminated union（`op` フィールドで判別）。
 
 | op | フィールド | 説明 |
 |----|-----------|------|
@@ -134,7 +134,9 @@ Mem.store(0, n.add(1)) の処理フロー:
 | `drop` | `val: IRNode` | 値を破棄 |
 | `return` | `val: IRNode` | 関数から返る |
 | `store_i32` | `addr`, `val` | メモリ書き込み |
-| `load_i32` | `addr` | メモリ読み取り |
+| `load_i32` | `addr` | メモリ読み取り (i32) |
+| `store_i32_8` | `addr`, `val` | メモリ書き込み (1 byte) |
+| `load_i32_8u` | `addr` | メモリ読み取り (1 byte, 零拡張) |
 | `nop` | — | 何もしない |
 | `effect` | `tag: number`, `payload` | エフェクト発行 |
 
@@ -184,6 +186,7 @@ type CmpKind = "eq" | "ne" | "lt" | "gt" | "le" | "ge";
 ### メモリ操作
 
 `store_i32` / `load_i32` は alignment=2 (4 バイト境界)、offset=0 で emit。
+`store_i32_8` / `load_i32_8u` は alignment=0 (1 バイト境界)、offset=0 で emit。
 
 ### Effect ノード
 

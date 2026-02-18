@@ -39,7 +39,7 @@ describe("Problem Name", () => {
 
 ### メモリを使う問題のテスト
 
-Kadane / Coin Change / Binary Search はメモリ上の配列に入力データを書き込む必要があります。
+メモリ上の配列に入力データを書き込む必要がある問題が多数あります（Kadane, Coin Change, Binary Search, GCD, MatMul, LCS, Knapsack, Quicksort, Flood Fill, LIS）。
 
 ```typescript
 // Kadane: BASE = 1024 bytes → Int32Array index = 1024/4 = 256
@@ -103,7 +103,7 @@ npm run test:e2e   # Playwright E2E テスト
 ```typescript
 import { compile, param, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
 
-export function problem6_xxx(): Uint8Array {
+export function problem16_xxx(): Uint8Array {
   return compile(function* () {
     // import が必要なら:
     // const imported = yield* Mod.import("env", "fn", [Type.i32], [Type.i32]);
@@ -130,7 +130,7 @@ export function problem6_xxx(): Uint8Array {
 `src/problems/index.ts`:
 
 ```typescript
-export { problem6_xxx } from "./new-problem";
+export { problem16_xxx } from "./new-problem";
 ```
 
 ### 3. テストを追加
@@ -139,14 +139,14 @@ export { problem6_xxx } from "./new-problem";
 
 ```typescript
 import { describe, test, expect } from "vitest";
-import { problem6_xxx } from "../new-problem";
+import { problem16_xxx } from "../new-problem";
 
 describe("New Problem", () => {
   test.each([
     { input: 1, expected: 1 },
     // テストケースを追加...
   ])("func($input) = $expected", async ({ input, expected }) => {
-    const wasm = problem6_xxx();
+    const wasm = problem16_xxx();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { instance } = (await WebAssembly.instantiate(wasm)) as any;
     const fn = instance.exports.func_name as (n: number) => number;
@@ -165,5 +165,5 @@ describe("New Problem", () => {
 ```bash
 npm run test       # ユニットテストで動作確認
 npm run typecheck  # 型チェック
-npm run test:e2e   # E2E（.status-pass が 6 個になるよう e2e/app.test.ts の更新も必要）
+npm run test:e2e   # E2E（.status-pass 数の更新が必要な場合あり）
 ```
