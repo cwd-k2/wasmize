@@ -1,6 +1,6 @@
 # wasmize
 
-DSL で定義したアルゴリズムを Wasm バイナリにコンパイルする PoC。
+Generator ベースの DSL で定義したアルゴリズムを Wasm バイナリにコンパイルする PoC。
 
 ## Commands
 
@@ -16,7 +16,11 @@ DSL で定義したアルゴリズムを Wasm バイナリにコンパイルす�
 
 ```
 src/
-  dsl/        # ProblemDesc → Wasm バイナリのコンパイラ
+  dsl/        # Generator ベース DSL → Wasm バイナリのコンパイラ
+    types.ts       # 型定義（WasmRef, WasmVal, FuncRef, Instruction 等）
+    primitives.ts  # DSL プリミティブ（i32, add, store, if_, loop_ 等）
+    interpreter.ts # compile() — 3 フェーズ Module interpreter
+    compiler.ts    # Re-export エントリポイント
   wasm/       # IR 定義・Codegen・Module Builder・Encoder・Opcodes
   problems/   # 5 つのアルゴリズム実装（各 .ts + __tests__/）
   ui/         # ブラウザ UI（renderer + styles）
@@ -31,7 +35,9 @@ docs/         # 技術ドキュメント
 - **strict TypeScript** + ESM only（`"type": "module"`）
 - `WebAssembly.instantiate` の戻り値には `as any` を使用（型定義の制約）
 - IR ノードは discriminated union（`op` フィールドで判別）
-- `IR.*` ビルダーでノード生成、`compileProblem()` でバイナリ出力
+- Generator DSL: `yield*` で合成、`compile()` でバイナリ出力
+- プリミティブは Generator を直接返す（IIFE パターン）、body は `function*() {}` factory
+- `Expr = WasmVal | FuncGen<WasmVal>` — `resolve()` で統一的に解決
 
 ## Docs
 

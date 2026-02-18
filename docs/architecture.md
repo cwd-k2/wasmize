@@ -3,52 +3,103 @@
 wasmize のコンパイルパイプラインは 5 つのステージで構成されます。
 
 ```
-ProblemDesc ─→ DSLContext ─→ emitIR() ─→ buildModule() ─→ Uint8Array (Wasm)
-  (1. DSL)     (2. IR)      (3. Codegen)  (4. Module)     (5. Encoder)
+WasmProgram ─→ compile() ─→ emitIR() ─→ buildModule() ─→ Uint8Array (Wasm)
+  (1. DSL)     (2. Interpreter)  (3. Codegen)  (4. Module)     (5. Encoder)
 ```
 
 ---
 
 ## 1. DSL 層
 
-**ファイル:** `src/dsl/compiler.ts`, `src/dsl/context.ts`
+**ファイル:** `src/dsl/types.ts`, `src/dsl/primitives.ts`, `src/dsl/interpreter.ts`, `src/dsl/compiler.ts`
 
-### ProblemDesc
+Generator ベースの DSL。`yield*` による直感的な合成と、ローカル変数の自動管理を提供します。
 
-問題定義のトップレベルインターフェース。
+### 2 レベルの Generator
+
+- **Module レベル**: `WasmProgram` — `import_`, `func`, `export_`, `memory` を yield
+- **Function レベル**: `FuncBody` — `param`, `local`, 式・文・制御フローを yield
+
+### 型システム
 
 ```typescript
-interface ProblemDesc {
-  imports?: ImportDef[];
-  funcs: {
-    params?: WasmValType[];
-    results?: WasmValType[];
-    locals?: WasmValType[];
-    body: IRNode[];
-  }[];
-  exports: { name: string; funcIdx: number }[];
-  memoryPages?: number;  // デフォルト: 1 (64KB)
-}
+// Opaque 参照型
+interface WasmRef  { _tag: "ref";  _idx: number }   // ローカル変数/パラメータ
+interface WasmVal  { _tag: "val";  _node: IRNode }   // 式の値
+interface FuncRef  { _tag: "func"; _idx: number }    // 関数参照
+
+// Generator 型
+type FuncGen<T>  = Generator<FuncInstruction, T, any>  // yield* 用
+type FuncBody<T> = () => Generator<FuncInstruction, T, any>  // body 用
+type ModuleGen<T> = Generator<ModuleInstruction, T, any>
+type WasmProgram = () => Generator<ModuleInstruction, void, any>
+
+// 式の型: 解決済みの値 or 遅延 generator
+type Expr = WasmVal | FuncGen<WasmVal>
 ```
 
-### compileProblem()
+### プリミティブの 3 分類
 
-`ProblemDesc` を受け取り、`DSLContext` に imports / funcs / exports を登録してから `buildModule()` を呼び出し、`Uint8Array`（Wasm バイナリ）を返します。
+| 分類 | yield する | 例 |
+|------|-----------|-----|
+| 式（pure） | No | `i32()`, `add()`, `get()`, `load()`, `call()` |
+| 文（statement） | Yes (`StmtInstruction`) | `set()`, `store()`, `br()`, `return_()` |
+| 制御フロー | Yes (compound) | `if_()`, `loop_()`, `block_()` |
 
-### DSLContext
-
-コンパイル過程の中間状態を保持するクラス。
+### 使用例
 
 ```typescript
-class DSLContext {
-  ir: IRNode[] = [];
-  funcs: FuncDef[] = [];
-  imports: ImportDef[] = [];
-  exports: ExportDef[] = [];
-  effects: unknown[] = [];
-  localCount = 0;
-  paramCount = 0;
-}
+const fibonacci: WasmProgram = function* () {
+  const fib = yield* func(function* () {
+    const n = yield* param("i32");
+    const i = yield* local("i32");
+    yield* store(i32(0), i32(0));
+    yield* store(i32(4), i32(1));
+    return yield* if_(
+      le(get(n), i32(1)),
+      function* () { return yield* load(mul(get(n), i32(4))); },
+      function* () {
+        yield* set(i, i32(2));
+        yield* block_(function* () {
+          yield* loop_(function* () {
+            yield* store(mul(get(i), i32(4)),
+              add(load(mul(sub(get(i), i32(1)), i32(4))),
+                  load(mul(sub(get(i), i32(2)), i32(4)))));
+            yield* set(i, add(get(i), i32(1)));
+            yield* br_if(0, le(get(i), get(n)));
+          });
+        });
+        return yield* load(mul(get(n), i32(4)));
+      },
+    );
+  });
+  yield* export_("fib", fib);
+};
+compile(fibonacci); // → Uint8Array
+```
+
+### Interpreter（3 フェーズ）
+
+**Phase 1**: Module generator を走らせ、全 import/func/export/memory 命令を処理。func の body は保存するだけ（FuncRef を先に割り当て）。
+
+**Phase 2**: 全 FuncRef が確定後、保存された body を順にコンパイル。各 body を `interpretSubBody()` で IRNode 列に変換。
+
+**Phase 3**: 既存の `buildModule()` を呼んで Wasm バイナリ生成。
+
+### Expr 解決の仕組み
+
+`resolve()` ヘルパーが `Expr` を WasmVal に解決:
+
+```
+store(i32(0), add(get(n), i32(1))) の処理フロー:
+1. store() が Generator を返す
+2. yield* store(...) → interpreter が generator を駆動
+3. store 内で resolve(i32(0)) → pure、即 return val(const_i32(0))
+4. store 内で resolve(add(get(n), i32(1))) → yield* add の generator
+   → add 内で resolve(get(n)) → pure、return val(local_get(idx))
+   → add 内で resolve(i32(1)) → pure、return val(const_i32(1))
+   → return val(binop("add", ...))
+5. store が StmtInstruction を yield → interpreter が body[] に追加
 ```
 
 ---
@@ -91,17 +142,6 @@ type BinopKind = "add" | "sub" | "mul" | "div" | "rem"
                | "and" | "or" | "xor" | "shl" | "shr";
 
 type CmpKind = "eq" | "ne" | "lt" | "gt" | "le" | "ge";
-```
-
-### IR.* ビルダー API
-
-ファクトリ関数で IRNode を生成。
-
-```typescript
-IR.const_i32(42)
-IR.binop("add", IR.local_get(0), IR.const_i32(1))
-IR.if_then_else(cond, thenBody, elseBody, "i32")
-IR.call(funcIdx, [arg1, arg2])
 ```
 
 ---
@@ -191,15 +231,6 @@ IR.call(funcIdx, [arg1, arg2])
 | `raw(arr)` | バイト配列を直接追加 |
 | `toBuffer()` | `Uint8Array` に変換 |
 
-### LEB128 アルゴリズム
-
-**Unsigned (u32):**
-7 ビットずつ取り出し、残りがあれば継続ビット (0x80) をセット。
-
-**Signed (i32):**
-算術右シフトで 7 ビットずつ取り出し、符号ビットが安定したら終了。
-終了条件: `(v === 0 && !(b & 0x40)) || (v === -1 && (b & 0x40))`
-
 ---
 
 ## 6. 関数インデックス空間
@@ -215,20 +246,13 @@ Index:  0        1        ...  N-1      N        N+1     ...
        ←──── imports ────→     ←──── local funcs ────→
 ```
 
-`compileProblem()` での計算:
+`compile()` が自動的にインデックスを管理します:
 
-```typescript
-const funcOffset = ctx.imports.length;
-// ProblemDesc の funcIdx=0 → 実際の index は funcOffset + 0
-ctx.exports.push({ name: e.name, idx: funcOffset + e.funcIdx });
-```
+- `yield* import_(...)` → FuncRef(0), FuncRef(1), ...
+- `yield* func(...)` → FuncRef(N), FuncRef(N+1), ...
 
 **例: Tower of Hanoi**
-- import `effect_move` → index 0
-- ローカル関数 `hanoi` → index 1
-- 再帰呼び出しは `IR.call(1, [...])` で自分自身を呼ぶ
-- `effect_move` は `IR.call(0, [...])` で呼ぶ
-
-**例: Fibonacci（import なし）**
-- ローカル関数 `fib` → index 0
-- `funcOffset = 0` なのでそのまま
+- `import_("env", "effect_move", ...)` → FuncRef(0)
+- `func(function* () { ... })` → FuncRef(1)
+- `call(hanoi, ...)` = FuncRef(1) で自分自身を再帰呼び出し
+- `call_(effect_move, ...)` = FuncRef(0) で void import を呼び出し

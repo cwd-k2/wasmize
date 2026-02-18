@@ -101,25 +101,29 @@ npm run test:e2e   # Playwright E2E テスト
 `src/problems/new-problem.ts`:
 
 ```typescript
-import { IR } from "../wasm/ir";
-import { compileProblem } from "../dsl/compiler";
+import {
+  compile, func, export_, param, local,
+  i32, get, add, // ... 必要なプリミティブ
+} from "../dsl/compiler";
 
 export function problem6_xxx(): Uint8Array {
-  return compileProblem({
+  return compile(function* () {
     // import が必要なら:
-    // imports: [{ module: "env", name: "...", params: [...], results: [...] }],
-    funcs: [
-      {
-        params: ["i32"],          // Wasm パラメータ型
-        results: ["i32"],         // 戻り値型
-        locals: ["i32", "i32"],   // ローカル変数の型
-        body: [
-          // IR.* ビルダーでアルゴリズムを記述
-        ],
-      },
-    ],
-    exports: [{ name: "func_name", funcIdx: 0 }],
-    // memoryPages: 1,  // メモリが必要なら
+    // const imported = yield* import_("env", "fn", ["i32"], ["i32"]);
+
+    // メモリが必要なら:
+    // yield* memory(2);
+
+    const f = yield* func(function* () {
+      const n = yield* param("i32");
+      // ローカル変数:
+      // const tmp = yield* local("i32");
+
+      // アルゴリズムを記述
+      return yield* get(n);
+    });
+
+    yield* export_("func_name", f);
   });
 }
 ```

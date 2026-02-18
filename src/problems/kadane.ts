@@ -1,80 +1,87 @@
-import { IR } from "../wasm/ir";
-import { compileProblem } from "../dsl/compiler";
+import {
+  compile,
+  func,
+  export_,
+  memory,
+  param,
+  local,
+  i32,
+  get,
+  add,
+  mul,
+  gt,
+  lt,
+  set,
+  load,
+  br_if,
+  nop_,
+  if_,
+  loop_,
+  block_,
+} from "../dsl/compiler";
 
 export function problem3_kadane(): Uint8Array {
   const BASE = 1024;
-  return compileProblem({
-    funcs: [
-      {
-        params: ["i32"], // len
-        results: ["i32"],
-        locals: ["i32", "i32", "i32", "i32"], // 1=i, 2=current_sum, 3=max_sum, 4=val
-        body: [
-          // max_sum = current_sum = mem[BASE]
-          IR.local_set(2, IR.load_i32(IR.const_i32(BASE))),
-          IR.local_set(3, IR.local_get(2)),
-          // i = 1
-          IR.local_set(1, IR.const_i32(1)),
-          // if len <= 1, skip loop
-          IR.if_then_else(
-            IR.cmp("gt", IR.local_get(0), IR.const_i32(1)),
-            [
-              IR.block([
-                IR.loop([
-                  // val = mem[BASE + i*4]
-                  IR.local_set(
-                    4,
-                    IR.load_i32(
-                      IR.binop(
-                        "add",
-                        IR.const_i32(BASE),
-                        IR.binop("mul", IR.local_get(1), IR.const_i32(4)),
-                      ),
-                    ),
-                  ),
-                  // current_sum = max(val, current_sum + val)
-                  IR.local_set(
-                    2,
-                    IR.if_then_else(
-                      IR.cmp(
-                        "gt",
-                        IR.binop("add", IR.local_get(2), IR.local_get(4)),
-                        IR.local_get(4),
-                      ),
-                      [IR.binop("add", IR.local_get(2), IR.local_get(4))],
-                      [IR.local_get(4)],
-                    ),
-                  ),
-                  // max_sum = max(max_sum, current_sum)
-                  IR.local_set(
-                    3,
-                    IR.if_then_else(
-                      IR.cmp("gt", IR.local_get(2), IR.local_get(3)),
-                      [IR.local_get(2)],
-                      [IR.local_get(3)],
-                    ),
-                  ),
-                  // i++
-                  IR.local_set(
-                    1,
-                    IR.binop("add", IR.local_get(1), IR.const_i32(1)),
-                  ),
-                  IR.br_if(
-                    0,
-                    IR.cmp("lt", IR.local_get(1), IR.local_get(0)),
-                  ),
-                ]),
-              ]),
-              IR.nop(),
-            ],
-            [],
-            "void",
-          ),
-          IR.local_get(3),
-        ],
-      },
-    ],
-    exports: [{ name: "kadane", funcIdx: 0 }],
-    memoryPages: 2,
+  return compile(function* () {
+    yield* memory(2);
+
+    const kadane = yield* func(function* () {
+      const len = yield* param("i32");
+      const i = yield* local("i32");
+      const current_sum = yield* local("i32");
+      const max_sum = yield* local("i32");
+      const v = yield* local("i32");
+
+      // max_sum = current_sum = mem[BASE]
+      yield* set(current_sum, load(i32(BASE)));
+      yield* set(max_sum, get(current_sum));
+      yield* set(i, i32(1));
+
+      // if len > 1, run loop
+      yield* if_(
+        gt(get(len), i32(1)),
+        function* () {
+          yield* block_(function* () {
+            yield* loop_(function* () {
+              // val = mem[BASE + i*4]
+              yield* set(v, load(add(i32(BASE), mul(get(i), i32(4)))));
+              // current_sum = max(val, current_sum + val)
+              yield* set(
+                current_sum,
+                if_(
+                  gt(add(get(current_sum), get(v)), get(v)),
+                  function* () {
+                    return yield* add(get(current_sum), get(v));
+                  },
+                  function* () {
+                    return yield* get(v);
+                  },
+                ),
+              );
+              // max_sum = max(max_sum, current_sum)
+              yield* set(
+                max_sum,
+                if_(
+                  gt(get(current_sum), get(max_sum)),
+                  function* () {
+                    return yield* get(current_sum);
+                  },
+                  function* () {
+                    return yield* get(max_sum);
+                  },
+                ),
+              );
+              yield* set(i, add(get(i), i32(1)));
+              yield* br_if(0, lt(get(i), get(len)));
+            });
+          });
+          yield* nop_();
+        },
+      );
+
+      return yield* get(max_sum);
+    });
+
+    yield* export_("kadane", kadane);
   });
 }

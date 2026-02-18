@@ -1,60 +1,53 @@
-import { IR } from "../wasm/ir";
-import { compileProblem } from "../dsl/compiler";
+import {
+  compile,
+  import_,
+  func,
+  export_,
+  param,
+  local,
+  i32,
+  get,
+  add,
+  sub,
+  le,
+  set,
+  call,
+  call_,
+  if_,
+  type FuncRef,
+} from "../dsl/compiler";
 
 export function problem1_hanoi(): Uint8Array {
-  return compileProblem({
-    imports: [
-      {
-        module: "env",
-        name: "effect_move",
-        params: ["i32", "i32"],
-        results: [],
-      },
-    ],
-    funcs: [
-      {
-        // hanoi(n, from, to, aux) -> i32
-        params: ["i32", "i32", "i32", "i32"],
-        results: ["i32"],
-        locals: ["i32", "i32"], // local 4=count1, 5=count2
-        body: [
-          IR.if_then_else(
-            IR.cmp("le", IR.local_get(0), IR.const_i32(0)),
-            [IR.const_i32(0)],
-            [
-              // count1 = hanoi(n-1, from, aux, to)
-              IR.local_set(
-                4,
-                IR.call(1, [
-                  IR.binop("sub", IR.local_get(0), IR.const_i32(1)),
-                  IR.local_get(1),
-                  IR.local_get(3),
-                  IR.local_get(2),
-                ]),
-              ),
-              // effect_move(from, to) — void function, no drop needed
-              IR.call(0, [IR.local_get(1), IR.local_get(2)]),
-              // count2 = hanoi(n-1, aux, to, from)
-              IR.local_set(
-                5,
-                IR.call(1, [
-                  IR.binop("sub", IR.local_get(0), IR.const_i32(1)),
-                  IR.local_get(3),
-                  IR.local_get(2),
-                  IR.local_get(1),
-                ]),
-              ),
-              // return count1 + 1 + count2
-              IR.binop(
-                "add",
-                IR.binop("add", IR.local_get(4), IR.const_i32(1)),
-                IR.local_get(5),
-              ),
-            ],
-          ),
-        ],
-      },
-    ],
-    exports: [{ name: "hanoi", funcIdx: 0 }],
+  return compile(function* () {
+    const effect_move = yield* import_("env", "effect_move", ["i32", "i32"], []);
+
+    let hanoi: FuncRef;
+    hanoi = yield* func(function* () {
+      const n = yield* param("i32");
+      const from = yield* param("i32");
+      const to = yield* param("i32");
+      const aux = yield* param("i32");
+      const count1 = yield* local("i32");
+      const count2 = yield* local("i32");
+
+      return yield* if_(
+        le(get(n), i32(0)),
+        function* () {
+          return yield* i32(0);
+        },
+        function* () {
+          // count1 = hanoi(n-1, from, aux, to)
+          yield* set(count1, call(hanoi, sub(get(n), i32(1)), get(from), get(aux), get(to)));
+          // effect_move(from, to)
+          yield* call_(effect_move, get(from), get(to));
+          // count2 = hanoi(n-1, aux, to, from)
+          yield* set(count2, call(hanoi, sub(get(n), i32(1)), get(aux), get(to), get(from)));
+          // return count1 + 1 + count2
+          return yield* add(add(get(count1), i32(1)), get(count2));
+        },
+      );
+    });
+
+    yield* export_("hanoi", hanoi);
   });
 }
