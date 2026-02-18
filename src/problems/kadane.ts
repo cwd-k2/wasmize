@@ -33,7 +33,7 @@ export function problem3_kadane(): Uint8Array {
           yield* ctrl.block(function* () {
             yield* ctrl.loop(function* () {
               // val = mem[BASE + i*4]
-              yield* v.set(i.mul(4).add(BASE).load());
+              yield* v.set(mem.load(i.mul(4).add(BASE)));
               // current_sum = max(val, current_sum + val)
               yield* loc.set(
                 current_sum,

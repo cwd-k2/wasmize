@@ -30,7 +30,7 @@ export type ExprInput = Expr | ChainableExpr | ThenBuilder;
  *
  * @example
  * ```ts
- * yield* i.sub(1).mul(4).load();  // load(mul(sub(i, 1), 4))
+ * mem.load(i.sub(1).mul(4))  // load from address (i-1)*4
  * ```
  */
 export class ChainableExpr {
@@ -94,13 +94,6 @@ export class ChainableExpr {
     return new ChainableExpr(shr(this._inner, b));
   }
 
-  // --- Memory ---
-  load(): ChainableExpr {
-    return new ChainableExpr(load(this._inner));
-  }
-  store(value: ExprInput): FuncGen<void> {
-    return store(this._inner, value);
-  }
 }
 
 // --- resolve helper ---
@@ -441,7 +434,7 @@ export class ThenBuilder {
  * @example
  * ```ts
  * yield* if_(n.le(1))
- *   .then(function* () { return yield* n.mul(4).load(); })
+ *   .then(function* () { return yield* mem.load(n.mul(4)); })
  *   .else(function* () { ... });
  * ```
  */
@@ -472,8 +465,13 @@ export const op = {
   and: and_, or: or_, xor: xor_, shl, shr,
 } as const;
 
-/** Memory and constant operations. */
-export const mem = { load, store, i32, i64 } as const;
+/** Memory and constant operations. `load`, `i32`, `i64` return ChainableExpr for post-op chaining. */
+export const mem = {
+  load: (addr: ExprInput): ChainableExpr => new ChainableExpr(load(addr)),
+  store,
+  i32: (v: number): ChainableExpr => new ChainableExpr(i32(v)),
+  i64: (v: number): ChainableExpr => new ChainableExpr(i64(v)),
+};
 
 /** Control flow: branching, loops, blocks, calls. */
 export const ctrl = {
@@ -511,8 +509,6 @@ declare module "./types" {
     xor(b: ExprInput): ChainableExpr;
     shl(b: ExprInput): ChainableExpr;
     shr(b: ExprInput): ChainableExpr;
-    load(): ChainableExpr;
-    store(value: ExprInput): FuncGen<void>;
   }
 }
 
@@ -578,10 +574,3 @@ WasmRef.prototype.shr = function (this: WasmRef, b: ExprInput): ChainableExpr {
   return new ChainableExpr(shr(this, b));
 };
 
-// Memory
-WasmRef.prototype.load = function (this: WasmRef): ChainableExpr {
-  return new ChainableExpr(load(this));
-};
-WasmRef.prototype.store = function (this: WasmRef, value: ExprInput): FuncGen<void> {
-  return store(this, value);
-};

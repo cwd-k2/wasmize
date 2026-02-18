@@ -32,7 +32,7 @@ export function problem4_coin_change(): Uint8Array {
       yield* loc.set(i, 1);
       yield* ctrl.block(function* () {
         yield* ctrl.loop(function* () {
-          yield* i.mul(4).store(INF);
+          yield* mem.store(i.mul(4), INF);
           yield* i.set(i.add(1));
           yield* ctrl.br_if(0, i.le(amount));
         });
@@ -43,21 +43,21 @@ export function problem4_coin_change(): Uint8Array {
       yield* ctrl.block(function* () {
         yield* ctrl.loop(function* () {
           // coin = mem[COIN_BASE + j*4]
-          yield* coin.set(j.mul(4).add(COIN_BASE).load());
+          yield* coin.set(mem.load(j.mul(4).add(COIN_BASE)));
           // for i = coin to amount
           yield* i.set(coin);
           yield* ctrl.block(function* () {
             yield* ctrl.loop(function* () {
               yield* ctrl.br_if(1, i.gt(amount));
               // guard: skip if dp[i - coin] == INF
-              yield* ctrl.if(i.sub(coin).mul(4).load().lt(INF))
+              yield* ctrl.if(mem.load(i.sub(coin).mul(4)).lt(INF))
                 .then(function* () {
                   // tmp = dp[i - coin] + 1
-                  yield* tmp.set(i.sub(coin).mul(4).load().add(1));
+                  yield* tmp.set(mem.load(i.sub(coin).mul(4)).add(1));
                   // if tmp < dp[i], dp[i] = tmp
-                  yield* ctrl.if(tmp.lt(i.mul(4).load()))
+                  yield* ctrl.if(tmp.lt(mem.load(i.mul(4))))
                     .then(function* () {
-                      yield* i.mul(4).store(tmp);
+                      yield* mem.store(i.mul(4), tmp);
                     });
                 });
               yield* i.set(i.add(1));
@@ -71,12 +71,12 @@ export function problem4_coin_change(): Uint8Array {
       });
 
       // return dp[amount] == INF ? -1 : dp[amount]
-      return yield* ctrl.if(amount.mul(4).load().eq(INF))
+      return yield* ctrl.if(mem.load(amount.mul(4)).eq(INF))
         .then(function* () {
           return yield* mem.i32(-1);
         })
         .else(function* () {
-          return yield* amount.mul(4).load();
+          return yield* mem.load(amount.mul(4));
         });
     });
 

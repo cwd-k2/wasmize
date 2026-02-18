@@ -2,7 +2,15 @@
  * @module compiler
  *
  * Public entry point for the generator-based DSL.
- * Re-exports all primitives, types, and the {@link compile} function.
+ *
+ * Structural primitives are exported individually:
+ * `compile`, `func`, `export_`, `import_`, `memory`, `param`, `local`.
+ *
+ * All other primitives are organized into namespaces:
+ * - {@link op} — arithmetic, comparison, bitwise
+ * - {@link mem} — memory access and constants
+ * - {@link ctrl} — control flow, branching, calls
+ * - {@link loc} — local variable operations
  *
  * @example
  * ```ts
@@ -28,43 +36,6 @@ export {
   // Declarations
   param,
   local,
-  // Expressions
-  i32,
-  i64,
-  get,
-  add,
-  sub,
-  mul,
-  div,
-  rem,
-  and_,
-  or_,
-  xor_,
-  shl,
-  shr,
-  eq,
-  ne,
-  lt,
-  gt,
-  le,
-  ge,
-  load,
-  call,
-  // Statements
-  set,
-  tee,
-  store,
-  call_,
-  drop_,
-  return_,
-  br,
-  br_if,
-  nop_,
-  effect,
-  // Control flow
-  if_,
-  loop_,
-  block_,
   // Fluent API
   ChainableExpr,
   ThenBuilder,

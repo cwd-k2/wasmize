@@ -26,7 +26,7 @@ export function problem5_binary_search(): Uint8Array {
         yield* ctrl.loop(function* () {
           yield* ctrl.br_if(1, lo.gt(hi));
           yield* mid.set(lo.add(hi).div(2));
-          yield* v.set(mid.mul(4).load());
+          yield* v.set(mem.load(mid.mul(4)));
           yield* ctrl.if(v.eq(target))
             .then(function* () {
               yield* loc.return(mid);

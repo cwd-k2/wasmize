@@ -29,13 +29,9 @@ export function problem1_hanoi(): Uint8Array {
           return yield* mem.i32(0);
         })
         .else(function* () {
-          // count1 = hanoi(n-1, from, aux, to)
           yield* loc.set(count1, ctrl.call(hanoi, n.sub(1), from, aux, to));
-          // effect_move(from, to)
           yield* ctrl.call_(effect_move, from, to);
-          // count2 = hanoi(n-1, aux, to, from)
           yield* loc.set(count2, ctrl.call(hanoi, n.sub(1), aux, to, from));
-          // return count1 + 1 + count2
           return yield* count1.add(1).add(count2);
         });
     });
