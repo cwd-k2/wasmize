@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "bench": "vitest bench bench/perf",
+    "bench:report": "vitest run bench/"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
