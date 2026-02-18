@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { problem14_nqueens } from "../nqueens";
+import { instantiate } from "../../test-helpers";
 
 describe("N-Queens Count", () => {
   test.each([
@@ -10,10 +11,7 @@ describe("N-Queens Count", () => {
     [10, 724],
     [12, 14200],
   ])("nqueens(%i) = %i", async (n, expected) => {
-    const wasm = problem14_nqueens();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { instance } = (await WebAssembly.instantiate(wasm)) as any;
-    const nqueens = instance.exports.nqueens as (n: number) => number;
+    const { exports: { nqueens } } = await instantiate(problem14_nqueens());
 
     expect(nqueens(n)).toBe(expected);
   });

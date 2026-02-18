@@ -1,5 +1,6 @@
 import type { WasmValType } from "../wasm/opcodes";
 import { WasmRef, type FuncGen } from "./types";
+import { type ExprInput, set } from "./expr";
 
 /**
  * Declares a function parameter of the given type.
@@ -12,11 +13,18 @@ export function param(type: WasmValType): FuncGen<WasmRef> {
 }
 
 /**
- * Declares a local variable of the given type, initialized to zero.
+ * Declares a local variable of the given type.
+ * Optionally accepts an initial value expression.
+ *
+ * @param type - The Wasm value type
+ * @param init - Optional initial value (Wasm locals default to 0)
  */
-export function local(type: WasmValType): FuncGen<WasmRef> {
+export function local(type: WasmValType, init?: ExprInput): FuncGen<WasmRef> {
   return (function* () {
     const r: WasmRef = yield { _type: "decl", kind: "local", valType: type };
+    if (init !== undefined) {
+      yield* set(r, init);
+    }
     return r;
   })();
 }

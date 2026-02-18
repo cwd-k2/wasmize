@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { problem3_kadane } from "../kadane";
+import { instantiate } from "../../test-helpers";
 
 describe("Kadane's Algorithm", () => {
   test.each([
@@ -8,16 +9,9 @@ describe("Kadane's Algorithm", () => {
     { arr: [-1, -2, -3], expected: -1 },
     { arr: [5, 4, -1, 7, 8], expected: 23 },
   ])("kadane($arr) = $expected", async ({ arr, expected }) => {
-    const wasm = problem3_kadane();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { instance } = (await WebAssembly.instantiate(wasm)) as any;
-    const memory = instance.exports.memory as WebAssembly.Memory;
-    const mem = new Int32Array(memory.buffer);
+    const { exports: { kadane }, mem } = await instantiate(problem3_kadane());
     const base = 1024 / 4;
-    arr.forEach((v, i) => {
-      mem[base + i] = v;
-    });
-    const kadane = instance.exports.kadane as (len: number) => number;
+    arr.forEach((v, i) => { mem![base + i] = v; });
 
     expect(kadane(arr.length)).toBe(expected);
   });

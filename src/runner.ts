@@ -15,6 +15,7 @@ import {
   problem14_nqueens,
   problem15_union_find,
 } from "./problems";
+import { instantiate } from "./test-helpers";
 
 export interface TestCase {
   input: string;
@@ -33,21 +34,6 @@ export interface ProblemResult {
   tests: TestCase[];
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type WasmExports = Record<string, (...args: any[]) => any> & {
-  memory: WebAssembly.Memory;
-};
-
-async function instantiate(
-  bytes: Uint8Array,
-  imports?: WebAssembly.Imports,
-): Promise<WasmExports> {
-  // WebAssembly.instantiate with BufferSource returns { module, instance }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result: any = await WebAssembly.instantiate(bytes, imports);
-  return result.instance.exports as WasmExports;
-}
-
 export async function runTests(): Promise<ProblemResult[]> {
   const results: ProblemResult[] = [];
 
@@ -55,14 +41,14 @@ export async function runTests(): Promise<ProblemResult[]> {
   {
     const wasm = problem1_hanoi();
     const moves: string[] = [];
-    const exp = await instantiate(wasm, {
+    const { exports: { hanoi } } = await instantiate(wasm, {
       env: {
         effect_move: (from: number, to: number) => {
           moves.push(`${from}\u2192${to}`);
         },
       },
     });
-    const count: number = exp.hanoi(4, 1, 3, 2);
+    const count = hanoi(4, 1, 3, 2);
     const pass = count === 15 && moves.length === 15;
     results.push({
       num: 1,
@@ -79,7 +65,7 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 2: Fibonacci DP ---
   {
     const wasm = problem2_fib_dp();
-    const exp = await instantiate(wasm);
+    const { exports: { fib } } = await instantiate(wasm);
     const cases: [number, number][] = [
       [0, 0],
       [1, 1],
@@ -89,7 +75,7 @@ export async function runTests(): Promise<ProblemResult[]> {
       [20, 6765],
       [30, 832040],
     ];
-    const got = cases.map(([n]) => exp.fib(n) as number);
+    const got = cases.map(([n]) => fib(n));
     const pass = cases.every(([_n, expected], i) => got[i] === expected);
     results.push({
       num: 2,
@@ -109,8 +95,7 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 3: Kadane ---
   {
     const wasm = problem3_kadane();
-    const exp = await instantiate(wasm);
-    const mem = new Int32Array(exp.memory.buffer);
+    const { exports: { kadane }, mem } = await instantiate(wasm);
 
     const testCases = [
       { arr: [-2, 1, -3, 4, -1, 2, 1, -5, 4], expected: 6 },
@@ -122,9 +107,9 @@ export async function runTests(): Promise<ProblemResult[]> {
     const got = testCases.map((tc) => {
       const base = 1024 / 4;
       tc.arr.forEach((v, i) => {
-        mem[base + i] = v;
+        mem![base + i] = v;
       });
-      return exp.kadane(tc.arr.length) as number;
+      return kadane(tc.arr.length);
     });
 
     const pass = testCases.every((tc, i) => got[i] === tc.expected);
@@ -148,8 +133,7 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 4: Coin Change DP ---
   {
     const wasm = problem4_coin_change();
-    const exp = await instantiate(wasm);
-    const mem = new Int32Array(exp.memory.buffer);
+    const { exports: { coin_change }, mem } = await instantiate(wasm);
 
     const testCases = [
       { coins: [1, 5, 10, 25], amount: 30, expected: 2 },
@@ -161,11 +145,11 @@ export async function runTests(): Promise<ProblemResult[]> {
 
     const COIN_BASE = 2048 / 4;
     const got = testCases.map((tc) => {
-      for (let i = 0; i <= tc.amount; i++) mem[i] = 0;
+      for (let i = 0; i <= tc.amount; i++) mem![i] = 0;
       tc.coins.forEach((c, i) => {
-        mem[COIN_BASE + i] = c;
+        mem![COIN_BASE + i] = c;
       });
-      return exp.coin_change(tc.amount, tc.coins.length) as number;
+      return coin_change(tc.amount, tc.coins.length);
     });
 
     const pass = testCases.every((tc, i) => got[i] === tc.expected);
@@ -192,12 +176,11 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 5: Binary Search ---
   {
     const wasm = problem5_binary_search();
-    const exp = await instantiate(wasm);
-    const mem = new Int32Array(exp.memory.buffer);
+    const { exports: { binary_search }, mem } = await instantiate(wasm);
 
     const arr = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91];
     arr.forEach((v, i) => {
-      mem[i] = v;
+      mem![i] = v;
     });
 
     const testCases = [
@@ -209,7 +192,7 @@ export async function runTests(): Promise<ProblemResult[]> {
     ];
 
     const got = testCases.map(
-      (tc) => exp.binary_search(arr.length, tc.target) as number,
+      (tc) => binary_search(arr.length, tc.target),
     );
     const pass = testCases.every((tc, i) => got[i] === tc.expected);
     results.push({
@@ -237,8 +220,7 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 6: GCD Array ---
   {
     const wasm = problem6_gcd_array();
-    const exp = await instantiate(wasm);
-    const mem = new Int32Array(exp.memory.buffer);
+    const { exports: { array_gcd }, mem } = await instantiate(wasm);
 
     const testCases = [
       { arr: [12, 8], expected: 4 },
@@ -248,8 +230,8 @@ export async function runTests(): Promise<ProblemResult[]> {
     ];
 
     const got = testCases.map((tc) => {
-      tc.arr.forEach((v, i) => { mem[i] = v; });
-      return exp.array_gcd(tc.arr.length) as number;
+      tc.arr.forEach((v, i) => { mem![i] = v; });
+      return array_gcd(tc.arr.length);
     });
 
     const pass = testCases.every((tc, i) => got[i] === tc.expected);
@@ -271,9 +253,9 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 7: Sieve of Eratosthenes ---
   {
     const wasm = problem7_sieve();
-    const exp = await instantiate(wasm);
+    const { exports: { sieve } } = await instantiate(wasm);
     const cases: [number, number][] = [[10, 4], [100, 25], [1000, 168]];
-    const got = cases.map(([n]) => exp.sieve(n) as number);
+    const got = cases.map(([n]) => sieve(n));
     const pass = cases.every(([, expected], i) => got[i] === expected);
     results.push({
       num: 7,
@@ -293,15 +275,14 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 8: Matrix Multiply ---
   {
     const wasm = problem8_matmul();
-    const exp = await instantiate(wasm);
-    const mem = new Int32Array(exp.memory.buffer);
+    const { exports: { matmul }, mem } = await instantiate(wasm);
 
     const n = 3;
     const nn = n * n;
-    [1, 2, 3, 4, 5, 6, 7, 8, 9].forEach((v, i) => { mem[i] = v; });
-    [9, 8, 7, 6, 5, 4, 3, 2, 1].forEach((v, i) => { mem[nn + i] = v; });
+    [1, 2, 3, 4, 5, 6, 7, 8, 9].forEach((v, i) => { mem![i] = v; });
+    [9, 8, 7, 6, 5, 4, 3, 2, 1].forEach((v, i) => { mem![nn + i] = v; });
 
-    const c00 = exp.matmul(n) as number;
+    const c00 = matmul(n);
     const pass = c00 === 30;
     results.push({
       num: 8,
@@ -317,8 +298,7 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 9: LCS Length ---
   {
     const wasm = problem9_lcs();
-    const exp = await instantiate(wasm);
-    const mem = new Int32Array(exp.memory.buffer);
+    const { exports: { lcs }, mem } = await instantiate(wasm);
 
     const testCases = [
       { a: [1, 2, 3, 4, 5], b: [2, 4, 5], expected: 3 },
@@ -326,9 +306,9 @@ export async function runTests(): Promise<ProblemResult[]> {
     ];
 
     const got = testCases.map((tc) => {
-      tc.a.forEach((v, i) => { mem[i] = v; });
-      tc.b.forEach((v, i) => { mem[1024 / 4 + i] = v; });
-      return exp.lcs(tc.a.length, tc.b.length) as number;
+      tc.a.forEach((v, i) => { mem![i] = v; });
+      tc.b.forEach((v, i) => { mem![1024 / 4 + i] = v; });
+      return lcs(tc.a.length, tc.b.length);
     });
 
     const pass = testCases.every((tc, i) => got[i] === tc.expected);
@@ -350,15 +330,14 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 10: 0/1 Knapsack ---
   {
     const wasm = problem10_knapsack();
-    const exp = await instantiate(wasm);
-    const mem = new Int32Array(exp.memory.buffer);
+    const { exports: { knapsack }, mem } = await instantiate(wasm);
 
     const weights = [2, 3, 4, 5];
     const values = [3, 4, 5, 6];
-    weights.forEach((w, i) => { mem[i] = w; });
-    values.forEach((v, i) => { mem[4096 / 4 + i] = v; });
+    weights.forEach((w, i) => { mem![i] = w; });
+    values.forEach((v, i) => { mem![4096 / 4 + i] = v; });
 
-    const got = exp.knapsack(weights.length, 5) as number;
+    const got = knapsack(weights.length, 5);
     const pass = got === 7;
     results.push({
       num: 10,
@@ -374,13 +353,12 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 11: Quicksort ---
   {
     const wasm = problem11_quicksort();
-    const exp = await instantiate(wasm);
-    const mem = new Int32Array(exp.memory.buffer);
+    const { exports: { quicksort }, mem } = await instantiate(wasm);
 
     const arr = [5, 3, 8, 1, 2, 7, 4, 6];
-    arr.forEach((v, i) => { mem[i] = v; });
-    exp.quicksort(0, arr.length - 1);
-    const sorted = Array.from({ length: arr.length }, (_, i) => mem[i]);
+    arr.forEach((v, i) => { mem![i] = v; });
+    quicksort(0, arr.length - 1);
+    const sorted = Array.from({ length: arr.length }, (_, i) => mem![i]);
     const pass = sorted.every((v, i) => v === i + 1);
     results.push({
       num: 11,
@@ -396,12 +374,11 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 12: Flood Fill ---
   {
     const wasm = problem12_flood_fill();
-    const exp = await instantiate(wasm);
-    const mem = new Int32Array(exp.memory.buffer);
+    const { exports: { flood_fill }, mem } = await instantiate(wasm);
 
     const W = 3, H = 3;
-    for (let i = 0; i < W * H; i++) mem[i] = 1;
-    const got = exp.flood_fill(W, H, 1, 1, 1, 2) as number;
+    for (let i = 0; i < W * H; i++) mem![i] = 1;
+    const got = flood_fill(W, H, 1, 1, 1, 2);
     const pass = got === 9;
     results.push({
       num: 12,
@@ -417,8 +394,7 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 13: LIS ---
   {
     const wasm = problem13_lis();
-    const exp = await instantiate(wasm);
-    const mem = new Int32Array(exp.memory.buffer);
+    const { exports: { lis }, mem } = await instantiate(wasm);
 
     const testCases = [
       { arr: [10, 9, 2, 5, 3, 7, 101, 18], expected: 4 },
@@ -426,8 +402,8 @@ export async function runTests(): Promise<ProblemResult[]> {
     ];
 
     const got = testCases.map((tc) => {
-      tc.arr.forEach((v, i) => { mem[i] = v; });
-      return exp.lis(tc.arr.length) as number;
+      tc.arr.forEach((v, i) => { mem![i] = v; });
+      return lis(tc.arr.length);
     });
 
     const pass = testCases.every((tc, i) => got[i] === tc.expected);
@@ -449,9 +425,9 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 14: N-Queens Count ---
   {
     const wasm = problem14_nqueens();
-    const exp = await instantiate(wasm);
+    const { exports: { nqueens } } = await instantiate(wasm);
     const cases: [number, number][] = [[8, 92], [10, 724]];
-    const got = cases.map(([n]) => exp.nqueens(n) as number);
+    const got = cases.map(([n]) => nqueens(n));
     const pass = cases.every(([, expected], i) => got[i] === expected);
     results.push({
       num: 14,
@@ -471,14 +447,15 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 15: Union-Find ---
   {
     const wasm = problem15_union_find();
-    const exp = await instantiate(wasm);
+    const { exports: { uf_init, uf_union, uf_find, uf_count } } =
+      await instantiate(wasm);
 
-    exp.uf_init(5);
-    exp.uf_union(0, 1);
-    exp.uf_union(2, 3);
-    exp.uf_union(0, 2);
-    const count = exp.uf_count() as number;
-    const findCheck = (exp.uf_find(0) as number) === (exp.uf_find(3) as number);
+    uf_init(5);
+    uf_union(0, 1);
+    uf_union(2, 3);
+    uf_union(0, 2);
+    const count = uf_count();
+    const findCheck = uf_find(0) === uf_find(3);
     const pass = count === 2 && findCheck;
     results.push({
       num: 15,

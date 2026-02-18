@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { problem9_lcs } from "../lcs";
+import { instantiate } from "../../test-helpers";
 
 describe("LCS Length", () => {
   test.each([
@@ -22,16 +23,11 @@ describe("LCS Length", () => {
       3,
     ],
   ])("lcs(%j, %j) = %i", async (a, b, expected) => {
-    const wasm = problem9_lcs();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { instance } = (await WebAssembly.instantiate(wasm)) as any;
-    const memory = instance.exports.memory as WebAssembly.Memory;
-    const mem = new Int32Array(memory.buffer);
-    const lcs = instance.exports.lcs as (la: number, lb: number) => number;
+    const { exports: { lcs }, mem } = await instantiate(problem9_lcs());
 
     // A at offset 0, B at offset 1024
-    a.forEach((v, i) => { mem[i] = v; });
-    b.forEach((v, i) => { mem[1024 / 4 + i] = v; });
+    a.forEach((v, i) => { mem![i] = v; });
+    b.forEach((v, i) => { mem![1024 / 4 + i] = v; });
 
     expect(lcs(a.length, b.length)).toBe(expected);
   });

@@ -1,7 +1,9 @@
 import { compile, param, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
 
-export function problem12_flood_fill(): Uint8Array {
-  return compile(function* () {
+export function problem12_flood_fill() {
+  return compile<{
+    flood_fill: (W: number, H: number, sx: number, sy: number, target: number, fill: number) => number;
+  }>(function* () {
     yield* Mod.memory(4);
 
     // flood_fill(W, H, sx, sy, target, fill) -> count of filled cells
@@ -14,8 +16,8 @@ export function problem12_flood_fill(): Uint8Array {
       const target = yield* param(Type.i32);
       const fill = yield* param(Type.i32);
       const qbase = yield* local(Type.i32);
-      const head = yield* local(Type.i32);
-      const tail = yield* local(Type.i32);
+      const head = yield* local(Type.i32, 0);
+      const tail = yield* local(Type.i32, 0);
       const count = yield* local(Type.i32);
       const cx = yield* local(Type.i32);
       const cy = yield* local(Type.i32);
@@ -33,8 +35,6 @@ export function problem12_flood_fill(): Uint8Array {
           return yield* Mem.i32(0);
         })
         .else(function* () {
-          yield* head.set(0);
-          yield* tail.set(0);
           yield* Mem.store(tail.mul(4).add(qbase), sx);
           yield* Mem.store(tail.add(1).mul(4).add(qbase), sy);
           yield* tail.set(tail.add(2));
@@ -42,68 +42,53 @@ export function problem12_flood_fill(): Uint8Array {
           yield* count.set(1);
 
           // BFS loop
-          yield* Ctrl.block(function* () {
-            yield* Ctrl.loop(function* () {
-              yield* Ctrl.br_if(1, head.ge(tail));
+          yield* Ctrl.while(head.lt(tail), function* () {
+            yield* cx.set(Mem.load(head.mul(4).add(qbase)));
+            yield* cy.set(Mem.load(head.add(1).mul(4).add(qbase)));
+            yield* head.set(head.add(2));
 
-              yield* cx.set(Mem.load(head.mul(4).add(qbase)));
-              yield* cy.set(Mem.load(head.add(1).mul(4).add(qbase)));
-              yield* head.set(head.add(2));
-
-              // 4 directions: right(1,0), left(-1,0), down(0,1), up(0,-1)
-              yield* d.set(0);
-              yield* Ctrl.block(function* () {
-                yield* Ctrl.loop(function* () {
-                  yield* Ctrl.br_if(1, d.ge(4));
-
-                  yield* Ctrl.if(d.eq(0))
+            // 4 directions: right(1,0), left(-1,0), down(0,1), up(0,-1)
+            yield* Ctrl.for(d, 0, d.lt(4), d.add(1), function* () {
+              yield* Ctrl.if(d.eq(0))
+                .then(function* () {
+                  yield* nx.set(cx.add(1));
+                  yield* ny.set(cy);
+                })
+                .else(function* () {
+                  yield* Ctrl.if(d.eq(1))
                     .then(function* () {
-                      yield* nx.set(cx.add(1));
+                      yield* nx.set(cx.sub(1));
                       yield* ny.set(cy);
                     })
                     .else(function* () {
-                      yield* Ctrl.if(d.eq(1))
+                      yield* Ctrl.if(d.eq(2))
                         .then(function* () {
-                          yield* nx.set(cx.sub(1));
-                          yield* ny.set(cy);
+                          yield* nx.set(cx);
+                          yield* ny.set(cy.add(1));
                         })
                         .else(function* () {
-                          yield* Ctrl.if(d.eq(2))
-                            .then(function* () {
-                              yield* nx.set(cx);
-                              yield* ny.set(cy.add(1));
-                            })
-                            .else(function* () {
-                              yield* nx.set(cx);
-                              yield* ny.set(cy.sub(1));
-                            });
+                          yield* nx.set(cx);
+                          yield* ny.set(cy.sub(1));
                         });
                     });
-
-                  // Bounds check first (no memory access), then value check
-                  yield* Ctrl.if(
-                    nx.ge(0).and(nx.lt(W)).and(ny.ge(0)).and(ny.lt(H)),
-                  )
-                    .then(function* () {
-                      // Safe to access memory now
-                      yield* Ctrl.if(
-                        Mem.load(ny.mul(W).add(nx).mul(4)).eq(target),
-                      )
-                        .then(function* () {
-                          yield* Mem.store(ny.mul(W).add(nx).mul(4), fill);
-                          yield* Mem.store(tail.mul(4).add(qbase), nx);
-                          yield* Mem.store(tail.add(1).mul(4).add(qbase), ny);
-                          yield* tail.set(tail.add(2));
-                          yield* count.set(count.add(1));
-                        });
-                    });
-
-                  yield* d.set(d.add(1));
-                  yield* Ctrl.br(0);
                 });
-              });
 
-              yield* Ctrl.br(0);
+              // Bounds check first, then value check
+              yield* Ctrl.when(
+                nx.ge(0).and(nx.lt(W)).and(ny.ge(0)).and(ny.lt(H)),
+                function* () {
+                  yield* Ctrl.when(
+                    Mem.load(ny.mul(W).add(nx).mul(4)).eq(target),
+                    function* () {
+                      yield* Mem.store(ny.mul(W).add(nx).mul(4), fill);
+                      yield* Mem.store(tail.mul(4).add(qbase), nx);
+                      yield* Mem.store(tail.add(1).mul(4).add(qbase), ny);
+                      yield* tail.set(tail.add(2));
+                      yield* count.set(count.add(1));
+                    },
+                  );
+                },
+              );
             });
           });
 

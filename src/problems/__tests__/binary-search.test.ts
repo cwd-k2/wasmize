@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { problem5_binary_search } from "../binary-search";
+import { instantiate } from "../../test-helpers";
 
 describe("Binary Search", () => {
   const arr = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91];
@@ -11,20 +12,8 @@ describe("Binary Search", () => {
     { target: 50, expected: -1 },
     { target: 12, expected: 3 },
   ])("search($target) = $expected", async ({ target, expected }) => {
-    const wasm = problem5_binary_search();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { instance } = (await WebAssembly.instantiate(wasm)) as any;
-    const memory = instance.exports.memory as WebAssembly.Memory;
-    const mem = new Int32Array(memory.buffer);
-
-    arr.forEach((v, i) => {
-      mem[i] = v;
-    });
-
-    const binary_search = instance.exports.binary_search as (
-      len: number,
-      target: number,
-    ) => number;
+    const { exports: { binary_search }, mem } = await instantiate(problem5_binary_search());
+    arr.forEach((v, i) => { mem![i] = v; });
 
     expect(binary_search(arr.length, target)).toBe(expected);
   });

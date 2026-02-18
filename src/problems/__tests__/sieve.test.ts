@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { problem7_sieve } from "../sieve";
+import { instantiate } from "../../test-helpers";
 
 describe("Sieve of Eratosthenes", () => {
   test.each([
@@ -10,10 +11,7 @@ describe("Sieve of Eratosthenes", () => {
     [100, 25],
     [1000, 168],
   ])("sieve(%i) = %i primes", async (n, expected) => {
-    const wasm = problem7_sieve();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { instance } = (await WebAssembly.instantiate(wasm)) as any;
-    const sieve = instance.exports.sieve as (n: number) => number;
+    const { exports: { sieve } } = await instantiate(problem7_sieve());
 
     expect(sieve(n)).toBe(expected);
   });

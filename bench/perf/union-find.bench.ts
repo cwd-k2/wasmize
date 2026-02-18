@@ -1,5 +1,6 @@
 import { bench, describe } from "vitest";
 import { problem15_union_find } from "../../src/problems/union-find";
+import { instantiate } from "../../src/test-helpers";
 import { JsUnionFind } from "../js-impls";
 
 const N = 5_000;
@@ -9,10 +10,7 @@ const ops = Array.from({ length: M }, () => [
   Math.floor(Math.random() * N),
 ]);
 
-const binary = problem15_union_find();
-const { instance } = (await WebAssembly.instantiate(binary)) as any;
-const wasmInit: (n: number) => void = instance.exports.uf_init;
-const wasmUnion: (u: number, v: number) => void = instance.exports.uf_union;
+const { exports: { uf_init, uf_union } } = await instantiate(problem15_union_find());
 
 describe("union-find n=5000 m=20000", () => {
   bench("JS", () => {
@@ -21,7 +19,7 @@ describe("union-find n=5000 m=20000", () => {
   });
 
   bench("Wasm", () => {
-    wasmInit(N);
-    for (const [u, v] of ops) wasmUnion(u, v);
+    uf_init(N);
+    for (const [u, v] of ops) uf_union(u, v);
   });
 });

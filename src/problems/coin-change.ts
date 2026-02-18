@@ -1,11 +1,13 @@
-import { compile, param, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
+import { compile, param, local, Type, Mod, Mem, Ctrl } from "../dsl/compiler";
 
-export function problem4_coin_change(): Uint8Array {
+export function problem4_coin_change() {
   const COIN_BASE = 2048;
   const INF = 0x7fffffff;
 
-  return compile(function* () {
+  return compile<{ coin_change: (amount: number, numCoins: number) => number }>(function* () {
     yield* Mod.memory(2);
+    const dp = Mem.i32Array();
+    const coins = Mem.i32Array(COIN_BASE);
 
     const coin_change = yield* Mod.func(function* () {
       const amount = yield* param(Type.i32);
@@ -15,58 +17,35 @@ export function problem4_coin_change(): Uint8Array {
       const coin = yield* local(Type.i32);
       const tmp = yield* local(Type.i32);
 
-      // dp[0] = 0
-      yield* Mem.store(0, 0);
+      yield* dp.store(0, 0);
 
       // fill dp[1..amount] = INF
-      yield* Loc.set(i, 1);
-      yield* Ctrl.block(function* () {
-        yield* Ctrl.loop(function* () {
-          yield* Mem.store(i.mul(4), INF);
-          yield* i.set(i.add(1));
-          yield* Ctrl.br_if(0, i.le(amount));
-        });
+      yield* Ctrl.for(i, 1, i.le(amount), i.add(1), function* () {
+        yield* dp.store(i, INF);
       });
 
       // for each coin j
-      yield* Loc.set(j, 0);
-      yield* Ctrl.block(function* () {
-        yield* Ctrl.loop(function* () {
-          // coin = mem[COIN_BASE + j*4]
-          yield* coin.set(Mem.load(j.mul(4).add(COIN_BASE)));
-          // for i = coin to amount
-          yield* i.set(coin);
-          yield* Ctrl.block(function* () {
-            yield* Ctrl.loop(function* () {
-              yield* Ctrl.br_if(1, i.gt(amount));
-              // guard: skip if dp[i - coin] == INF
-              yield* Ctrl.if(Mem.load(i.sub(coin).mul(4)).lt(INF))
-                .then(function* () {
-                  // tmp = dp[i - coin] + 1
-                  yield* tmp.set(Mem.load(i.sub(coin).mul(4)).add(1));
-                  // if tmp < dp[i], dp[i] = tmp
-                  yield* Ctrl.if(tmp.lt(Mem.load(i.mul(4))))
-                    .then(function* () {
-                      yield* Mem.store(i.mul(4), tmp);
-                    });
-                });
-              yield* i.set(i.add(1));
-              yield* Ctrl.br(0);
+      yield* Ctrl.for(j, 0, j.lt(num_coins), j.add(1), function* () {
+        yield* coin.set(coins.load(j));
+        // for i = coin to amount
+        yield* Ctrl.for(i, coin, i.le(amount), i.add(1), function* () {
+          // guard: skip if dp[i - coin] == INF
+          yield* Ctrl.when(dp.load(i.sub(coin)).lt(INF), function* () {
+            yield* tmp.set(dp.load(i.sub(coin)).add(1));
+            yield* Ctrl.when(tmp.lt(dp.load(i)), function* () {
+              yield* dp.store(i, tmp);
             });
           });
-          // next coin
-          yield* j.set(j.add(1));
-          yield* Ctrl.br_if(0, j.lt(num_coins));
         });
       });
 
       // return dp[amount] == INF ? -1 : dp[amount]
-      return yield* Ctrl.if(Mem.load(amount.mul(4)).eq(INF))
+      return yield* Ctrl.if(dp.load(amount).eq(INF))
         .then(function* () {
           return yield* Mem.i32(-1);
         })
         .else(function* () {
-          return yield* Mem.load(amount.mul(4));
+          return yield* dp.load(amount);
         });
     });
 

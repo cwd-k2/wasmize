@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { problem10_knapsack } from "../knapsack";
+import { instantiate } from "../../test-helpers";
 
 describe("0/1 Knapsack", () => {
   test.each([
@@ -28,15 +29,10 @@ describe("0/1 Knapsack", () => {
       expected: 50, // items 1+2
     },
   ])("knapsack($cap, $weights) = $expected", async ({ weights, values, cap, expected }) => {
-    const wasm = problem10_knapsack();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { instance } = (await WebAssembly.instantiate(wasm)) as any;
-    const memory = instance.exports.memory as WebAssembly.Memory;
-    const mem = new Int32Array(memory.buffer);
-    const knapsack = instance.exports.knapsack as (n: number, W: number) => number;
+    const { exports: { knapsack }, mem } = await instantiate(problem10_knapsack());
 
-    weights.forEach((w, i) => { mem[i] = w; }); // offset 0
-    values.forEach((v, i) => { mem[4096 / 4 + i] = v; }); // offset 4096
+    weights.forEach((w, i) => { mem![i] = w; }); // offset 0
+    values.forEach((v, i) => { mem![4096 / 4 + i] = v; }); // offset 4096
 
     expect(knapsack(weights.length, cap)).toBe(expected);
   });

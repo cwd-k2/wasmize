@@ -2,7 +2,7 @@ import { IR } from "../wasm/ir";
 import type { WasmValType } from "../wasm/opcodes";
 import {
   val,
-  type WasmRef,
+  WasmRef,
   type FuncRef,
   type FuncGen,
   type FuncBody,
@@ -166,6 +166,27 @@ export const Mem = {
       })(),
     );
   },
+  /**
+   * Creates a typed i32 array accessor for linear memory.
+   * Automatically applies `idx * 4 + base` address calculation.
+   *
+   * @param base - Byte offset where the array starts (default: 0)
+   * @returns Object with `load(idx)` and `store(idx, val)` methods
+   */
+  i32Array(base: number = 0): {
+    load(idx: ExprInput): ChainableExpr;
+    store(idx: ExprInput, value: ExprInput): FuncGen<void>;
+  } {
+    const addrOf = (idx: ExprInput): ChainableExpr => {
+      const scaled = new ChainableExpr(mul(idx, 4));
+      return base === 0 ? scaled : scaled.add(base);
+    };
+    return {
+      load: (idx: ExprInput): ChainableExpr => Mem.load(addrOf(idx)),
+      store: (idx: ExprInput, value: ExprInput): FuncGen<void> =>
+        Mem.store(addrOf(idx), value),
+    };
+  },
 };
 
 /** Control flow: branching, loops, blocks. */
@@ -206,6 +227,69 @@ export const Ctrl = {
     return (function* () {
       const vc = yield* resolve(cond);
       yield { _type: "stmt", node: IR.br_if(depth, vc._node) };
+    })();
+  },
+  /**
+   * While loop — continues while `cond` is true.
+   * Expands to `block { loop { br_if(1, eqz(cond)); body; br(0); } }`.
+   */
+  while(cond: ExprInput, body: FuncBody<void>): FuncGen<void> {
+    return (function* () {
+      yield {
+        _type: "block" as const,
+        body: function* () {
+          yield {
+            _type: "loop" as const,
+            body: function* () {
+              const vc = yield* resolve(cond);
+              yield { _type: "stmt" as const, node: IR.br_if(1, IR.eqz(vc._node)) };
+              yield* body();
+              yield { _type: "stmt" as const, node: IR.br(0) };
+            },
+          };
+        },
+      };
+    })();
+  },
+  /**
+   * For loop — `variable = start; while (cond) { body; variable = step; }`.
+   * `step` is evaluated as an expression each iteration (e.g. `i.add(1)`).
+   */
+  for(
+    variable: WasmRef,
+    start: ExprInput,
+    cond: ExprInput,
+    step: ExprInput,
+    body: FuncBody<void>,
+  ): FuncGen<void> {
+    return (function* () {
+      yield* set(variable, start);
+      yield {
+        _type: "block" as const,
+        body: function* () {
+          yield {
+            _type: "loop" as const,
+            body: function* () {
+              const vc = yield* resolve(cond);
+              yield { _type: "stmt" as const, node: IR.br_if(1, IR.eqz(vc._node)) };
+              yield* body();
+              yield* set(variable, step);
+              yield { _type: "stmt" as const, node: IR.br(0) };
+            },
+          };
+        },
+      };
+    })();
+  },
+  /** Void-only conditional — `if (cond) { body }`. Shortcut for `.then()` without `.else()`. */
+  when(cond: ExprInput, body: FuncBody<void>): FuncGen<void> {
+    return (function* () {
+      const vc = yield* resolve(cond);
+      yield {
+        _type: "if" as const,
+        cond: vc._node,
+        then_: body,
+      };
     })();
   },
   /** Emits a no-op instruction. */

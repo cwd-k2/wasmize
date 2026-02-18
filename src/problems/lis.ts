@@ -1,37 +1,27 @@
-import { compile, param, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
+import { compile, param, local, Type, Mod, Ctrl, Loc } from "../dsl/compiler";
+import { Mem } from "../dsl/compiler";
 
-export function problem13_lis(): Uint8Array {
-  // Memory layout: input at 0, tails at 16384
+export function problem13_lis() {
   const TAILS_BASE = 16384;
 
-  return compile(function* () {
+  return compile<{ lis: (len: number) => number }>(function* () {
     yield* Mod.memory(1);
+    const input = Mem.i32Array();
+    const tails = Mem.i32Array(TAILS_BASE);
 
     // lower_bound(tails_len, target) -> first index where tails[idx] >= target
     const lower_bound = yield* Mod.func(function* () {
       const tails_len = yield* param(Type.i32);
       const target = yield* param(Type.i32);
-      const lo = yield* local(Type.i32);
-      const hi = yield* local(Type.i32);
+      const lo = yield* local(Type.i32, 0);
+      const hi = yield* local(Type.i32, tails_len);
       const mid = yield* local(Type.i32);
 
-      yield* lo.set(0);
-      yield* hi.set(tails_len);
-
-      yield* Ctrl.block(function* () {
-        yield* Ctrl.loop(function* () {
-          yield* Ctrl.br_if(1, lo.ge(hi));
-          // mid = (lo + hi) / 2
-          yield* mid.set(lo.add(hi).div(2));
-          yield* Ctrl.if(Mem.load(mid.mul(4).add(TAILS_BASE)).lt(target))
-            .then(function* () {
-              yield* lo.set(mid.add(1));
-            })
-            .else(function* () {
-              yield* hi.set(mid);
-            });
-          yield* Ctrl.br(0);
-        });
+      yield* Ctrl.while(lo.lt(hi), function* () {
+        yield* mid.set(lo.add(hi).div(2));
+        yield* Ctrl.if(tails.load(mid).lt(target))
+          .then(function* () { yield* lo.set(mid.add(1)); })
+          .else(function* () { yield* hi.set(mid); });
       });
 
       return yield* Loc.get(lo);
@@ -41,31 +31,16 @@ export function problem13_lis(): Uint8Array {
     const lis = yield* Mod.func(function* () {
       const len = yield* param(Type.i32);
       const i = yield* local(Type.i32);
-      const tails_len = yield* local(Type.i32);
+      const tails_len = yield* local(Type.i32, 0);
       const pos = yield* local(Type.i32);
       const val = yield* local(Type.i32);
 
-      yield* tails_len.set(0);
-      yield* i.set(0);
-
-      yield* Ctrl.block(function* () {
-        yield* Ctrl.loop(function* () {
-          yield* Ctrl.br_if(1, i.ge(len));
-
-          yield* val.set(Mem.load(i.mul(4)));
-          yield* pos.set(lower_bound(tails_len, val));
-
-          // tails[pos] = val
-          yield* Mem.store(pos.mul(4).add(TAILS_BASE), val);
-
-          // if pos == tails_len, extend
-          yield* Ctrl.if(pos.eq(tails_len))
-            .then(function* () {
-              yield* tails_len.set(tails_len.add(1));
-            });
-
-          yield* i.set(i.add(1));
-          yield* Ctrl.br(0);
+      yield* Ctrl.for(i, 0, i.lt(len), i.add(1), function* () {
+        yield* val.set(input.load(i));
+        yield* pos.set(lower_bound(tails_len, val));
+        yield* tails.store(pos, val);
+        yield* Ctrl.when(pos.eq(tails_len), function* () {
+          yield* tails_len.set(tails_len.add(1));
         });
       });
 

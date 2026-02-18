@@ -1,16 +1,17 @@
-import { compile, param, local, Type, Mod, Mem, Ctrl } from "../dsl/compiler";
+import { compile, param, local, Type, Mod, Ctrl } from "../dsl/compiler";
+import { Mem } from "../dsl/compiler";
 
-export function problem10_knapsack(): Uint8Array {
-  // Memory layout: weights at 0, values at 4096, DP at 8192
+export function problem10_knapsack() {
   const W_BASE = 0;
   const V_BASE = 4096;
   const DP_BASE = 8192;
 
-  return compile(function* () {
+  return compile<{ knapsack: (n: number, W: number) => number }>(function* () {
     yield* Mod.memory(4);
+    const weights = Mem.i32Array(W_BASE);
+    const values = Mem.i32Array(V_BASE);
+    const dp = Mem.i32Array(DP_BASE);
 
-    // knapsack(n, W) -> max value
-    // 1D DP with reverse iteration: dp[w] = max value with capacity w
     const knapsack = yield* Mod.func(function* () {
       const n = yield* param(Type.i32);
       const cap = yield* param(Type.i32);
@@ -21,53 +22,25 @@ export function problem10_knapsack(): Uint8Array {
       const newVal = yield* local(Type.i32);
 
       // Initialize DP[0..cap] = 0
-      yield* w.set(0);
-      yield* Ctrl.block(function* () {
-        yield* Ctrl.loop(function* () {
-          yield* Ctrl.br_if(1, w.gt(cap));
-          yield* Mem.store(w.mul(4).add(DP_BASE), 0);
-          yield* w.set(w.add(1));
-          yield* Ctrl.br(0);
-        });
+      yield* Ctrl.for(w, 0, w.le(cap), w.add(1), function* () {
+        yield* dp.store(w, 0);
       });
 
       // For each item i
-      yield* i.set(0);
-      yield* Ctrl.block(function* () {
-        yield* Ctrl.loop(function* () {
-          yield* Ctrl.br_if(1, i.ge(n));
+      yield* Ctrl.for(i, 0, i.lt(n), i.add(1), function* () {
+        yield* wi.set(weights.load(i));
+        yield* vi.set(values.load(i));
 
-          yield* wi.set(Mem.load(i.mul(4).add(W_BASE)));
-          yield* vi.set(Mem.load(i.mul(4).add(V_BASE)));
-
-          // Reverse loop: w from cap down to wi
-          yield* w.set(cap);
-          yield* Ctrl.block(function* () {
-            yield* Ctrl.loop(function* () {
-              yield* Ctrl.br_if(1, w.lt(wi));
-
-              // newVal = dp[w - wi] + vi
-              yield* newVal.set(
-                Mem.load(w.sub(wi).mul(4).add(DP_BASE)).add(vi),
-              );
-              // if newVal > dp[w], dp[w] = newVal
-              yield* Ctrl.if(newVal.gt(Mem.load(w.mul(4).add(DP_BASE))))
-                .then(function* () {
-                  yield* Mem.store(w.mul(4).add(DP_BASE), newVal);
-                });
-
-              yield* w.set(w.sub(1));
-              yield* Ctrl.br(0);
-            });
+        // Reverse loop: w from cap down to wi
+        yield* Ctrl.for(w, cap, w.ge(wi), w.sub(1), function* () {
+          yield* newVal.set(dp.load(w.sub(wi)).add(vi));
+          yield* Ctrl.when(newVal.gt(dp.load(w)), function* () {
+            yield* dp.store(w, newVal);
           });
-
-          yield* i.set(i.add(1));
-          yield* Ctrl.br(0);
         });
       });
 
-      // Return dp[cap]
-      return yield* Mem.load(cap.mul(4).add(DP_BASE));
+      return yield* dp.load(cap);
     });
 
     yield* Mod.export("knapsack", knapsack);

@@ -1,34 +1,35 @@
 import { compile, param, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
+import { type CallableFunc } from "../dsl/compiler";
 
-export function problem15_union_find(): Uint8Array {
-  // Memory layout: parent at 0, rank at 32768, count at 65532
+export function problem15_union_find() {
   const PARENT_BASE = 0;
   const RANK_BASE = 32768;
   const COUNT_ADDR = 65532;
 
-  return compile(function* () {
+  return compile<{
+    uf_init: (n: number) => void;
+    uf_union: (u: number, v: number) => void;
+    uf_find: (x: number) => number;
+    uf_count: () => number;
+  }>(function* () {
     yield* Mod.memory(2);
+    const parent = Mem.i32Array(PARENT_BASE);
+    const rank = Mem.i32Array(RANK_BASE);
 
     // uf_init(n): parent[i] = i, rank[i] = 0, count = n
     const uf_init = yield* Mod.func(function* () {
       const n = yield* param(Type.i32);
       const i = yield* local(Type.i32);
 
-      yield* i.set(0);
-      yield* Ctrl.block(function* () {
-        yield* Ctrl.loop(function* () {
-          yield* Ctrl.br_if(1, i.ge(n));
-          yield* Mem.store(i.mul(4).add(PARENT_BASE), i);
-          yield* Mem.store(i.mul(4).add(RANK_BASE), 0);
-          yield* i.set(i.add(1));
-          yield* Ctrl.br(0);
-        });
+      yield* Ctrl.for(i, 0, i.lt(n), i.add(1), function* () {
+        yield* parent.store(i, i);
+        yield* rank.store(i, 0);
       });
       yield* Mem.store(COUNT_ADDR, n);
     });
 
     // uf_find(x) -> root, with path compression
-    let uf_find: import("../dsl/compiler").CallableFunc;
+    let uf_find: CallableFunc;
     uf_find = yield* Mod.func(function* () {
       const x = yield* param(Type.i32);
       const root = yield* local(Type.i32);
@@ -36,22 +37,14 @@ export function problem15_union_find(): Uint8Array {
 
       yield* root.set(x);
       // Find root
-      yield* Ctrl.block(function* () {
-        yield* Ctrl.loop(function* () {
-          yield* Ctrl.br_if(1, root.eq(Mem.load(root.mul(4).add(PARENT_BASE))));
-          yield* root.set(Mem.load(root.mul(4).add(PARENT_BASE)));
-          yield* Ctrl.br(0);
-        });
+      yield* Ctrl.while(root.ne(parent.load(root)), function* () {
+        yield* root.set(parent.load(root));
       });
       // Path compression
-      yield* Ctrl.block(function* () {
-        yield* Ctrl.loop(function* () {
-          yield* Ctrl.br_if(1, x.eq(root));
-          yield* next.set(Mem.load(x.mul(4).add(PARENT_BASE)));
-          yield* Mem.store(x.mul(4).add(PARENT_BASE), root);
-          yield* x.set(next);
-          yield* Ctrl.br(0);
-        });
+      yield* Ctrl.while(x.ne(root), function* () {
+        yield* next.set(parent.load(x));
+        yield* parent.store(x, root);
+        yield* x.set(next);
       });
 
       return yield* Loc.get(root);
@@ -67,26 +60,23 @@ export function problem15_union_find(): Uint8Array {
       yield* ru.set(uf_find(u));
       yield* rv.set(uf_find(v));
 
-      yield* Ctrl.if(ru.ne(rv))
-        .then(function* () {
-          // Union by rank
-          yield* Ctrl.if(Mem.load(ru.mul(4).add(RANK_BASE)).lt(Mem.load(rv.mul(4).add(RANK_BASE))))
-            .then(function* () {
-              yield* Mem.store(ru.mul(4).add(PARENT_BASE), rv);
-            })
-            .else(function* () {
-              yield* Ctrl.if(Mem.load(ru.mul(4).add(RANK_BASE)).gt(Mem.load(rv.mul(4).add(RANK_BASE))))
-                .then(function* () {
-                  yield* Mem.store(rv.mul(4).add(PARENT_BASE), ru);
-                })
-                .else(function* () {
-                  yield* Mem.store(rv.mul(4).add(PARENT_BASE), ru);
-                  yield* Mem.store(ru.mul(4).add(RANK_BASE), Mem.load(ru.mul(4).add(RANK_BASE)).add(1));
-                });
-            });
-          // Decrement count
-          yield* Mem.store(COUNT_ADDR, Mem.load(COUNT_ADDR).sub(1));
-        });
+      yield* Ctrl.when(ru.ne(rv), function* () {
+        yield* Ctrl.if(rank.load(ru).lt(rank.load(rv)))
+          .then(function* () {
+            yield* parent.store(ru, rv);
+          })
+          .else(function* () {
+            yield* Ctrl.if(rank.load(ru).gt(rank.load(rv)))
+              .then(function* () {
+                yield* parent.store(rv, ru);
+              })
+              .else(function* () {
+                yield* parent.store(rv, ru);
+                yield* rank.store(ru, rank.load(ru).add(1));
+              });
+          });
+        yield* Mem.store(COUNT_ADDR, Mem.load(COUNT_ADDR).sub(1));
+      });
     });
 
     // uf_count() -> number of disjoint sets

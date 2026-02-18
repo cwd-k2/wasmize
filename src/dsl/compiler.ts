@@ -46,6 +46,7 @@ export {
 } from "./primitives";
 export {
   WasmRef,
+  type WasmBinary,
   type WasmVal,
   type FuncRef,
   type Expr,

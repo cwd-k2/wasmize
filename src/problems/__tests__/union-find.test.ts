@@ -1,17 +1,11 @@
 import { describe, test, expect } from "vitest";
 import { problem15_union_find } from "../union-find";
+import { instantiate } from "../../test-helpers";
 
 describe("Union-Find", () => {
   test("basic union and find", async () => {
-    const wasm = problem15_union_find();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { instance } = (await WebAssembly.instantiate(wasm)) as any;
-    const { uf_init, uf_union, uf_find, uf_count } = instance.exports as {
-      uf_init: (n: number) => void;
-      uf_union: (u: number, v: number) => void;
-      uf_find: (x: number) => number;
-      uf_count: () => number;
-    };
+    const { exports: { uf_init, uf_union, uf_find, uf_count } } =
+      await instantiate(problem15_union_find());
 
     uf_init(5);
     expect(uf_count()).toBe(5);
@@ -29,14 +23,8 @@ describe("Union-Find", () => {
   });
 
   test("all in one set", async () => {
-    const wasm = problem15_union_find();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { instance } = (await WebAssembly.instantiate(wasm)) as any;
-    const { uf_init, uf_union, uf_count } = instance.exports as {
-      uf_init: (n: number) => void;
-      uf_union: (u: number, v: number) => void;
-      uf_count: () => number;
-    };
+    const { exports: { uf_init, uf_union, uf_count } } =
+      await instantiate(problem15_union_find());
 
     uf_init(10);
     for (let i = 0; i < 9; i++) uf_union(i, i + 1);
@@ -44,14 +32,8 @@ describe("Union-Find", () => {
   });
 
   test("duplicate union is idempotent", async () => {
-    const wasm = problem15_union_find();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { instance } = (await WebAssembly.instantiate(wasm)) as any;
-    const { uf_init, uf_union, uf_count } = instance.exports as {
-      uf_init: (n: number) => void;
-      uf_union: (u: number, v: number) => void;
-      uf_count: () => number;
-    };
+    const { exports: { uf_init, uf_union, uf_count } } =
+      await instantiate(problem15_union_find());
 
     uf_init(3);
     uf_union(0, 1);

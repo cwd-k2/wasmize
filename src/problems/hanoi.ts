@@ -10,8 +10,8 @@ import {
   type CallableFunc,
 } from "../dsl/compiler";
 
-export function problem1_hanoi(): Uint8Array {
-  return compile(function* () {
+export function problem1_hanoi() {
+  return compile<{ hanoi: (n: number, from: number, to: number, aux: number) => number }>(function* () {
     const effect_move = yield* Mod.import("env", "effect_move", [Type.i32, Type.i32], []);
 
     let hanoi: CallableFunc;

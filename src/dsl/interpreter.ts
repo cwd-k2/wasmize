@@ -3,6 +3,7 @@ import { IR } from "../wasm/ir";
 import type { WasmValType } from "../wasm/opcodes";
 import type { FuncDef, ImportDef, ExportDef } from "../wasm/module";
 import { buildModule } from "../wasm/module";
+import type { WasmBinary } from "./types";
 import {
   ref,
   funcRef,
@@ -149,7 +150,9 @@ function interpretSubBody(
  * const { instance } = await WebAssembly.instantiate(binary);
  * ```
  */
-export function compile(program: WasmProgram): Uint8Array {
+export function compile<T = Record<string, unknown>>(
+  program: WasmProgram,
+): WasmBinary<T> {
   const gen = program();
   const imports: ImportDef[] = [];
   const bodies: FuncBody<WasmVal | void>[] = [];
@@ -222,5 +225,5 @@ export function compile(program: WasmProgram): Uint8Array {
     imports,
     memoryPages,
     exports: exports_,
-  });
+  }) as WasmBinary<T>;
 }

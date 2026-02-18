@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { problem6_gcd_array } from "../gcd";
+import { instantiate } from "../../test-helpers";
 
 describe("GCD Array", () => {
   test.each([
@@ -10,13 +11,8 @@ describe("GCD Array", () => {
     [[100, 75, 50, 25], 25],
     [[48, 36, 24, 12, 6], 6],
   ])("gcd(%j) = %i", async (arr, expected) => {
-    const wasm = problem6_gcd_array();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { instance } = (await WebAssembly.instantiate(wasm)) as any;
-    const memory = instance.exports.memory as WebAssembly.Memory;
-    const mem = new Int32Array(memory.buffer);
-    arr.forEach((v, i) => { mem[i] = v; });
-    const array_gcd = instance.exports.array_gcd as (len: number) => number;
+    const { exports: { array_gcd }, mem } = await instantiate(problem6_gcd_array());
+    arr.forEach((v, i) => { mem![i] = v; });
 
     expect(array_gcd(arr.length)).toBe(expected);
   });

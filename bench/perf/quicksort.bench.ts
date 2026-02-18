@@ -1,13 +1,11 @@
 import { bench, describe } from "vitest";
 import { problem11_quicksort } from "../../src/problems/quicksort";
+import { instantiate } from "../../src/test-helpers";
 import { jsQuicksort } from "../js-impls";
 
 const LEN = 10_000;
 
-const binary = problem11_quicksort();
-const { instance } = (await WebAssembly.instantiate(binary)) as any;
-const memory = instance.exports.memory as WebAssembly.Memory;
-const wasmSort: (lo: number, hi: number) => number = instance.exports.quicksort;
+const { exports: { quicksort }, mem } = await instantiate(problem11_quicksort());
 
 function makeRandom(n: number): number[] {
   return Array.from({ length: n }, () => Math.floor(Math.random() * n));
@@ -21,8 +19,7 @@ describe("quicksort 10k elements", () => {
 
   bench("Wasm", () => {
     const arr = makeRandom(LEN);
-    const mem = new Int32Array(memory.buffer);
-    arr.forEach((v, i) => { mem[i] = v; });
-    wasmSort(0, LEN - 1);
+    arr.forEach((v, i) => { mem![i] = v; });
+    quicksort(0, LEN - 1);
   });
 });

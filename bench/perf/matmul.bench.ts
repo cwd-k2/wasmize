@@ -1,5 +1,6 @@
 import { bench, describe } from "vitest";
 import { problem8_matmul } from "../../src/problems/matmul";
+import { instantiate } from "../../src/test-helpers";
 import { jsMatmul } from "../js-impls";
 
 const N = 64;
@@ -7,13 +8,9 @@ const nn = N * N;
 const A = Array.from({ length: nn }, () => Math.floor(Math.random() * 100));
 const B = Array.from({ length: nn }, () => Math.floor(Math.random() * 100));
 
-const binary = problem8_matmul();
-const { instance } = (await WebAssembly.instantiate(binary)) as any;
-const memory = instance.exports.memory as WebAssembly.Memory;
-const mem = new Int32Array(memory.buffer);
-A.forEach((v, i) => { mem[i] = v; });
-B.forEach((v, i) => { mem[nn + i] = v; });
-const wasmMatmul: (n: number) => number = instance.exports.matmul;
+const { exports: { matmul }, mem } = await instantiate(problem8_matmul());
+A.forEach((v, i) => { mem![i] = v; });
+B.forEach((v, i) => { mem![nn + i] = v; });
 
 describe("matmul 64x64", () => {
   bench("JS", () => {
@@ -21,6 +18,6 @@ describe("matmul 64x64", () => {
   });
 
   bench("Wasm", () => {
-    wasmMatmul(N);
+    matmul(N);
   });
 });

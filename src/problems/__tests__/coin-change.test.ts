@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { problem4_coin_change } from "../coin-change";
+import { instantiate } from "../../test-helpers";
 
 describe("Coin Change DP", () => {
   test.each([
@@ -11,24 +12,13 @@ describe("Coin Change DP", () => {
   ])(
     "coins=$coins amount=$amount → $expected",
     async ({ coins, amount, expected }) => {
-      const wasm = problem4_coin_change();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { instance } = (await WebAssembly.instantiate(wasm)) as any;
-      const memory = instance.exports.memory as WebAssembly.Memory;
-      const mem = new Int32Array(memory.buffer);
+      const { exports: { coin_change }, mem } = await instantiate(problem4_coin_change());
 
       // Clear dp area
-      for (let i = 0; i <= amount; i++) mem[i] = 0;
+      for (let i = 0; i <= amount; i++) mem![i] = 0;
       // Set coins at offset 2048
       const COIN_BASE = 2048 / 4;
-      coins.forEach((c, i) => {
-        mem[COIN_BASE + i] = c;
-      });
-
-      const coin_change = instance.exports.coin_change as (
-        amount: number,
-        numCoins: number,
-      ) => number;
+      coins.forEach((c, i) => { mem![COIN_BASE + i] = c; });
 
       expect(coin_change(amount, coins.length)).toBe(expected);
     },

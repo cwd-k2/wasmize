@@ -29,6 +29,7 @@ const codegenOpcodes = new Set<number>([
   OP.i32_store8,  // store_i32_8
   OP.i32_load8_u, // load_i32_8u
   OP.nop,         // nop
+  OP.i32_eqz,     // eqz
   // binops table
   OP.i32_add, OP.i32_sub, OP.i32_mul, OP.i32_div_s, OP.i32_rem_s,
   OP.i32_and, OP.i32_or, OP.i32_xor, OP.i32_shl, OP.i32_shr_s,
@@ -67,6 +68,8 @@ const dslOpcodes = new Set<number>([
   OP.return_,     // Loc.return()
   // Mod namespace (call emitted by func invocation)
   OP.call,        // callable func invocation
+  // eqz (used internally by Ctrl.while/for)
+  OP.i32_eqz,     // Ctrl.while/for condition negation
 ]);
 
 function pct(n: number, total: number): string {

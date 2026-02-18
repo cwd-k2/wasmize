@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { problem13_lis } from "../lis";
+import { instantiate } from "../../test-helpers";
 
 describe("LIS (Longest Increasing Subsequence)", () => {
   test.each([
@@ -10,14 +11,9 @@ describe("LIS (Longest Increasing Subsequence)", () => {
     [[5, 4, 3, 2, 1], 1],
     [[3, 1, 4, 1, 5, 9, 2, 6], 4],        // 1,4,5,9 or 1,4,5,6
   ])("lis(%j) = %i", async (arr, expected) => {
-    const wasm = problem13_lis();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { instance } = (await WebAssembly.instantiate(wasm)) as any;
-    const memory = instance.exports.memory as WebAssembly.Memory;
-    const mem = new Int32Array(memory.buffer);
-    const lis = instance.exports.lis as (len: number) => number;
+    const { exports: { lis }, mem } = await instantiate(problem13_lis());
 
-    arr.forEach((v, i) => { mem[i] = v; });
+    arr.forEach((v, i) => { mem![i] = v; });
 
     expect(lis(arr.length)).toBe(expected);
   });

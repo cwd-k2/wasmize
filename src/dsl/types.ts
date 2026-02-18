@@ -62,6 +62,21 @@ export function funcRef(idx: number): FuncRef {
   return { _tag: "func", _idx: idx };
 }
 
+// --- Phantom-typed binary ---
+
+/**
+ * A compiled Wasm binary that carries its export signature at the type level.
+ *
+ * At runtime this is a plain `Uint8Array`; the phantom `__exports` field
+ * exists only for TypeScript inference so that {@link instantiate} can
+ * return correctly typed `exports` without manual casts.
+ *
+ * @typeParam T - The record of exported functions (e.g. `{ fib: (n: number) => number }`)
+ */
+export type WasmBinary<T = Record<string, unknown>> = Uint8Array & {
+  readonly __exports?: T;
+};
+
 // --- Generator types ---
 
 /**
