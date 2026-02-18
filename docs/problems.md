@@ -63,6 +63,11 @@ fib(n: i32) → i32
 
 Memory pages: 1 (64KB)
 
+### DSL の見どころ
+
+- `Mem.i32Array()` で配列アクセスの `.mul(4)` を隠蔽
+- `Ctrl.for(i, 2, i.le(n), ...)` でループセレモニーを排除
+
 ---
 
 ## 3. Kadane's Algorithm
@@ -88,6 +93,11 @@ kadane(len: i32) → i32
 | 配列 | `1024 + i * 4` | `arr[i]` |
 
 BASE = 1024。Memory pages: 2。
+
+### DSL の見どころ
+
+- `Mem.i32Array(BASE)` でオフセット付き配列アクセス
+- `Ctrl.for` でメインループ、`Ctrl.if` で max 判定
 
 ---
 
@@ -116,6 +126,11 @@ coin_change(amount: i32, num_coins: i32) → i32
 
 Memory pages: 2。
 
+### DSL の見どころ
+
+- `Mem.i32Array()` / `Mem.i32Array(COIN_BASE)` で DP テーブルとコイン配列を分離
+- `Ctrl.for` による 2 重ループ、`Ctrl.when` で条件付き更新
+
 ---
 
 ## 5. Binary Search
@@ -141,6 +156,12 @@ binary_search(len: i32, target: i32) → i32
 | `i * 4` | `arr[i]` | 4 (i32) |
 
 Memory pages: 1。
+
+### DSL の見どころ
+
+- `Ctrl.while(lo.le(hi), ...)` で探索ループを自然に表現
+- `local(Type.i32, 0)` で宣言と初期化を統合
+- `Mem.i32Array()` でバイトアドレス計算を隠蔽
 
 ---
 
@@ -172,6 +193,9 @@ Memory pages: 1。
 
 - 複数 `Mod.func()` による内部関数 + エクスポート関数の分離
 - `Op.rem` による剰余の tight loop
+- `Ctrl.while(b.ne(0), ...)` でユークリッド互除法の while ループ
+- `Ctrl.for` で配列スキャンループ
+- `Mem.i32Array()` で配列アクセス
 
 ---
 
@@ -204,6 +228,8 @@ Memory pages: 2（最大 ~131,000 まで対応）。
 
 - `Mem.load8` / `Mem.store8` — byte-level メモリ操作の実用例
 - `i.mul(i).le(n)` — p*p≤n 条件
+- `Ctrl.for` で 4 つのループ（初期化、篩い、カウント）を自然に表現
+- `Ctrl.when` で void 条件分岐の `.then()` ラッパを排除
 
 ---
 
@@ -235,8 +261,8 @@ Memory pages: 2（n ≤ 64）。
 
 ### DSL の見どころ
 
-- 最深 3 重ネストの `block + loop`（br_if depth 0/1/2）
-- row-major 2D アドレス計算
+- `Ctrl.for` による 3 重ネストループ（i, j, k）
+- row-major 2D アドレス計算（動的ベースのため `Mem.i32Array` は未使用）
 
 ---
 
@@ -268,8 +294,9 @@ Memory pages: 5。
 
 ### DSL の見どころ
 
-- row-major 2D アドレス計算 `i.mul(cols).add(j).mul(4).add(DP_BASE)`
-- 4 重にネストした `Ctrl.if` / `.else` 分岐
+- `Ctrl.for` による 4 重ループ（初期化 × 2、メイン i, j）
+- `Mem.i32Array()` で A / B / DP テーブルへの型付きアクセス
+- `local(Type.i32, len_b.add(1))` で cols を宣言と同時に初期化
 
 ---
 
@@ -301,7 +328,9 @@ Memory pages: 4。
 
 ### DSL の見どころ
 
-- 逆順ループ `w.set(cap); br_if(1, w.lt(wi)); w.set(w.sub(1))` — coin-change（無限個、順方向）との対比
+- `Ctrl.for(w, cap, w.ge(wi), w.sub(1), ...)` — 逆順ループも Ctrl.for で自然に表現
+- `Mem.i32Array()` で weights / values / DP の 3 配列を分離
+- `Ctrl.when` で条件付き DP 更新
 
 ---
 
@@ -331,9 +360,9 @@ Memory pages: 1。
 
 ### DSL の見どころ
 
-- 2 関数 `partition` + `quicksort` の `CallableFunc` 連携
-- `let quicksort: CallableFunc` による再帰前方宣言
-- メモリ上の swap（load → tmp → store × 2）
+- `Ctrl.for` で partition ループ、`Ctrl.when` で swap 条件
+- `Mem.i32Array()` で配列アクセスの `.mul(4)` を排除
+- `let quicksort: CallableFunc` による再帰前方宣言（変更なし）
 
 ---
 
@@ -364,8 +393,9 @@ Memory pages: 4。
 
 ### DSL の見どころ
 
-- リニアメモリでの BFS キュー模倣（head/tail ポインタ）
-- 境界チェックとメモリアクセスの分離（Wasm は short-circuit しない）
+- `Ctrl.while(head.lt(tail), ...)` で BFS メインループ
+- `Ctrl.for` で 4 方向展開ループ
+- `Ctrl.when` で境界チェック + 塗りつぶし条件
 
 ---
 
@@ -396,8 +426,9 @@ Memory pages: 1。
 
 ### DSL の見どころ
 
-- 2 関数合成: `lower_bound` (二分探索) + `lis` (メインロジック)
-- O(n log n) と O(n²) の 2 アルゴリズムをまとめた実装
+- `Ctrl.for` + `Ctrl.while` で外側ループ＋二分探索を表現
+- `Mem.i32Array()` / `Mem.i32Array(TAILS_BASE)` で input と tails を分離
+- `local(Type.i32, 0)` で tails_len の初期化
 
 ---
 
@@ -434,9 +465,9 @@ Memory pages: 1（ほぼ不使用、ローカル変数のみ）。
 
 ### DSL の見どころ
 
-- 深い再帰 + `Mod.recursive` パターン（`let solve: CallableFunc`）
-- `cols.and(bit).eq(0)` — ChainableExpr によるビットマスク判定
-- ベンチマークで Wasm が JS の **1.82x** 高速（計算集約型に強い）
+- `Ctrl.for` で列スキャン、`Ctrl.when` で配置可能判定
+- `local(Type.i32, 0)` でカウンタ初期化
+- `let solve: CallableFunc` による再帰前方宣言（変更なし）
 
 ---
 
@@ -475,4 +506,7 @@ Memory pages: 2。
 
 - 4 つの export 関数 — Wasm モジュールが「オブジェクト」として機能
 - ステートフルなデータ構造（状態がメモリに永続化）
-- `uf_find` の再帰前方宣言（path compression のため）
+- `Ctrl.for` で init ループ
+- `Ctrl.while` で find の path compression ループ
+- `Mem.i32Array()` / `Mem.i32Array(RANK_BASE)` で parent と rank を分離
+- `Ctrl.when` で rank 比較条件

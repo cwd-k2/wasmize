@@ -3,7 +3,7 @@
 wasmize のコンパイルパイプラインは 5 つのステージで構成されます。
 
 ```
-WasmProgram ─→ compile() ─→ emitIR() ─→ buildModule() ─→ Uint8Array (Wasm)
+WasmProgram ─→ compile() ─→ emitIR() ─→ buildModule() ─→ WasmBinary<T> (Wasm)
   (1. DSL)     (2. Interpreter)  (3. Codegen)  (4. Module)     (5. Encoder)
 ```
 
@@ -11,7 +11,7 @@ WasmProgram ─→ compile() ─→ emitIR() ─→ buildModule() ─→ Uint8Ar
 
 ## 1. DSL 層
 
-**ファイル:** `src/dsl/types.ts`, `src/dsl/primitives.ts`, `src/dsl/interpreter.ts`, `src/dsl/compiler.ts`
+**ファイル:** `src/dsl/types.ts`, `src/dsl/expr.ts`, `src/dsl/declarations.ts`, `src/dsl/namespaces.ts`, `src/dsl/augment.ts`, `src/dsl/interpreter.ts`, `src/dsl/compiler.ts`
 
 Generator ベースの DSL。`yield*` による直感的な合成と、ローカル変数の自動管理を提供します。
 
@@ -36,49 +36,47 @@ type WasmProgram = () => Generator<ModuleInstruction, void, any>
 
 // 式の型: 解決済みの値 or 遅延 generator
 type Expr = WasmVal | FuncGen<WasmVal>
+
+// Phantom-typed binary
+type WasmBinary<T> = Uint8Array & { readonly __exports?: T }
 ```
 
 ### プリミティブの 3 分類
 
 | 分類 | yield する | Namespace | 例 |
 |------|-----------|-----------|-----|
-| 式（pure） | No | `Op`, `Mem` | `Op.add()`, `Mem.load()`, `Mem.i32()` |
+| 式（pure） | No | `Op`, `Mem` | `Op.add()`, `Mem.load()`, `Mem.i32()`, `Mem.i32Array()` |
 | 文（statement） | Yes (`StmtInstruction`) | `Loc`, `Mem`, `Ctrl` | `Loc.set()`, `Mem.store()`, `Ctrl.br()` |
-| 制御フロー | Yes (compound) | `Ctrl` | `Ctrl.if()`, `Ctrl.loop()`, `Ctrl.block()` |
+| 制御フロー | Yes (compound) | `Ctrl` | `Ctrl.if()`, `Ctrl.loop()`, `Ctrl.block()`, `Ctrl.for()`, `Ctrl.while()`, `Ctrl.when()` |
 
 ### 使用例
 
 ```typescript
-import { compile, param, local, Type, Mod, Mem, Ctrl, Loc } from "./dsl/compiler";
+import { compile, param, local, Type, Mod, Mem, Ctrl } from "./dsl/compiler";
 
-const fibonacci: WasmProgram = function* () {
+const binary = compile<{ fib: (n: number) => number }>(function* () {
+  const arr = Mem.i32Array();
+
   const fib = yield* Mod.func(function* () {
     const n = yield* param(Type.i32);
     const i = yield* local(Type.i32);
-    yield* Mem.store(0, 0);
-    yield* Mem.store(4, 1);
+
+    yield* arr.store(0, 0);
+    yield* arr.store(1, 1);
+
     return yield* Ctrl.if(n.le(1))
       .then(function* () {
-        return yield* Mem.load(n.mul(4));
+        return yield* arr.load(n);
       })
       .else(function* () {
-        yield* Loc.set(i, 2);
-        yield* Ctrl.block(function* () {
-          yield* Ctrl.loop(function* () {
-            yield* Mem.store(
-              i.mul(4),
-              Mem.load(i.sub(1).mul(4)).add(Mem.load(i.sub(2).mul(4))),
-            );
-            yield* i.set(i.add(1));
-            yield* Ctrl.br_if(0, i.le(n));
-          });
+        yield* Ctrl.for(i, 2, i.le(n), i.add(1), function* () {
+          yield* arr.store(i, arr.load(i.sub(1)).add(arr.load(i.sub(2))));
         });
-        return yield* Mem.load(n.mul(4));
+        return yield* arr.load(n);
       });
   });
   yield* Mod.export("fib", fib);
-};
-compile(fibonacci); // → Uint8Array
+});
 ```
 
 ### Interpreter（3 フェーズ）
@@ -87,7 +85,7 @@ compile(fibonacci); // → Uint8Array
 
 **Phase 2**: 全 FuncRef が確定後、保存された body を順にコンパイル。各 body を `interpretSubBody()` で IRNode 列に変換。
 
-**Phase 3**: 既存の `buildModule()` を呼んで Wasm バイナリ生成。
+**Phase 3**: 既存の `buildModule()` を呼んで Wasm バイナリ生成。`compile()` は `WasmBinary<T>` を返す。
 
 ### Expr 解決の仕組み
 
@@ -113,7 +111,7 @@ Mem.store(0, n.add(1)) の処理フロー:
 
 ### IRNode
 
-22 種の discriminated union（`op` フィールドで判別）。
+23 種の discriminated union（`op` フィールドで判別）。
 
 | op | フィールド | 説明 |
 |----|-----------|------|
@@ -137,6 +135,7 @@ Mem.store(0, n.add(1)) の処理フロー:
 | `load_i32` | `addr` | メモリ読み取り (i32) |
 | `store_i32_8` | `addr`, `val` | メモリ書き込み (1 byte) |
 | `load_i32_8u` | `addr` | メモリ読み取り (1 byte, 零拡張) |
+| `eqz` | `val: IRNode` | i32 == 0 判定 |
 | `nop` | — | 何もしない |
 | `effect` | `tag: number`, `payload` | エフェクト発行 |
 

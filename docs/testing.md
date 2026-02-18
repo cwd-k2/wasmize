@@ -14,25 +14,21 @@ npm run test       # 全テスト実行（vitest run）
 
 ```typescript
 import { describe, test, expect } from "vitest";
+import { problemN_xxx } from "../xxx";
+import { instantiate } from "../../test-helpers";
 
 describe("Problem Name", () => {
   test.each([
     // テストケースの配列
   ])("description", async (input) => {
-    // 1. Wasm バイナリ生成
-    const wasm = problemN_xxx();
+    // 1. コンパイル + インスタンス化（型は compile<T>() から自動推論）
+    const { exports: { func_name }, mem } = await instantiate(problemN_xxx());
 
-    // 2. インスタンス化（import が必要なら第2引数で渡す）
-    const { instance } = (await WebAssembly.instantiate(wasm, imports?)) as any;
-
-    // 3. メモリ操作（必要な場合）
-    const memory = instance.exports.memory as WebAssembly.Memory;
-    const mem = new Int32Array(memory.buffer);
+    // 2. メモリ操作（必要な場合）
     // mem に入力データを書き込み...
 
-    // 4. 実行 & アサーション
-    const fn = instance.exports.func_name as (...args: number[]) => number;
-    expect(fn(args)).toBe(expected);
+    // 3. 実行 & アサーション（キャスト不要）
+    expect(func_name(args)).toBe(expected);
   });
 });
 ```
@@ -44,14 +40,14 @@ describe("Problem Name", () => {
 ```typescript
 // Kadane: BASE = 1024 bytes → Int32Array index = 1024/4 = 256
 const base = 1024 / 4;
-arr.forEach((v, i) => { mem[base + i] = v; });
+arr.forEach((v, i) => { mem![base + i] = v; });
 
 // Coin Change: COIN_BASE = 2048 bytes → Int32Array index = 2048/4 = 512
 const COIN_BASE = 2048 / 4;
-coins.forEach((c, i) => { mem[COIN_BASE + i] = c; });
+coins.forEach((c, i) => { mem![COIN_BASE + i] = c; });
 
 // Binary Search: 先頭から
-arr.forEach((v, i) => { mem[i] = v; });
+arr.forEach((v, i) => { mem![i] = v; });
 ```
 
 ### import 付き問題のテスト
@@ -60,13 +56,13 @@ Hanoi は `env.effect_move` を import するため、インスタンス化時�
 
 ```typescript
 const moves: string[] = [];
-const { instance } = (await WebAssembly.instantiate(wasm, {
+const { exports: { hanoi } } = await instantiate(problem1_hanoi(), {
   env: {
     effect_move: (from: number, to: number) => {
       moves.push(`${from}→${to}`);
     },
   },
-})) as any;
+});
 ```
 
 ---
@@ -103,18 +99,16 @@ npm run test:e2e   # Playwright E2E テスト
 ```typescript
 import { compile, param, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
 
-export function problem16_xxx(): Uint8Array {
-  return compile(function* () {
-    // import が必要なら:
-    // const imported = yield* Mod.import("env", "fn", [Type.i32], [Type.i32]);
-
+export function problem16_xxx() {
+  return compile<{ func_name: (n: number) => number }>(function* () {
     // メモリが必要なら:
     // yield* Mod.memory(2);
+    // const arr = Mem.i32Array();
 
     const f = yield* Mod.func(function* () {
       const n = yield* param(Type.i32);
-      // ローカル変数:
-      // const tmp = yield* local(Type.i32);
+      // ローカル変数（初期値付き）:
+      // const tmp = yield* local(Type.i32, 0);
 
       // アルゴリズムを記述
       return yield* Loc.get(n);
@@ -140,18 +134,16 @@ export { problem16_xxx } from "./new-problem";
 ```typescript
 import { describe, test, expect } from "vitest";
 import { problem16_xxx } from "../new-problem";
+import { instantiate } from "../../test-helpers";
 
 describe("New Problem", () => {
   test.each([
     { input: 1, expected: 1 },
     // テストケースを追加...
   ])("func($input) = $expected", async ({ input, expected }) => {
-    const wasm = problem16_xxx();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { instance } = (await WebAssembly.instantiate(wasm)) as any;
-    const fn = instance.exports.func_name as (n: number) => number;
+    const { exports: { func_name } } = await instantiate(problem16_xxx());
 
-    expect(fn(input)).toBe(expected);
+    expect(func_name(input)).toBe(expected);
   });
 });
 ```

@@ -24,10 +24,10 @@
 | 層 | カバー | 全体 | 比率 |
 |----|--------|------|------|
 | opcodes.ts | 71 | 172 | 41% |
-| codegen | 36 | 172 | 21% |
-| DSL | 36 | 172 | 21% |
+| codegen | 37 | 172 | 22% |
+| DSL | 37 | 172 | 22% |
 
-codegen と DSL が完全に一致しているのは、既存の opcode が全て DSL 経由で使われていることを意味する。逆に言えば、opcodes.ts に登録済みだが codegen / DSL に繋がっていない 35 個は「配線するだけで使える」状態にある。
+codegen と DSL が完全に一致しているのは、既存の opcode が全て DSL 経由で使われていることを意味する。逆に言えば、opcodes.ts に登録済みだが codegen / DSL に繋がっていない 34 個は「配線するだけで使える」状態にある。
 
 ---
 
@@ -184,7 +184,7 @@ const solve = yield* Mod.recursive(function* (self) {
 
 型推論も `let` + `CallableFunc` アノテーションが不要になる。
 
-### B6: テスト / ベンチのインスタンス化ボイラープレート
+### B6: テスト / ベンチのインスタンス化ボイラープレート（WasmBinary\<T\> で更に改善）
 
 **頻度:** 全 15 テストファイル + 10 ベンチファイル + runner.ts
 
@@ -293,11 +293,11 @@ export function problem5_binary_search(): Uint8Array {
 }
 ```
 
-### 提案後 DSL（25 行）
+### 実装後 DSL（26 行）
 
 ```ts
-export function problem5_binary_search(): Uint8Array {
-  return compile(function* () {
+export function problem5_binary_search() {
+  return compile<{ binary_search: (len: number, target: number) => number }>(function* () {
     const arr = Mem.i32Array();
     const search = yield* Mod.func(function* () {
       const len = yield* param(Type.i32);
@@ -325,7 +325,7 @@ export function problem5_binary_search(): Uint8Array {
 }
 ```
 
-**39 → 25 行（36% 削減）、ネスト深度 9 → 6。** 構造の変更点:
+**39 → 26 行（33% 削減）、ネスト深度 9 → 6。** 構造の変更点:
 
 1. `block + loop + br_if(1) + br(0)` → `Ctrl.while(cond, body)` — 4 行分のセレモニー消失
 2. `Mem.load(mid.mul(4))` → `arr.load(mid)` — アドレス計算の隠蔽
@@ -354,11 +354,11 @@ function sieve(n) {
 
 4 つの `block + loop + br_if + br` と `Mem.store8/load8` が展開されて 61 行。
 
-### 提案後 DSL（30 行）
+### 実装後 DSL（32 行）
 
 ```ts
-export function problem7_sieve(): Uint8Array {
-  return compile(function* () {
+export function problem7_sieve() {
+  return compile<{ sieve: (n: number) => number }>(function* () {
     yield* Mod.memory(2);
     const sieve = yield* Mod.func(function* () {
       const n = yield* param(Type.i32);
@@ -391,7 +391,7 @@ export function problem7_sieve(): Uint8Array {
 }
 ```
 
-**61 → 30 行（51% 削減）。** JS の `for` ループとほぼ 1:1 対応になる。
+**61 → 32 行（48% 削減）。** JS の `for` ループとほぼ 1:1 対応になる。
 
 ---
 
@@ -399,14 +399,14 @@ export function problem7_sieve(): Uint8Array {
 
 改善提案をインパクト（LoC 削減 × 出現頻度）と実装コストで評価する。
 
-| 優先 | 提案 | 影響範囲 | LoC 削減見込 | 実装コスト | 層 |
-|------|------|---------|-------------|-----------|-----|
-| **P0** | `instantiate()` ヘルパ | 25+ ファイル | ~100 行 | 低 | テスト/ベンチ |
-| **P1** | `Ctrl.for` / `Ctrl.while` | 30 箇所 | ~120 行 | 中 | DSL (namespaces) |
-| **P2** | `Mem.i32Array(base)` | 80 箇所 | ~80 行 | 中 | DSL (namespaces) |
-| **P3** | `local(type, init)` | 30 箇所 | ~30 行 | 低 | DSL (declarations + interpreter) |
-| **P4** | `Ctrl.when(cond, body)` | 20 箇所 | ~40 行 | 低 | DSL (namespaces) |
-| **P5** | `Mod.recursive(self => body)` | 4 箇所 | ~8 行 | 中 | DSL (interpreter) |
+| 優先 | 提案 | 影響範囲 | LoC 削減見込 | 実装コスト | 層 | 状態 |
+|------|------|---------|-------------|-----------|-----|------|
+| **P0** | `instantiate()` ヘルパ | 25+ ファイル | ~100 行 | 低 | テスト/ベンチ | ✅ 実装済 |
+| **P1** | `Ctrl.for` / `Ctrl.while` | 30 箇所 | ~120 行 | 中 | DSL (namespaces) | ✅ 実装済 |
+| **P2** | `Mem.i32Array(base)` | 80 箇所 | ~80 行 | 中 | DSL (namespaces) | ✅ 実装済 |
+| **P3** | `local(type, init)` | 30 箇所 | ~30 行 | 低 | DSL (declarations + interpreter) | ✅ 実装済 |
+| **P4** | `Ctrl.when(cond, body)` | 20 箇所 | ~40 行 | 低 | DSL (namespaces) | ✅ 実装済 |
+| **P5** | `Mod.recursive(self => body)` | 4 箇所 | ~8 行 | 中 | DSL (interpreter) | 未着手 |
 
 ### P0: `instantiate()` ヘルパ
 
@@ -429,17 +429,36 @@ DSL 本体ではないが、compile → instantiate のボイラープレート�
 - **ファイル:** `src/dsl/namespaces.ts` に追加
 - **依存:** なし（内部で既存の `Mem.load` / `Mem.store` を呼ぶだけ）
 
+## 5.1 追加実装: WasmBinary\<T\> phantom type
+
+P0-P4 の実装に加え、型安全性の改善として `WasmBinary<T>` ファントム型を導入した。
+
+### 型の流れ
+
+```
+compile<{ fib: (n: number) => number }>(...)
+  → WasmBinary<{ fib: ... }>
+    → instantiate(binary)  // T を自動推論
+      → { exports: { fib }, mem }  // 型安全
+```
+
+- `compile<T>()` の型パラメータで export 関数のシグネチャを宣言
+- `WasmBinary<T>` = `Uint8Array & { readonly __exports?: T }` — 実行時は純粋な Uint8Array
+- `instantiate<T>()` が `WasmBinary<T>` から T を推論し、`exports: T` を返す
+- テスト・ベンチ・runner から全ての `as` キャストを排除（`as any` は test-helpers.ts の 1 箇所のみ）
+
 ---
 
 ## 6. Spec Coverage 拡大方針
 
-現在 codegen/DSL が 21% (36/172)。opcodes.ts には登録済みだが codegen 未接続の 35 命令のうち、問題実装で有用なものを優先的に繋ぐ。
+現在 codegen/DSL が 22% (37/172)。opcodes.ts には登録済みだが codegen 未接続の 34 命令のうち、問題実装で有用なものを優先的に繋ぐ。
 
 ### Tier 1: 配線するだけ（opcodes.ts に存在、codegen/DSL 未接続）
 
 | 命令 | 用途 | 優先度 |
 |------|------|--------|
 | `i32.eqz` | `x == 0` のショートカット。GCD, sieve 等 | 高 |
+| | ✅ 実装済 — Ctrl.while/for の条件反転に使用 | |
 | `i32.shr_u` | 符号なし右シフト。ビット操作全般 | 高 |
 | `i32.div_u`, `i32.rem_u` | 符号なし除算・剰余 | 中 |
 | `i32.lt_u`, `i32.gt_u`, `i32.le_u`, `i32.ge_u` | 符号なし比較。アドレス計算 | 中 |
