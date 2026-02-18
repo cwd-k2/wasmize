@@ -9,9 +9,9 @@ import type { WasmValType } from "../wasm/opcodes";
  * Obtained via {@link param} or {@link local}; passed to {@link get}, {@link set}, and {@link tee}.
  * The internal index is managed by the interpreter — user code should treat this as opaque.
  */
-export interface WasmRef {
-  readonly _tag: "ref";
-  readonly _idx: number;
+export class WasmRef {
+  readonly _tag = "ref" as const;
+  constructor(readonly _idx: number) {}
 }
 
 /**
@@ -41,7 +41,7 @@ export interface FuncRef {
  * @returns A new opaque reference
  */
 export function ref(idx: number): WasmRef {
-  return { _tag: "ref", _idx: idx };
+  return new WasmRef(idx);
 }
 
 /**
@@ -102,10 +102,16 @@ export type FuncBody<T> = () => Generator<FuncInstruction, T, any>;
 export type WasmProgram = () => Generator<ModuleInstruction, void, any>;
 
 /**
- * Expression type: either an already-resolved {@link WasmVal} or a lazy
- * {@link FuncGen} that produces one. Use {@link resolve} to normalize.
+ * Expression type: a value, generator, reference, or raw number.
+ *
+ * - `WasmVal` — already-resolved IR value
+ * - `FuncGen<WasmVal>` — lazy generator that produces one
+ * - `WasmRef` — auto-resolved to `local_get`
+ * - `number` — auto-resolved to `i32.const`
+ *
+ * Use {@link resolve} to normalize any `Expr` to a `WasmVal`.
  */
-export type Expr = WasmVal | FuncGen<WasmVal>;
+export type Expr = WasmVal | FuncGen<WasmVal> | WasmRef | number;
 
 // --- Function-level instructions ---
 

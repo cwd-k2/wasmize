@@ -2,7 +2,7 @@ import { IR, type BinopKind, type CmpKind } from "../wasm/ir";
 import type { WasmValType } from "../wasm/opcodes";
 import {
   val,
-  type WasmRef,
+  WasmRef,
   type WasmVal,
   type FuncRef,
   type Expr,
@@ -17,21 +17,21 @@ import {
 
 /**
  * Resolves an {@link Expr} to a concrete {@link WasmVal}.
- * If the expression is already a `WasmVal`, returns it directly;
- * otherwise, drives the generator to completion via `yield*`.
  *
- * @param expr - A resolved value or lazy generator expression
+ * - `number` → `i32.const`
+ * - `WasmRef` → `local_get`
+ * - `WasmVal` → returned as-is
+ * - `FuncGen<WasmVal>` → driven via `yield*`
+ *
+ * @param expr - A value, reference, number, or lazy generator expression
  * @returns The resolved `WasmVal`
- *
- * @example
- * ```ts
- * const v = yield* resolve(someExpr);
- * ```
  */
 export function* resolve(
   expr: Expr,
 ): Generator<FuncInstruction, WasmVal, any> {
-  if ("_tag" in expr && expr._tag === "val") return expr;
+  if (typeof expr === "number") return val(IR.const_i32(expr));
+  if (expr instanceof WasmRef) return val(IR.local_get(expr._idx));
+  if ("_tag" in expr && expr._tag === "val") return expr as WasmVal;
   return yield* (expr as FuncGen<WasmVal>);
 }
 
