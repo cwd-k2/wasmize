@@ -38,6 +38,14 @@ import {
   set,
   tee,
   select_,
+  div_u,
+  rem_u,
+  shr_u,
+  lt_u,
+  gt_u,
+  le_u,
+  ge_u,
+  makeBinopTyped,
 } from "./expr";
 import { param as declareParam } from "./declarations";
 
@@ -283,7 +291,80 @@ export const Op = {
       })(),
     );
   },
-} as const;
+
+  // --- Unsigned i32 ops ---
+  div_u,
+  rem_u,
+  shr_u,
+  lt_u,
+  gt_u,
+  le_u,
+  ge_u,
+
+  // --- i64 operations ---
+  i64: {
+    add: makeBinopTyped("add", "i64"),
+    sub: makeBinopTyped("sub", "i64"),
+    mul: makeBinopTyped("mul", "i64"),
+    div: makeBinopTyped("div", "i64"),
+    eqz(a: ExprInput): FuncGen<WasmVal> {
+      return (function* () {
+        const va = yield* resolve(a);
+        return val(IR.eqz(va._node, "i64"));
+      })();
+    },
+  },
+
+  // --- f64 operations ---
+  f64: {
+    add: makeBinopTyped("add", "f64"),
+    sub: makeBinopTyped("sub", "f64"),
+    mul: makeBinopTyped("mul", "f64"),
+    div: makeBinopTyped("div", "f64"),
+    neg(a: ExprInput): FuncGen<WasmVal> {
+      return (function* () {
+        const va = yield* resolve(a);
+        return val(IR.f64_neg(va._node));
+      })();
+    },
+    abs(a: ExprInput): FuncGen<WasmVal> {
+      return (function* () {
+        const va = yield* resolve(a);
+        return val(IR.f64_abs(va._node));
+      })();
+    },
+  },
+
+  // --- Conversions ---
+  /** i64 → i32 (`i32.wrap_i64`). */
+  wrap(a: ExprInput): FuncGen<WasmVal> {
+    return (function* () {
+      const va = yield* resolve(a);
+      return val(IR.i32_wrap_i64(va._node));
+    })();
+  },
+  /** i32 → i64 (`i64.extend_i32_s`). */
+  extend(a: ExprInput): FuncGen<WasmVal> {
+    return (function* () {
+      const va = yield* resolve(a);
+      return val(IR.i64_extend_i32_s(va._node));
+    })();
+  },
+  /** i32 → f64 (`f64.convert_i32_s`). */
+  toF64(a: ExprInput): FuncGen<WasmVal> {
+    return (function* () {
+      const va = yield* resolve(a);
+      return val(IR.f64_convert_i32_s(va._node));
+    })();
+  },
+  /** f64 → i32 (`i32.trunc_f64_s`). */
+  truncI32(a: ExprInput): FuncGen<WasmVal> {
+    return (function* () {
+      const va = yield* resolve(a);
+      return val(IR.i32_trunc_f64_s(va._node));
+    })();
+  },
+};
 
 /** Memory and constant operations. */
 export const Mem = {
@@ -336,6 +417,61 @@ export const Mem = {
         return val(IR.const_i64(v));
       })(),
     );
+  },
+  /** Creates an f64 constant value. Returns {@link ChainableExpr} for chaining. */
+  f64(v: number): ChainableExpr {
+    return new ChainableExpr(
+      (function* () {
+        return val(IR.const_f64(v));
+      })(),
+    );
+  },
+  /** Loads a 64-bit integer from linear memory. */
+  loadI64(addr: ExprInput): ChainableExpr {
+    return new ChainableExpr(
+      (function* () {
+        const va = yield* resolve(addr);
+        return val(IR.load_i64(va._node));
+      })(),
+    );
+  },
+  /** Stores a 64-bit integer to linear memory. */
+  storeI64(addr: ExprInput, value: ExprInput): FuncGen<void> {
+    return (function* () {
+      const va = yield* resolve(addr);
+      const vv = yield* resolve(value);
+      yield { _type: "stmt", node: IR.store_i64(va._node, vv._node) };
+    })();
+  },
+  /** Loads a 64-bit float from linear memory. */
+  loadF64(addr: ExprInput): ChainableExpr {
+    return new ChainableExpr(
+      (function* () {
+        const va = yield* resolve(addr);
+        return val(IR.load_f64(va._node));
+      })(),
+    );
+  },
+  /** Stores a 64-bit float to linear memory. */
+  storeF64(addr: ExprInput, value: ExprInput): FuncGen<void> {
+    return (function* () {
+      const va = yield* resolve(addr);
+      const vv = yield* resolve(value);
+      yield { _type: "stmt", node: IR.store_f64(va._node, vv._node) };
+    })();
+  },
+  /** Returns current memory size in pages. */
+  size(): FuncGen<WasmVal> {
+    return (function* () {
+      return val(IR.memory_size());
+    })();
+  },
+  /** Grows linear memory by the given number of pages. Returns previous size or -1 on failure. */
+  grow(pages: ExprInput): FuncGen<WasmVal> {
+    return (function* () {
+      const vp = yield* resolve(pages);
+      return val(IR.memory_grow(vp._node));
+    })();
   },
   /**
    * Creates a typed i32 array accessor for linear memory.
@@ -552,6 +688,12 @@ export const Ctrl = {
     return (function* () {
       const vp = yield* resolve(payload);
       yield { _type: "stmt", node: IR.effect(tag, vp._node) };
+    })();
+  },
+  /** Emits an unreachable trap instruction. */
+  unreachable(): FuncGen<void> {
+    return (function* () {
+      yield { _type: "stmt", node: IR.unreachable() };
     })();
   },
 };

@@ -22,10 +22,12 @@
 | 層 | カバー | 全体 | 比率 |
 |----|--------|------|------|
 | opcodes.ts | 71 | 172 | 41% |
-| codegen | 37 | 172 | 22% |
-| DSL | 37 | 172 | 22% |
+| codegen | 68 | 172 | 40% |
+| DSL | 68 | 172 | 40% |
 
-codegen と DSL が完全に一致しているのは、既存の opcode が全て DSL 経由で使われていることを意味する。逆に言えば、opcodes.ts に登録済みだが codegen / DSL に繋がっていない 34 個は「配線するだけで使える」状態にある。
+P14 で 30 命令を配線し、codegen/DSL のカバー率を 22% → 40% に引き上げた。opcodes.ts 登録済みだが未配線の 3 命令:
+- `br_table` — Ctrl.switch は nested if/else で展開（将来の最適化候補）
+- `global_get` / `global_set` — 現状 local 変数で代替可能（global state が必要な問題がない）
 
 ---
 
@@ -409,7 +411,11 @@ export function problem7_sieve() {
 | **P7** | `Ctrl.switch(expr, cases)` | 2 箇所 | ~14 行 | 中 | DSL (namespaces) | ✅ 実装済 |
 | **P8** | `i32Array.swap(i, j, tmp)` | 2 箇所 | ~4 行 | 低 | DSL (namespaces) | ✅ 実装済 |
 | **P9** | `Mod.exportAll({...})` | 1 箇所 | ~3 行 | 低 | DSL (namespaces) | ✅ 実装済 |
-| **P10** | `Mod.recursive(self => body)` | 4 箇所 | ~8 行 | 中 | DSL (interpreter) | 未着手 |
+| **P10** | `Mod.recursive(self => body)` | 4 箇所 | ~8 行 | 中 | DSL (interpreter) | ✅ 実装済 |
+| **P11** | 配列記法 `() => [a(), b()]` | 全 `VoidBody` | ~15 行 | 低 | DSL (namespaces) | ✅ 実装済 |
+| **P12** | `Mod.func({ a: Type.i32 }, (a) => ...)` inline params | 全 func 宣言 | ~10 行 | 低 | DSL (namespaces) | ✅ 実装済 |
+| **P13** | `Mod.exportFunc(name, body)` | export+func | ~3 行 | 低 | DSL (namespaces) | ✅ 実装済 |
+| **P14** | Spec Coverage 拡大 (i64/f64/unsigned/conversions) | 30 opcodes | — | 中 | IR + codegen + DSL | ✅ 実装済 |
 
 ### P0: `instantiate()` ヘルパ
 
@@ -491,26 +497,31 @@ compile<{ fib: (n: number) => number }>(...)
 
 現在 codegen/DSL が 22% (37/172)。opcodes.ts には登録済みだが codegen 未接続の 34 命令のうち、問題実装で有用なものを優先的に繋ぐ。
 
-### Tier 1: 配線するだけ（opcodes.ts に存在、codegen/DSL 未接続）
+### Tier 1: 配線するだけ — ✅ 全て完了
 
-| 命令 | 用途 | 優先度 |
-|------|------|--------|
-| `i32.eqz` | `x == 0` のショートカット。GCD, sieve 等 | 高 |
-| | ✅ 実装済 — Ctrl.while/for の条件反転に使用 | |
-| `i32.shr_u` | 符号なし右シフト。ビット操作全般 | 高 |
-| `i32.div_u`, `i32.rem_u` | 符号なし除算・剰余 | 中 |
-| `i32.lt_u`, `i32.gt_u`, `i32.le_u`, `i32.ge_u` | 符号なし比較。アドレス計算 | 中 |
-| `select` | 三項演算子 `cond ? a : b`。`Ctrl.if` なしで値選択 | 高 |
-| | ✅ 実装済 — `Op.select(cond, a, b)`, `Op.max`, `Op.min` | |
-| `memory.size`, `memory.grow` | 動的メモリ拡張 | 低 |
+| 命令 | 用途 | 状態 |
+|------|------|------|
+| `i32.eqz` | ✅ Ctrl.while/for の条件反転に使用 | 実装済 |
+| `i32.shr_u`, `i32.div_u`, `i32.rem_u` | ✅ `Op.shr_u/div_u/rem_u` | 実装済 |
+| `i32.lt_u`, `i32.gt_u`, `i32.le_u`, `i32.ge_u` | ✅ `Op.lt_u/gt_u/le_u/ge_u` | 実装済 |
+| `select` | ✅ `Op.select`, `Op.max`, `Op.min` | 実装済 |
+| `memory.size`, `memory.grow` | ✅ `Mem.size()`, `Mem.grow(pages)` | 実装済 |
+| `unreachable` | ✅ `Ctrl.unreachable()` | 実装済 |
+| `i64.load/store`, `f64.load/store` | ✅ `Mem.loadI64/storeI64/loadF64/storeF64` | 実装済 |
+| `f64.const` | ✅ `Mem.f64(v)` | 実装済 |
+| `i64.add/sub/mul/div_s` | ✅ `Op.i64.add/sub/mul/div` | 実装済 |
+| `i64.eqz` | ✅ `Op.i64.eqz` | 実装済 |
+| `f64.add/sub/mul/div` | ✅ `Op.f64.add/sub/mul/div` | 実装済 |
+| `f64.neg`, `f64.abs` | ✅ `Op.f64.neg`, `Op.f64.abs` | 実装済 |
+| `i32.wrap_i64`, `i64.extend_i32_s` | ✅ `Op.wrap`, `Op.extend` | 実装済 |
+| `f64.convert_i32_s`, `i32.trunc_f64_s` | ✅ `Op.toF64`, `Op.truncI32` | 実装済 |
 
-### Tier 2: 新規 opcode + IR + codegen 追加が必要
+### Tier 2: 未実装 — 新規 opcode 追加が必要
 
 | 命令群 | 用途 | 優先度 |
 |--------|------|--------|
-| `i64.*` 演算 | 64bit 整数。暗号、ハッシュ | 中 |
-| `f64.*` 演算 | 浮動小数点。科学計算 | 中 |
-| `br_table` | switch/case。多分岐 | 低 |
+| `br_table` | switch/case 最適化（現在は nested if/else） | 低 |
+| `global_get/set` | グローバル変数 | 低 |
 | `call_indirect` | 関数ポインタ。仮想ディスパッチ | 低 |
 
 ### Tier 3: 新しい問題で動機づけ

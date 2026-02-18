@@ -49,6 +49,16 @@ docs/         # 技術ドキュメント
 - 配列ヘルパ: `Mem.i32Array(base)` で `.mul(4)` を隠蔽、`.swap(i, j, tmp)` で要素交換
 - 2D配列: `Mem.i32Array2D(base, cols)` で `.load(row, col)` / `.store(row, col, val)`
 - 一括 export: `Mod.exportAll({ name: funcRef, ... })`
+- i32 unsigned ops: `Op.div_u`, `Op.rem_u`, `Op.shr_u`, `Op.lt_u`, `Op.gt_u`, `Op.le_u`, `Op.ge_u`
+- i64 演算: `Op.i64.add/sub/mul/div`, `Op.i64.eqz`
+- f64 演算: `Op.f64.add/sub/mul/div`, `Op.f64.neg`, `Op.f64.abs`
+- 型変換: `Op.wrap` (i64→i32), `Op.extend` (i32→i64), `Op.toF64` (i32→f64), `Op.truncI32` (f64→i32)
+- f64 定数: `Mem.f64(v)` — f64 リテラル（`resolve(number)` は常に i32）
+- typed メモリ: `Mem.loadI64/storeI64`, `Mem.loadF64/storeF64`
+- メモリシステム: `Mem.size()`, `Mem.grow(pages)`
+- トラップ: `Ctrl.unreachable()`
+- `binop`/`cmp`/`eqz` の IR ノードは `type?: WasmValType` で i32/i64/f64 をディスパッチ（省略時 i32）
+- `inferType(node, ctx)` が IR ノードから結果型を推定（関数戻り値型・if ブロック型に使用）
 
 ## Docs
 

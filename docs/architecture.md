@@ -45,9 +45,9 @@ type WasmBinary<T> = Uint8Array & { readonly __exports?: T }
 
 | 分類 | yield する | Namespace | 例 |
 |------|-----------|-----------|-----|
-| 式（pure） | No | `Op`, `Mem` | `Op.add()`, `Op.select()`, `Op.max()`, `Op.min()`, `Mem.load()`, `Mem.i32()`, `Mem.i32Array()`, `Mem.i32Array2D()` |
-| 文（statement） | Yes (`StmtInstruction`) | `Loc`, `Mem`, `Mod` | `Loc.set()`, `Mem.store()`, `Ctrl.br()`, `Mod.exportAll()` |
-| 制御フロー | Yes (compound) | `Ctrl` | `Ctrl.if()`, `Ctrl.loop()`, `Ctrl.block()`, `Ctrl.for()`, `Ctrl.while()`, `Ctrl.when()`, `Ctrl.switch()` |
+| 式（pure） | No | `Op`, `Mem` | `Op.add()`, `Op.select()`, `Op.max()`, `Op.min()`, `Op.i64.add()`, `Op.f64.mul()`, `Op.wrap()`, `Op.toF64()`, `Mem.load()`, `Mem.i32()`, `Mem.i64()`, `Mem.f64()`, `Mem.loadI64()`, `Mem.loadF64()`, `Mem.size()`, `Mem.i32Array()`, `Mem.i32Array2D()` |
+| 文（statement） | Yes (`StmtInstruction`) | `Loc`, `Mem`, `Mod` | `Loc.set()`, `Mem.store()`, `Mem.storeI64()`, `Mem.storeF64()`, `Ctrl.br()`, `Mod.exportAll()` |
+| 制御フロー | Yes (compound) | `Ctrl` | `Ctrl.if()`, `Ctrl.loop()`, `Ctrl.block()`, `Ctrl.for()`, `Ctrl.while()`, `Ctrl.when()`, `Ctrl.switch()`, `Ctrl.unreachable()` |
 
 ### 使用例
 
@@ -111,17 +111,18 @@ Mem.store(0, n.add(1)) の処理フロー:
 
 ### IRNode
 
-24 種の discriminated union（`op` フィールドで判別）。
+35 種の discriminated union（`op` フィールドで判別）。
 
 | op | フィールド | 説明 |
 |----|-----------|------|
 | `const_i32` | `v: number` | i32 定数 |
 | `const_i64` | `v: number` | i64 定数 |
+| `const_f64` | `v: number` | f64 定数 |
 | `local_get` | `i: number` | ローカル変数読み取り |
 | `local_set` | `i: number`, `val: IRNode` | ローカル変数書き込み |
 | `local_tee` | `i: number`, `val: IRNode` | 書き込み + スタックに値を残す |
-| `binop` | `kind: BinopKind`, `a`, `b` | 二項演算 |
-| `cmp` | `kind: CmpKind`, `a`, `b` | 比較演算 |
+| `binop` | `kind`, `a`, `b`, `type?` | 二項演算（type: i32/i64/f64） |
+| `cmp` | `kind`, `a`, `b`, `type?` | 比較演算（type: i32） |
 | `if` | `cond`, `then`, `else`, `type` | 条件分岐 |
 | `loop` | `body: IRNode[]` | ループブロック |
 | `br_if` | `depth: number`, `cond` | 条件付きブレーク |
@@ -131,22 +132,39 @@ Mem.store(0, n.add(1)) の処理フロー:
 | `call` | `idx: number`, `args: IRNode[]` | 関数呼び出し |
 | `drop` | `val: IRNode` | 値を破棄 |
 | `return` | `val: IRNode` | 関数から返る |
-| `store_i32` | `addr`, `val` | メモリ書き込み |
+| `store_i32` | `addr`, `val` | メモリ書き込み (i32) |
 | `load_i32` | `addr` | メモリ読み取り (i32) |
 | `store_i32_8` | `addr`, `val` | メモリ書き込み (1 byte) |
 | `load_i32_8u` | `addr` | メモリ読み取り (1 byte, 零拡張) |
+| `load_i64` | `addr` | メモリ読み取り (i64) |
+| `store_i64` | `addr`, `val` | メモリ書き込み (i64) |
+| `load_f64` | `addr` | メモリ読み取り (f64) |
+| `store_f64` | `addr`, `val` | メモリ書き込み (f64) |
 | `select` | `a`, `b`, `cond` | 三項選択 `cond ? a : b` |
-| `eqz` | `val: IRNode` | i32 == 0 判定 |
+| `eqz` | `val`, `type?` | == 0 判定（i32/i64） |
+| `f64_neg` | `val` | f64 符号反転 |
+| `f64_abs` | `val` | f64 絶対値 |
+| `i32_wrap_i64` | `val` | i64 → i32 変換 |
+| `i64_extend_i32_s` | `val` | i32 → i64 変換（符号拡張） |
+| `f64_convert_i32_s` | `val` | i32 → f64 変換 |
+| `i32_trunc_f64_s` | `val` | f64 → i32 変換（切り捨て） |
+| `memory_size` | — | メモリサイズ（ページ数） |
+| `memory_grow` | `pages` | メモリ拡張 |
+| `unreachable` | — | トラップ |
 | `nop` | — | 何もしない |
 | `effect` | `tag: number`, `payload` | エフェクト発行 |
+
+`binop` / `cmp` / `eqz` の `type` フィールドは省略可能で、デフォルトは `"i32"`（後方互換）。`"i32"` の場合はフィールド自体が省略される。
 
 ### BinopKind / CmpKind
 
 ```typescript
 type BinopKind = "add" | "sub" | "mul" | "div" | "rem"
-               | "and" | "or" | "xor" | "shl" | "shr";
+               | "and" | "or" | "xor" | "shl" | "shr"
+               | "div_u" | "rem_u" | "shr_u";  // unsigned
 
-type CmpKind = "eq" | "ne" | "lt" | "gt" | "le" | "ge";
+type CmpKind = "eq" | "ne" | "lt" | "gt" | "le" | "ge"
+             | "lt_u" | "gt_u" | "le_u" | "ge_u";  // unsigned
 ```
 
 ---
@@ -157,36 +175,36 @@ type CmpKind = "eq" | "ne" | "lt" | "gt" | "le" | "ge";
 
 `emitIR(enc: WasmEncoder, node: IRNode)` が IR ツリーを再帰的にたどり、Wasm opcode を emit します。
 
-### 二項演算マッピング
+### 2D ディスパッチテーブル
 
-| BinopKind | Wasm opcode |
-|-----------|------------|
-| `add` | `i32.add` (0x6a) |
-| `sub` | `i32.sub` (0x6b) |
-| `mul` | `i32.mul` (0x6c) |
-| `div` | `i32.div_s` (0x6d) |
-| `rem` | `i32.rem_s` (0x6f) |
-| `and` | `i32.and` (0x71) |
-| `or` | `i32.or` (0x72) |
-| `xor` | `i32.xor` (0x73) |
-| `shl` | `i32.shl` (0x74) |
-| `shr` | `i32.shr_s` (0x75) |
+`binop` / `cmp` は `node.type || "i32"` を使って型別のテーブルから opcode をルックアップします。
 
-### 比較演算マッピング
+**binopTable:**
 
-| CmpKind | Wasm opcode |
-|---------|------------|
-| `eq` | `i32.eq` (0x46) |
-| `ne` | `i32.ne` (0x47) |
-| `lt` | `i32.lt_s` (0x48) |
-| `gt` | `i32.gt_s` (0x4a) |
-| `le` | `i32.le_s` (0x4c) |
-| `ge` | `i32.ge_s` (0x4e) |
+| kind | i32 | i64 | f64 |
+|------|-----|-----|-----|
+| `add` | `i32.add` | `i64.add` | `f64.add` |
+| `sub` | `i32.sub` | `i64.sub` | `f64.sub` |
+| `mul` | `i32.mul` | `i64.mul` | `f64.mul` |
+| `div` | `i32.div_s` | `i64.div_s` | `f64.div` |
+| `rem` | `i32.rem_s` | — | — |
+| `and/or/xor/shl/shr` | `i32.*` | — | — |
+| `div_u/rem_u/shr_u` | `i32.*_u` | — | — |
+
+**cmpTable:** i32 のみ（signed + unsigned）。
 
 ### メモリ操作
 
-`store_i32` / `load_i32` は alignment=2 (4 バイト境界)、offset=0 で emit。
-`store_i32_8` / `load_i32_8u` は alignment=0 (1 バイト境界)、offset=0 で emit。
+| ノード | alignment | 説明 |
+|--------|-----------|------|
+| `store_i32` / `load_i32` | 2 (4-byte) | i32 メモリ操作 |
+| `store_i32_8` / `load_i32_8u` | 0 (1-byte) | byte メモリ操作 |
+| `store_i64` / `load_i64` | 3 (8-byte) | i64 メモリ操作 |
+| `store_f64` / `load_f64` | 3 (8-byte) | f64 メモリ操作 |
+
+### inferType（型推論）
+
+`interpreter.ts` の `inferType(node, ctx)` がIR ノードから結果型を推定します。関数の戻り値型や `if` ブロック型に使用され、以前のハードコード `"i32"` を置き換えます。
 
 ### Effect ノード
 

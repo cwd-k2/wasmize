@@ -14,12 +14,8 @@ import {
   type WasmProgram,
 } from "./types";
 
-// --- Function body interpreter ---
+// --- Type inference ---
 
-/**
- * Mutable context accumulated while interpreting a single function body.
- * Tracks parameter/local declarations so the final `FuncDef` can be built.
- */
 interface FuncContext {
   params: WasmValType[];
   locals: WasmValType[];
@@ -27,25 +23,60 @@ interface FuncContext {
   localCount: number;
 }
 
-/**
- * Type guard: checks whether a value is a {@link WasmVal}.
- */
+function inferType(node: IRNode, ctx?: FuncContext): WasmValType {
+  switch (node.op) {
+    case "const_i32":
+    case "load_i32":
+    case "load_i32_8u":
+    case "cmp":
+    case "i32_wrap_i64":
+    case "i32_trunc_f64_s":
+    case "memory_size":
+    case "memory_grow":
+      return "i32";
+    case "eqz":
+      return "i32"; // eqz always produces i32 regardless of operand type
+    case "const_i64":
+    case "load_i64":
+    case "i64_extend_i32_s":
+      return "i64";
+    case "const_f64":
+    case "load_f64":
+    case "f64_neg":
+    case "f64_abs":
+    case "f64_convert_i32_s":
+      return "f64";
+    case "binop":
+      return node.type || "i32";
+    case "if":
+      return (node.type !== "void" ? node.type : "i32") as WasmValType;
+    case "select":
+      return inferType(node.a, ctx);
+    case "local_get":
+      if (ctx) {
+        const allTypes = [...ctx.params, ...ctx.locals];
+        if (node.i < allTypes.length) return allTypes[node.i]!;
+      }
+      return "i32";
+    case "local_tee":
+      if (ctx) {
+        const allTypes = [...ctx.params, ...ctx.locals];
+        if (node.i < allTypes.length) return allTypes[node.i]!;
+      }
+      return "i32";
+    case "call":
+      return "i32"; // calls default to i32 (safe fallback)
+    default:
+      return "i32";
+  }
+}
+
+// --- Function body interpreter ---
+
 function isVal(v: unknown): v is WasmVal {
   return v != null && typeof v === "object" && (v as WasmVal)._tag === "val";
 }
 
-/**
- * Recursively interprets a function body (or sub-body such as an `if` branch).
- *
- * Drives the generator to completion, handling each yielded {@link FuncInstruction}:
- * - `decl` — allocates a parameter/local index and sends back a `WasmRef`
- * - `stmt` — collects the IR node
- * - `if` / `loop` / `block` — recursively interprets nested bodies
- *
- * @param body - Factory producing the body generator
- * @param ctx - Shared mutable context for index allocation
- * @returns Collected IR nodes and the optional return value
- */
 function interpretSubBody(
   body: FuncBody<WasmVal | void>,
   ctx: FuncContext,
@@ -88,7 +119,8 @@ function interpretSubBody(
         if (thenVal && elseVal) {
           const thenNodes = [...thenResult.nodes, thenVal._node];
           const elseNodes = [...elseResult.nodes, elseVal._node];
-          const ifNode = IR.if_then_else(instr.cond, thenNodes, elseNodes, "i32");
+          const resultType = inferType(thenVal._node, ctx);
+          const ifNode = IR.if_then_else(instr.cond, thenNodes, elseNodes, resultType);
           const resultVal: WasmVal = { _tag: "val", _node: ifNode };
           next = gen.next(resultVal);
         } else {
@@ -121,35 +153,6 @@ function interpretSubBody(
 
 // --- Module interpreter ---
 
-/**
- * Compiles a {@link WasmProgram} into a Wasm binary (`Uint8Array`).
- *
- * Operates in three phases:
- * 1. **Collect declarations** — drives the module-level generator to gather
- *    imports, function bodies, exports, and memory configuration.
- * 2. **Compile function bodies** — interprets each function body generator,
- *    resolving declarations and building IR nodes.
- * 3. **Build binary** — passes the collected IR to the module builder/encoder.
- *
- * @param program - A factory function that produces the module-level generator
- * @returns The compiled Wasm binary as a `Uint8Array`
- *
- * @example
- * ```ts
- * import { compile, func, export_, param, add, get, i32 } from "./compiler";
- *
- * const binary = compile(function* () {
- *   const f = yield* func(function* () {
- *     const a = yield* param("i32");
- *     const b = yield* param("i32");
- *     return yield* add(get(a), get(b));
- *   });
- *   yield* export_("add", f);
- * });
- *
- * const { instance } = await WebAssembly.instantiate(binary);
- * ```
- */
 export function compile<T = Record<string, unknown>>(
   program: WasmProgram,
 ): WasmBinary<T> {
@@ -214,7 +217,7 @@ export function compile<T = Record<string, unknown>>(
 
     return {
       params: ctx.params,
-      results: isVal(result) ? ["i32" as WasmValType] : [],
+      results: isVal(result) ? [inferType(result._node, ctx)] : [],
       locals: ctx.locals,
       body: bodyNodes,
     };

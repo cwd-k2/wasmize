@@ -1,4 +1,5 @@
 import { IR, type BinopKind, type CmpKind } from "../wasm/ir";
+import type { WasmValType } from "../wasm/opcodes";
 import {
   val,
   WasmRef,
@@ -199,6 +200,36 @@ export const lt = makeCmp("lt");
 export const gt = makeCmp("gt");
 export const le = makeCmp("le");
 export const ge = makeCmp("ge");
+
+// --- Unsigned i32 ops ---
+
+export const div_u = makeBinop("div_u");
+export const rem_u = makeBinop("rem_u");
+export const shr_u = makeBinop("shr_u");
+export const lt_u = makeCmp("lt_u");
+export const gt_u = makeCmp("gt_u");
+export const le_u = makeCmp("le_u");
+export const ge_u = makeCmp("ge_u");
+
+// --- Typed binop/cmp factories ---
+
+export function makeBinopTyped(kind: BinopKind, type: WasmValType): (a: ExprInput, b: ExprInput) => FuncGen<WasmVal> {
+  return (a, b) =>
+    (function* () {
+      const va = yield* resolve(a);
+      const vb = yield* resolve(b);
+      return val(IR.binop(kind, va._node, vb._node, type));
+    })();
+}
+
+export function makeCmpTyped(kind: CmpKind, type: WasmValType): (a: ExprInput, b: ExprInput) => FuncGen<WasmVal> {
+  return (a, b) =>
+    (function* () {
+      const va = yield* resolve(a);
+      const vb = yield* resolve(b);
+      return val(IR.cmp(kind, va._node, vb._node, type));
+    })();
+}
 
 // --- Select primitive ---
 
