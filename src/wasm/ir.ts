@@ -37,6 +37,8 @@ export type IRNode =
   | { op: "return"; val: IRNode }
   | { op: "store_i32"; addr: IRNode; val: IRNode }
   | { op: "load_i32"; addr: IRNode }
+  | { op: "store_i32_8"; addr: IRNode; val: IRNode }
+  | { op: "load_i32_8u"; addr: IRNode }
   | { op: "nop" }
   | { op: "effect"; tag: number; payload: IRNode };
 
@@ -88,6 +90,12 @@ export const IR = {
     val,
   }),
   load_i32: (addr: IRNode): IRNode => ({ op: "load_i32", addr }),
+  store_i32_8: (addr: IRNode, val: IRNode): IRNode => ({
+    op: "store_i32_8",
+    addr,
+    val,
+  }),
+  load_i32_8u: (addr: IRNode): IRNode => ({ op: "load_i32_8u", addr }),
   nop: (): IRNode => ({ op: "nop" }),
   effect: (tag: number, payload: IRNode): IRNode => ({
     op: "effect",

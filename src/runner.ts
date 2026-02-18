@@ -4,6 +4,16 @@ import {
   problem3_kadane,
   problem4_coin_change,
   problem5_binary_search,
+  problem6_gcd_array,
+  problem7_sieve,
+  problem8_matmul,
+  problem9_lcs,
+  problem10_knapsack,
+  problem11_quicksort,
+  problem12_flood_fill,
+  problem13_lis,
+  problem14_nqueens,
+  problem15_union_find,
 } from "./problems";
 
 export interface TestCase {
@@ -221,6 +231,263 @@ export async function runTests(): Promise<ProblemResult[]> {
         expected: tc.expected,
         got: got[i]!,
       })),
+    });
+  }
+
+  // --- Problem 6: GCD Array ---
+  {
+    const wasm = problem6_gcd_array();
+    const exp = await instantiate(wasm);
+    const mem = new Int32Array(exp.memory.buffer);
+
+    const testCases = [
+      { arr: [12, 8], expected: 4 },
+      { arr: [6], expected: 6 },
+      { arr: [12, 18, 24], expected: 6 },
+      { arr: [100, 75, 50, 25], expected: 25 },
+    ];
+
+    const got = testCases.map((tc) => {
+      tc.arr.forEach((v, i) => { mem[i] = v; });
+      return exp.array_gcd(tc.arr.length) as number;
+    });
+
+    const pass = testCases.every((tc, i) => got[i] === tc.expected);
+    results.push({
+      num: 6,
+      title: "GCD Array (Euclidean algorithm × array scan)",
+      pass,
+      output: testCases.map((tc, i) => `gcd([${tc.arr}]) = ${got[i]}`).join("\n"),
+      detail: pass ? "All test cases passed." : "Some cases failed.",
+      wasmSize: wasm.length,
+      tests: testCases.map((tc, i) => ({
+        input: `array_gcd([${tc.arr}])`,
+        expected: tc.expected,
+        got: got[i]!,
+      })),
+    });
+  }
+
+  // --- Problem 7: Sieve of Eratosthenes ---
+  {
+    const wasm = problem7_sieve();
+    const exp = await instantiate(wasm);
+    const cases: [number, number][] = [[10, 4], [100, 25], [1000, 168]];
+    const got = cases.map(([n]) => exp.sieve(n) as number);
+    const pass = cases.every(([, expected], i) => got[i] === expected);
+    results.push({
+      num: 7,
+      title: "Sieve of Eratosthenes (byte-level memory)",
+      pass,
+      output: cases.map(([n], i) => `sieve(${n}) = ${got[i]} primes`).join("\n"),
+      detail: pass ? "All test cases passed." : "Some cases failed.",
+      wasmSize: wasm.length,
+      tests: cases.map(([n, expected], i) => ({
+        input: `sieve(${n})`,
+        expected,
+        got: got[i]!,
+      })),
+    });
+  }
+
+  // --- Problem 8: Matrix Multiply ---
+  {
+    const wasm = problem8_matmul();
+    const exp = await instantiate(wasm);
+    const mem = new Int32Array(exp.memory.buffer);
+
+    const n = 3;
+    const nn = n * n;
+    [1, 2, 3, 4, 5, 6, 7, 8, 9].forEach((v, i) => { mem[i] = v; });
+    [9, 8, 7, 6, 5, 4, 3, 2, 1].forEach((v, i) => { mem[nn + i] = v; });
+
+    const c00 = exp.matmul(n) as number;
+    const pass = c00 === 30;
+    results.push({
+      num: 8,
+      title: "Matrix Multiply (naive 3-loop)",
+      pass,
+      output: `matmul(3): C[0][0] = ${c00}`,
+      detail: pass ? "C[0][0] = 30 as expected." : `Expected 30, got ${c00}.`,
+      wasmSize: wasm.length,
+      tests: [{ input: "matmul(3)", expected: 30, got: c00 }],
+    });
+  }
+
+  // --- Problem 9: LCS Length ---
+  {
+    const wasm = problem9_lcs();
+    const exp = await instantiate(wasm);
+    const mem = new Int32Array(exp.memory.buffer);
+
+    const testCases = [
+      { a: [1, 2, 3, 4, 5], b: [2, 4, 5], expected: 3 },
+      { a: [1, 3, 4, 1], b: [1, 3, 1, 4], expected: 3 },
+    ];
+
+    const got = testCases.map((tc) => {
+      tc.a.forEach((v, i) => { mem[i] = v; });
+      tc.b.forEach((v, i) => { mem[1024 / 4 + i] = v; });
+      return exp.lcs(tc.a.length, tc.b.length) as number;
+    });
+
+    const pass = testCases.every((tc, i) => got[i] === tc.expected);
+    results.push({
+      num: 9,
+      title: "LCS Length (2D DP)",
+      pass,
+      output: testCases.map((tc, i) => `lcs([${tc.a}], [${tc.b}]) = ${got[i]}`).join("\n"),
+      detail: pass ? "All test cases passed." : "Some cases failed.",
+      wasmSize: wasm.length,
+      tests: testCases.map((tc, i) => ({
+        input: `lcs([${tc.a}], [${tc.b}])`,
+        expected: tc.expected,
+        got: got[i]!,
+      })),
+    });
+  }
+
+  // --- Problem 10: 0/1 Knapsack ---
+  {
+    const wasm = problem10_knapsack();
+    const exp = await instantiate(wasm);
+    const mem = new Int32Array(exp.memory.buffer);
+
+    const weights = [2, 3, 4, 5];
+    const values = [3, 4, 5, 6];
+    weights.forEach((w, i) => { mem[i] = w; });
+    values.forEach((v, i) => { mem[4096 / 4 + i] = v; });
+
+    const got = exp.knapsack(weights.length, 5) as number;
+    const pass = got === 7;
+    results.push({
+      num: 10,
+      title: "0/1 Knapsack (reverse DP)",
+      pass,
+      output: `knapsack(4 items, cap=5) = ${got}`,
+      detail: pass ? "Max value 7 as expected." : `Expected 7, got ${got}.`,
+      wasmSize: wasm.length,
+      tests: [{ input: "knapsack(4, 5)", expected: 7, got }],
+    });
+  }
+
+  // --- Problem 11: Quicksort ---
+  {
+    const wasm = problem11_quicksort();
+    const exp = await instantiate(wasm);
+    const mem = new Int32Array(exp.memory.buffer);
+
+    const arr = [5, 3, 8, 1, 2, 7, 4, 6];
+    arr.forEach((v, i) => { mem[i] = v; });
+    exp.quicksort(0, arr.length - 1);
+    const sorted = Array.from({ length: arr.length }, (_, i) => mem[i]);
+    const pass = sorted.every((v, i) => v === i + 1);
+    results.push({
+      num: 11,
+      title: "Quicksort (Lomuto partition, recursive)",
+      pass,
+      output: `quicksort([${arr}]) = [${sorted}]`,
+      detail: pass ? "Correctly sorted." : "Sort result incorrect.",
+      wasmSize: wasm.length,
+      tests: [{ input: `quicksort([${arr}])`, expected: 12345678, got: Number(sorted.join("")) }],
+    });
+  }
+
+  // --- Problem 12: Flood Fill ---
+  {
+    const wasm = problem12_flood_fill();
+    const exp = await instantiate(wasm);
+    const mem = new Int32Array(exp.memory.buffer);
+
+    const W = 3, H = 3;
+    for (let i = 0; i < W * H; i++) mem[i] = 1;
+    const got = exp.flood_fill(W, H, 1, 1, 1, 2) as number;
+    const pass = got === 9;
+    results.push({
+      num: 12,
+      title: "Flood Fill (BFS with memory queue)",
+      pass,
+      output: `flood_fill(3×3, all 1s) = ${got} cells`,
+      detail: pass ? "All 9 cells filled." : `Expected 9, got ${got}.`,
+      wasmSize: wasm.length,
+      tests: [{ input: "flood_fill(3,3,1,1,1,2)", expected: 9, got }],
+    });
+  }
+
+  // --- Problem 13: LIS ---
+  {
+    const wasm = problem13_lis();
+    const exp = await instantiate(wasm);
+    const mem = new Int32Array(exp.memory.buffer);
+
+    const testCases = [
+      { arr: [10, 9, 2, 5, 3, 7, 101, 18], expected: 4 },
+      { arr: [0, 1, 0, 3, 2, 3], expected: 4 },
+    ];
+
+    const got = testCases.map((tc) => {
+      tc.arr.forEach((v, i) => { mem[i] = v; });
+      return exp.lis(tc.arr.length) as number;
+    });
+
+    const pass = testCases.every((tc, i) => got[i] === tc.expected);
+    results.push({
+      num: 13,
+      title: "LIS (patience sort + binary search)",
+      pass,
+      output: testCases.map((tc, i) => `lis([${tc.arr}]) = ${got[i]}`).join("\n"),
+      detail: pass ? "All test cases passed." : "Some cases failed.",
+      wasmSize: wasm.length,
+      tests: testCases.map((tc, i) => ({
+        input: `lis([${tc.arr}])`,
+        expected: tc.expected,
+        got: got[i]!,
+      })),
+    });
+  }
+
+  // --- Problem 14: N-Queens Count ---
+  {
+    const wasm = problem14_nqueens();
+    const exp = await instantiate(wasm);
+    const cases: [number, number][] = [[8, 92], [10, 724]];
+    const got = cases.map(([n]) => exp.nqueens(n) as number);
+    const pass = cases.every(([, expected], i) => got[i] === expected);
+    results.push({
+      num: 14,
+      title: "N-Queens Count (backtracking + bitmask)",
+      pass,
+      output: cases.map(([n], i) => `nqueens(${n}) = ${got[i]}`).join("\n"),
+      detail: pass ? "All test cases passed." : "Some cases failed.",
+      wasmSize: wasm.length,
+      tests: cases.map(([n, expected], i) => ({
+        input: `nqueens(${n})`,
+        expected,
+        got: got[i]!,
+      })),
+    });
+  }
+
+  // --- Problem 15: Union-Find ---
+  {
+    const wasm = problem15_union_find();
+    const exp = await instantiate(wasm);
+
+    exp.uf_init(5);
+    exp.uf_union(0, 1);
+    exp.uf_union(2, 3);
+    exp.uf_union(0, 2);
+    const count = exp.uf_count() as number;
+    const findCheck = (exp.uf_find(0) as number) === (exp.uf_find(3) as number);
+    const pass = count === 2 && findCheck;
+    results.push({
+      num: 15,
+      title: "Union-Find (DSU with path compression + rank)",
+      pass,
+      output: `init(5), union(0,1), union(2,3), union(0,2) → count=${count}`,
+      detail: pass ? "Count=2, find(0)==find(3) as expected." : "Union-Find check failed.",
+      wasmSize: wasm.length,
+      tests: [{ input: "uf_count() after 3 unions on 5 elements", expected: 2, got: count }],
     });
   }
 

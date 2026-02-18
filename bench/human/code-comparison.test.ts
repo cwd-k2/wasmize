@@ -77,6 +77,16 @@ const problems = [
   { name: "kadane", js: "jsKadane", dsl: "src/problems/kadane.ts" },
   { name: "coin-change", js: "jsCoinChange", dsl: "src/problems/coin-change.ts" },
   { name: "binary-search", js: "jsBinarySearch", dsl: "src/problems/binary-search.ts" },
+  { name: "gcd-array", js: "jsGcdArray", dsl: "src/problems/gcd.ts" },
+  { name: "sieve", js: "jsSieve", dsl: "src/problems/sieve.ts" },
+  { name: "matmul", js: "jsMatmul", dsl: "src/problems/matmul.ts" },
+  { name: "lcs", js: "jsLcs", dsl: "src/problems/lcs.ts" },
+  { name: "knapsack", js: "jsKnapsack", dsl: "src/problems/knapsack.ts" },
+  { name: "quicksort", js: "jsQuicksort", dsl: "src/problems/quicksort.ts" },
+  { name: "flood-fill", js: "jsFloodFill", dsl: "src/problems/flood-fill.ts" },
+  { name: "lis", js: "jsLis", dsl: "src/problems/lis.ts" },
+  { name: "nqueens", js: "jsNqueens", dsl: "src/problems/nqueens.ts" },
+  { name: "union-find", js: "JsUnionFind", dsl: "src/problems/union-find.ts" },
 ];
 
 function extractJsFunc(fullSrc: string, funcName: string): string {

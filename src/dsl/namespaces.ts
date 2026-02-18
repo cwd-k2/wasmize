@@ -133,6 +133,23 @@ export const Mem = {
       yield { _type: "stmt", node: IR.store_i32(va._node, vv._node) };
     })();
   },
+  /** Loads a byte (unsigned) from linear memory. Returns {@link ChainableExpr} for chaining. */
+  load8(addr: ExprInput): ChainableExpr {
+    return new ChainableExpr(
+      (function* () {
+        const va = yield* resolve(addr);
+        return val(IR.load_i32_8u(va._node));
+      })(),
+    );
+  },
+  /** Stores a byte to linear memory. */
+  store8(addr: ExprInput, value: ExprInput): FuncGen<void> {
+    return (function* () {
+      const va = yield* resolve(addr);
+      const vv = yield* resolve(value);
+      yield { _type: "stmt", node: IR.store_i32_8(va._node, vv._node) };
+    })();
+  },
   /** Creates an i32 constant value. Returns {@link ChainableExpr} for chaining. */
   i32(v: number): ChainableExpr {
     return new ChainableExpr(

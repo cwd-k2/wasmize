@@ -26,6 +26,8 @@ const codegenOpcodes = new Set<number>([
   OP.return_,     // return
   OP.i32_store,   // store_i32
   OP.i32_load,    // load_i32
+  OP.i32_store8,  // store_i32_8
+  OP.i32_load8_u, // load_i32_8u
   OP.nop,         // nop
   // binops table
   OP.i32_add, OP.i32_sub, OP.i32_mul, OP.i32_div_s, OP.i32_rem_s,
@@ -44,6 +46,8 @@ const dslOpcodes = new Set<number>([
   // Mem namespace
   OP.i32_load,    // Mem.load()
   OP.i32_store,   // Mem.store()
+  OP.i32_load8_u, // Mem.load8()
+  OP.i32_store8,  // Mem.store8()
   OP.i32_const,   // Mem.i32()
   OP.i64_const,   // Mem.i64()
   // Ctrl namespace
