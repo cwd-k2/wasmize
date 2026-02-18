@@ -1,0 +1,11 @@
+node_modules/
+dist/
+
+# Playwright
+test-results/
+playwright-report/
+
+# Editor / OS
+*.swp
+*~
+.DS_Store

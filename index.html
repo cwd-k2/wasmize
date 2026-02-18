@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Generator DSL → Wasm PoC</title>
+  </head>
+  <body>
+    <h1>Generator DSL → Wasm Compiler PoC</h1>
+    <p class="subtitle">
+      Defunctionalized continuations · Effect-as-data · Pure functions compiled
+      to WebAssembly
+    </p>
+
+    <div class="arch-diagram">
+      <div class="label">Architecture</div>
+      <div class="pipe">
+        <div class="pipe-stage">Generator DSL</div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-stage">Trace / IR</div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-stage">Wasm Emit</div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-stage">Instantiate</div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-stage">Trampoline (effects)</div>
+      </div>
+    </div>
+
+    <div id="problems" class="problems" style="margin-top: 1.5rem"></div>
+    <div id="summary" class="summary" style="display: none"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
