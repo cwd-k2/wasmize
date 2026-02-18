@@ -488,22 +488,27 @@ export function block_(body: FuncBody<void>): FuncGen<void> {
   })();
 }
 
+// --- Type constants ---
+
+/** Wasm value type constants for use with `param()` and `local()`. */
+export const Type = { i32: "i32", i64: "i64", f64: "f64" } as const;
+
 // --- Namespace objects ---
 
 /** Module-level declarations: functions, exports, imports, memory. */
-export const mod = {
+export const Mod = {
   func, export: export_, import: import_, memory,
 };
 
 /** Arithmetic, comparison, and bitwise operations. */
-export const op = {
+export const Op = {
   add, sub, mul, div, rem,
   eq, ne, lt, gt, le, ge,
   and: and_, or: or_, xor: xor_, shl, shr,
 } as const;
 
 /** Memory and constant operations. `load`, `i32`, `i64` return ChainableExpr for post-op chaining. */
-export const mem = {
+export const Mem = {
   load: (addr: ExprInput): ChainableExpr => new ChainableExpr(load(addr)),
   store,
   i32: (v: number): ChainableExpr => new ChainableExpr(i32(v)),
@@ -511,14 +516,14 @@ export const mem = {
 };
 
 /** Control flow: branching, loops, blocks. */
-export const ctrl = {
+export const Ctrl = {
   if: if_, loop: loop_, block: block_,
   br, br_if,
   nop: nop_, effect,
 } as const;
 
 /** Local variable operations. */
-export const loc = {
+export const Loc = {
   get, set, tee,
   drop: drop_, return: return_,
 } as const;
