@@ -1,11 +1,10 @@
-import { compile, param, local, Type, Mod, Mem, Ctrl } from "../dsl/compiler";
+import { compile, local, Type, Mod, Mem, Ctrl } from "../dsl/compiler";
 
 export function problem2_fib_dp() {
   return compile<{ fib: (n: number) => number }>(function* () {
     const arr = Mem.i32Array();
 
-    const fib = yield* Mod.func(function* () {
-      const n = yield* param(Type.i32);
+    yield* Mod.exportFunc("fib", { n: Type.i32 }, function* (n) {
       const i = yield* local(Type.i32);
 
       yield* arr.store(0, 0);
@@ -16,13 +15,11 @@ export function problem2_fib_dp() {
           return yield* arr.load(n);
         })
         .else(function* () {
-          yield* Ctrl.for(i, 2, i.le(n), i.add(1), function* () {
-            yield* arr.store(i, arr.load(i.sub(1)).add(arr.load(i.sub(2))));
-          });
+          yield* Ctrl.for(i, 2, i.le(n), i.add(1), () => [
+            arr.store(i, arr.load(i.sub(1)).add(arr.load(i.sub(2)))),
+          ]);
           return yield* arr.load(n);
         });
     });
-
-    yield* Mod.export("fib", fib);
   });
 }

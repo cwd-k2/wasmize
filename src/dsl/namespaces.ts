@@ -6,7 +6,9 @@ import {
   type FuncRef,
   type FuncGen,
   type FuncBody,
+  type FuncInstruction,
   type ModuleGen,
+  type VoidBody,
   type WasmVal,
   type ModuleInstruction,
 } from "./types";
@@ -37,11 +39,67 @@ import {
   tee,
   select_,
 } from "./expr";
+import { param as declareParam } from "./declarations";
+
+// --- Helpers ---
+
+/** Normalizes a VoidBody (generator or array form) into a FuncBody<void>. */
+function toBody(body: VoidBody): FuncBody<void> {
+  return function* () {
+    const r = body();
+    if (Array.isArray(r)) {
+      for (const s of r) yield* s;
+    } else {
+      yield* r;
+    }
+  };
+}
+
+/** Builds a FuncBody from either a plain body or a params record + callback. */
+function buildBody(
+  bodyOrParams: FuncBody<WasmVal | void> | Record<string, WasmValType>,
+  bodyWithParams?: (
+    ...refs: WasmRef[]
+  ) => Generator<FuncInstruction, WasmVal | void, any>,
+): FuncBody<WasmVal | void> {
+  if (typeof bodyOrParams === "function") return bodyOrParams;
+  const entries = Object.entries(bodyOrParams);
+  for (const [key] of entries) {
+    if (String(Number(key)) === key) {
+      throw new Error(
+        `Numeric key "${key}" in param record is not allowed (property order is unreliable)`,
+      );
+    }
+  }
+  return function* () {
+    const refs: WasmRef[] = [];
+    for (const [, type] of entries) {
+      refs.push(yield* declareParam(type));
+    }
+    return yield* bodyWithParams!(...refs);
+  };
+}
 
 /** Module-level declarations: functions, exports, imports, memory. */
 export const Mod = {
-  /** Defines a new function in the module. */
-  func(body: FuncBody<WasmVal | void>): ModuleGen<CallableFunc> {
+  /**
+   * Defines a new function in the module.
+   *
+   * @example
+   * ```ts
+   * // Traditional body
+   * const f = yield* Mod.func(function* () { ... });
+   * // Inline params
+   * const f = yield* Mod.func({ a: Type.i32, b: Type.i32 }, function* (a, b) { ... });
+   * ```
+   */
+  func(
+    bodyOrParams: FuncBody<WasmVal | void> | Record<string, WasmValType>,
+    bodyWithParams?: (
+      ...refs: WasmRef[]
+    ) => Generator<FuncInstruction, WasmVal | void, any>,
+  ): ModuleGen<CallableFunc> {
+    const body = buildBody(bodyOrParams, bodyWithParams);
     return (function* () {
       const r: FuncRef = yield { _type: "func", body };
       return callableFunc(r._idx);
@@ -84,6 +142,81 @@ export const Mod = {
       for (const [name, ref] of Object.entries(funcs)) {
         yield { _type: "export", name, ref } as ModuleInstruction;
       }
+    })();
+  },
+  /**
+   * Defines and exports a function in one step.
+   *
+   * @example
+   * ```ts
+   * const f = yield* Mod.exportFunc("add", { a: Type.i32, b: Type.i32 }, function* (a, b) {
+   *   return yield* a.add(b);
+   * });
+   * ```
+   */
+  exportFunc(
+    name: string,
+    bodyOrParams: FuncBody<WasmVal | void> | Record<string, WasmValType>,
+    bodyWithParams?: (
+      ...refs: WasmRef[]
+    ) => Generator<FuncInstruction, WasmVal | void, any>,
+  ): ModuleGen<CallableFunc> {
+    const body = buildBody(bodyOrParams, bodyWithParams);
+    return (function* () {
+      const r: FuncRef = yield { _type: "func", body };
+      const fn = callableFunc(r._idx);
+      yield { _type: "export", name, ref: fn } as ModuleInstruction;
+      return fn;
+    })();
+  },
+  /**
+   * Defines a self-recursive function. The `self` reference is passed to the body.
+   *
+   * @example
+   * ```ts
+   * const fib = yield* Mod.recursive({ n: Type.i32 }, function* (self, n) {
+   *   return yield* Ctrl.if(n.le(1))
+   *     .then(function* () { return yield* n; })
+   *     .else(function* () { return yield* self(n.sub(1)).add(self(n.sub(2))); });
+   * });
+   * ```
+   */
+  recursive(
+    bodyOrParams:
+      | ((
+          self: CallableFunc,
+        ) => Generator<FuncInstruction, WasmVal | void, any>)
+      | Record<string, WasmValType>,
+    bodyWithParams?: (
+      self: CallableFunc,
+      ...refs: WasmRef[]
+    ) => Generator<FuncInstruction, WasmVal | void, any>,
+  ): ModuleGen<CallableFunc> {
+    return (function* () {
+      const r: FuncRef = yield {
+        _type: "func",
+        body: function* () {
+          const self = callableFunc(r._idx);
+          if (typeof bodyOrParams === "function") {
+            return yield* bodyOrParams(self);
+          }
+          // Params form
+          const entries = Object.entries(bodyOrParams);
+          for (const [key] of entries) {
+            if (String(Number(key)) === key) {
+              throw new Error(
+                `Numeric key "${key}" in param record is not allowed (property order is unreliable)`,
+              );
+            }
+          }
+          const refs: WasmRef[] = [];
+          for (const [, type] of entries) {
+            refs.push(yield* declareParam(type));
+          }
+          return yield* bodyWithParams!(self, ...refs);
+        },
+      };
+      return callableFunc(r._idx);
     })();
   },
   /** Declares linear memory with the given initial size. */
@@ -275,16 +408,16 @@ export const Ctrl = {
   if(cond: ExprInput): IfBuilder {
     return new IfBuilder(cond);
   },
-  /** Wasm `loop` block. */
-  loop(body: FuncBody<void>): FuncGen<void> {
+  /** Wasm `loop` block. Accepts array notation: `() => [a(), b()]`. */
+  loop(body: VoidBody): FuncGen<void> {
     return (function* () {
-      yield { _type: "loop", body };
+      yield { _type: "loop", body: toBody(body) };
     })();
   },
-  /** Wasm `block`. */
-  block(body: FuncBody<void>): FuncGen<void> {
+  /** Wasm `block`. Accepts array notation: `() => [a(), b()]`. */
+  block(body: VoidBody): FuncGen<void> {
     return (function* () {
-      yield { _type: "block", body };
+      yield { _type: "block", body: toBody(body) };
     })();
   },
   /** Unconditional branch to the enclosing block/loop at the given depth. */
@@ -304,7 +437,8 @@ export const Ctrl = {
    * While loop — continues while `cond` is true.
    * Expands to `block { loop { br_if(1, eqz(cond)); body; br(0); } }`.
    */
-  while(cond: ExprInput, body: FuncBody<void>): FuncGen<void> {
+  while(cond: ExprInput, body: VoidBody): FuncGen<void> {
+    const nb = toBody(body);
     return (function* () {
       yield {
         _type: "block" as const,
@@ -314,7 +448,7 @@ export const Ctrl = {
             body: function* () {
               const vc = yield* resolve(cond);
               yield { _type: "stmt" as const, node: IR.br_if(1, IR.eqz(vc._node)) };
-              yield* body();
+              yield* nb();
               yield { _type: "stmt" as const, node: IR.br(0) };
             },
           };
@@ -331,8 +465,9 @@ export const Ctrl = {
     start: ExprInput,
     cond: ExprInput,
     step: ExprInput,
-    body: FuncBody<void>,
+    body: VoidBody,
   ): FuncGen<void> {
+    const nb = toBody(body);
     return (function* () {
       yield* set(variable, start);
       yield {
@@ -343,7 +478,7 @@ export const Ctrl = {
             body: function* () {
               const vc = yield* resolve(cond);
               yield { _type: "stmt" as const, node: IR.br_if(1, IR.eqz(vc._node)) };
-              yield* body();
+              yield* nb();
               yield* set(variable, step);
               yield { _type: "stmt" as const, node: IR.br(0) };
             },
@@ -352,14 +487,14 @@ export const Ctrl = {
       };
     })();
   },
-  /** Void-only conditional — `if (cond) { body }`. Shortcut for `.then()` without `.else()`. */
-  when(cond: ExprInput, body: FuncBody<void>): FuncGen<void> {
+  /** Void-only conditional — `if (cond) { body }`. Shortcut for `.then()` without `.else()`. Accepts array notation. */
+  when(cond: ExprInput, body: VoidBody): FuncGen<void> {
     return (function* () {
       const vc = yield* resolve(cond);
       yield {
         _type: "if" as const,
         cond: vc._node,
-        then_: body,
+        then_: toBody(body),
       };
     })();
   },
@@ -380,14 +515,16 @@ export const Ctrl = {
    */
   switch(
     expr: ExprInput,
-    cases: [number, FuncBody<void>][],
-    default_?: FuncBody<void>,
+    cases: [number, VoidBody][],
+    default_?: VoidBody,
   ): FuncGen<void> {
+    const normalizedDefault = default_ ? toBody(default_) : undefined;
     return (function* () {
       // Build nested if/else from the last case backward
       const buildChain = (i: number): FuncBody<void> | undefined => {
-        if (i >= cases.length) return default_;
+        if (i >= cases.length) return normalizedDefault;
         const [value, body] = cases[i]!;
+        const nb = toBody(body);
         const rest = buildChain(i + 1);
         return function* () {
           const ve = yield* resolve(expr);
@@ -395,7 +532,7 @@ export const Ctrl = {
           yield {
             _type: "if" as const,
             cond: vc._node,
-            then_: body,
+            then_: nb,
             else_: rest,
           };
         };

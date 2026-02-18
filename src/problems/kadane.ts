@@ -1,4 +1,4 @@
-import { compile, param, local, Type, Mod, Op, Ctrl, Loc } from "../dsl/compiler";
+import { compile, local, Type, Mod, Op, Ctrl, Loc } from "../dsl/compiler";
 import { Mem } from "../dsl/compiler";
 
 export function problem3_kadane() {
@@ -7,8 +7,7 @@ export function problem3_kadane() {
     yield* Mod.memory(2);
     const arr = Mem.i32Array(BASE);
 
-    const kadane = yield* Mod.func(function* () {
-      const len = yield* param(Type.i32);
+    yield* Mod.exportFunc("kadane", { len: Type.i32 }, function* (len) {
       const i = yield* local(Type.i32);
       const current_sum = yield* local(Type.i32);
       const max_sum = yield* local(Type.i32);
@@ -17,15 +16,13 @@ export function problem3_kadane() {
       yield* current_sum.set(arr.load(0));
       yield* max_sum.set(Loc.get(current_sum));
 
-      yield* Ctrl.for(i, 1, i.lt(len), i.add(1), function* () {
-        yield* v.set(arr.load(i));
-        yield* current_sum.set(Op.max(current_sum.add(v), v));
-        yield* max_sum.set(Op.max(current_sum, max_sum));
-      });
+      yield* Ctrl.for(i, 1, i.lt(len), i.add(1), () => [
+        v.set(arr.load(i)),
+        current_sum.set(Op.max(current_sum.add(v), v)),
+        max_sum.set(Op.max(current_sum, max_sum)),
+      ]);
 
       return yield* Loc.get(max_sum);
     });
-
-    yield* Mod.export("kadane", kadane);
   });
 }

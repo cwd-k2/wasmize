@@ -102,6 +102,24 @@ export type ModuleGen<T> = Generator<ModuleInstruction, T, any>;
 export type FuncBody<T> = () => Generator<FuncInstruction, T, any>;
 
 /**
+ * Any value that can appear in a void statement array.
+ *
+ * Matches both `FuncGen<void>` (generators from set/store/Ctrl sugar)
+ * and `ThenBuilder` / `ChainableExpr` (iterables with `[Symbol.iterator]`).
+ */
+export type VoidStmt = {
+  [Symbol.iterator](): Generator<FuncInstruction, any, any>;
+};
+
+/**
+ * Void body that supports both generator and array notation.
+ *
+ * - `FuncBody<void>` — traditional `function*() { yield* a(); yield* b(); }`
+ * - `() => VoidStmt[]` — shorthand `() => [a(), b()]`
+ */
+export type VoidBody = FuncBody<void> | (() => VoidStmt[]);
+
+/**
  * Factory function for the top-level module program.
  * Pass to {@link compile} to produce a Wasm binary.
  *

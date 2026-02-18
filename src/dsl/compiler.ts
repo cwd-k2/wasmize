@@ -52,6 +52,8 @@ export {
   type Expr,
   type FuncGen,
   type FuncBody,
+  type VoidBody,
+  type VoidStmt,
   type ModuleGen,
   type WasmProgram,
 } from "./types";

@@ -1,4 +1,4 @@
-import { compile, param, local, Type, Mod, Op, Ctrl } from "../dsl/compiler";
+import { compile, local, Type, Mod, Op, Ctrl } from "../dsl/compiler";
 import { Mem } from "../dsl/compiler";
 
 export function problem10_knapsack() {
@@ -12,33 +12,33 @@ export function problem10_knapsack() {
     const values = Mem.i32Array(V_BASE);
     const dp = Mem.i32Array(DP_BASE);
 
-    const knapsack = yield* Mod.func(function* () {
-      const n = yield* param(Type.i32);
-      const cap = yield* param(Type.i32);
-      const i = yield* local(Type.i32);
-      const w = yield* local(Type.i32);
-      const wi = yield* local(Type.i32);
-      const vi = yield* local(Type.i32);
+    yield* Mod.exportFunc(
+      "knapsack",
+      { n: Type.i32, cap: Type.i32 },
+      function* (n, cap) {
+        const i = yield* local(Type.i32);
+        const w = yield* local(Type.i32);
+        const wi = yield* local(Type.i32);
+        const vi = yield* local(Type.i32);
 
-      // Initialize DP[0..cap] = 0
-      yield* Ctrl.for(w, 0, w.le(cap), w.add(1), function* () {
-        yield* dp.store(w, 0);
-      });
+        // Initialize DP[0..cap] = 0
+        yield* Ctrl.for(w, 0, w.le(cap), w.add(1), () => [
+          dp.store(w, 0),
+        ]);
 
-      // For each item i
-      yield* Ctrl.for(i, 0, i.lt(n), i.add(1), function* () {
-        yield* wi.set(weights.load(i));
-        yield* vi.set(values.load(i));
+        // For each item i
+        yield* Ctrl.for(i, 0, i.lt(n), i.add(1), () => [
+          wi.set(weights.load(i)),
+          vi.set(values.load(i)),
 
-        // Reverse loop: w from cap down to wi
-        yield* Ctrl.for(w, cap, w.ge(wi), w.sub(1), function* () {
-          yield* dp.store(w, Op.max(dp.load(w), dp.load(w.sub(wi)).add(vi)));
-        });
-      });
+          // Reverse loop: w from cap down to wi
+          Ctrl.for(w, cap, w.ge(wi), w.sub(1), () => [
+            dp.store(w, Op.max(dp.load(w), dp.load(w.sub(wi)).add(vi))),
+          ]),
+        ]);
 
-      return yield* dp.load(cap);
-    });
-
-    yield* Mod.export("knapsack", knapsack);
+        return yield* dp.load(cap);
+      },
+    );
   });
 }

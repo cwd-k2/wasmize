@@ -1,5 +1,4 @@
-import { compile, param, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
-import { type CallableFunc } from "../dsl/compiler";
+import { compile, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
 
 export function problem15_union_find() {
   const PARENT_BASE = 0;
@@ -17,43 +16,38 @@ export function problem15_union_find() {
     const rank = Mem.i32Array(RANK_BASE);
 
     // uf_init(n): parent[i] = i, rank[i] = 0, count = n
-    const uf_init = yield* Mod.func(function* () {
-      const n = yield* param(Type.i32);
+    const uf_init = yield* Mod.func({ n: Type.i32 }, function* (n) {
       const i = yield* local(Type.i32);
 
-      yield* Ctrl.for(i, 0, i.lt(n), i.add(1), function* () {
-        yield* parent.store(i, i);
-        yield* rank.store(i, 0);
-      });
+      yield* Ctrl.for(i, 0, i.lt(n), i.add(1), () => [
+        parent.store(i, i),
+        rank.store(i, 0),
+      ]);
       yield* Mem.store(COUNT_ADDR, n);
     });
 
     // uf_find(x) -> root, with path compression
-    let uf_find: CallableFunc;
-    uf_find = yield* Mod.func(function* () {
-      const x = yield* param(Type.i32);
+    const uf_find = yield* Mod.func({ x: Type.i32 }, function* (x) {
       const root = yield* local(Type.i32);
       const next = yield* local(Type.i32);
 
       yield* root.set(x);
       // Find root
-      yield* Ctrl.while(root.ne(parent.load(root)), function* () {
-        yield* root.set(parent.load(root));
-      });
+      yield* Ctrl.while(root.ne(parent.load(root)), () => [
+        root.set(parent.load(root)),
+      ]);
       // Path compression
-      yield* Ctrl.while(x.ne(root), function* () {
-        yield* next.set(parent.load(x));
-        yield* parent.store(x, root);
-        yield* x.set(next);
-      });
+      yield* Ctrl.while(x.ne(root), () => [
+        next.set(parent.load(x)),
+        parent.store(x, root),
+        x.set(next),
+      ]);
 
       return yield* Loc.get(root);
     });
 
     // uf_union(u, v): union by rank
-    const uf_union = yield* Mod.func(function* () {
-      const u = yield* param(Type.i32);
-      const v = yield* param(Type.i32);
+    const uf_union = yield* Mod.func({ u: Type.i32, v: Type.i32 }, function* (u, v) {
       const ru = yield* local(Type.i32);
       const rv = yield* local(Type.i32);
 
