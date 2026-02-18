@@ -16,12 +16,10 @@ export function jsHanoi(
   from: number,
   to: number,
   aux: number,
-  onMove: (from: number, to: number) => void,
 ): number {
   if (n <= 0) return 0;
-  const c1 = jsHanoi(n - 1, from, aux, to, onMove);
-  onMove(from, to);
-  const c2 = jsHanoi(n - 1, aux, to, from, onMove);
+  const c1 = jsHanoi(n - 1, from, aux, to);
+  const c2 = jsHanoi(n - 1, aux, to, from);
   return c1 + 1 + c2;
 }
 

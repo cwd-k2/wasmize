@@ -2,10 +2,10 @@ import { compile, local, Type, Mod, Ctrl, Loc } from "../dsl/compiler";
 import { Mem } from "../dsl/compiler";
 
 export function problem13_lis() {
-  const TAILS_BASE = 16384;
+  const TAILS_BASE = 65536;
 
   return compile<{ lis: (len: number) => number }>(function* () {
-    yield* Mod.memory(1);
+    yield* Mod.memory(2);
     const input = Mem.i32Array();
     const tails = Mem.i32Array(TAILS_BASE);
 

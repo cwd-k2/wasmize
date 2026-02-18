@@ -15,8 +15,6 @@ describe("lis 10k elements", () => {
   });
 
   bench("Wasm", () => {
-    // Re-fill since lis modifies tails area
-    arr.forEach((v, i) => { mem![i] = v; });
     lis(LEN);
   });
 });

@@ -40,23 +40,15 @@ export async function runTests(): Promise<ProblemResult[]> {
   // --- Problem 1: Hanoi ---
   {
     const wasm = problem1_hanoi();
-    const moves: string[] = [];
-    const { exports: { hanoi } } = await instantiate(wasm, {
-      env: {
-        effect_move: (from: number, to: number) => {
-          moves.push(`${from}\u2192${to}`);
-        },
-      },
-    });
+    const { exports: { hanoi } } = await instantiate(wasm);
     const count = hanoi(4, 1, 3, 2);
-    const pass = count === 15 && moves.length === 15;
+    const pass = count === 15;
     results.push({
       num: 1,
-      title: "Tower of Hanoi (n=4, recursive + effects)",
+      title: "Tower of Hanoi (n=4, recursive)",
       pass,
       output: `hanoi(4) = ${count} moves`,
-      effects: `Moves: ${moves.slice(0, 6).join(", ")}${moves.length > 6 ? ` ... (${moves.length} total)` : ""}`,
-      detail: `Expected 2^4-1=15 moves. Got ${count}. Effect system captured ${moves.length} move events.`,
+      detail: `Expected 2^4-1=15 moves. Got ${count}.`,
       wasmSize: wasm.length,
       tests: [{ input: "hanoi(4, 1, 3, 2)", expected: 15, got: count }],
     });
