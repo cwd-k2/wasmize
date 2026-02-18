@@ -13,7 +13,7 @@ ProblemDesc          compileProblem()         buildModule()
                    (IR → opcodes)          (LEB128)
 ```
 
-1. **DSL 層** — `ProblemDesc` インターフェースでパラメータ・IR ボディ・エクスポートを宣言
+1. **DSL 層** — Generator ベース DSL + namespace API（`Mod`, `Op`, `Mem`, `Ctrl`, `Loc`）でアルゴリズムを宣言
 2. **IR 層** — 20 種の `IRNode` discriminated union + `IR.*` ビルダー API
 3. **Codegen** — IR ノードを Wasm opcode に変換（`emitIR()`）
 4. **Module Builder** — Type / Import / Function / Memory / Export / Code セクションを構築
@@ -48,9 +48,11 @@ npm run typecheck  # 型チェック
 ```
 wasmize/
 ├── src/
-│   ├── dsl/                    # DSL コンパイラ
-│   │   ├── compiler.ts         #   ProblemDesc → Wasm バイナリ
-│   │   └── context.ts          #   DSLContext（imports / funcs / exports 集約）
+│   ├── dsl/                    # Generator ベース DSL コンパイラ
+│   │   ├── types.ts            #   型定義（WasmRef, WasmVal, FuncRef 等）
+│   │   ├── primitives.ts       #   DSL プリミティブ + Namespace (Mod, Op, Mem, Ctrl, Loc)
+│   │   ├── interpreter.ts      #   compile() — 3 フェーズ Module interpreter
+│   │   └── compiler.ts         #   Re-export エントリポイント
 │   ├── wasm/                   # Wasm 生成レイヤー
 │   │   ├── ir.ts               #   IRNode 型定義 + IR.* ビルダー
 │   │   ├── codegen.ts          #   emitIR()（IR → Wasm opcode）

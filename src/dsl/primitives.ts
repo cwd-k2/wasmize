@@ -27,9 +27,9 @@ export type ExprInput = Expr | ChainableExpr | ThenBuilder;
  *
  * @example
  * ```ts
- * yield* loc.set(result, myFunc(a, b));     // value call
+ * yield* Loc.set(result, myFunc(a, b));     // value call
  * yield* myFunc.void(a, b);                 // void call
- * yield* mod.export("myFunc", myFunc);      // export (FuncRef-compatible)
+ * yield* Mod.export("myFunc", myFunc);      // export (FuncRef-compatible)
  * ```
  */
 export interface CallableFunc {
@@ -48,7 +48,7 @@ export interface CallableFunc {
  *
  * @example
  * ```ts
- * mem.load(i.sub(1).mul(4))  // load from address (i-1)*4
+ * Mem.load(i.sub(1).mul(4))  // load from address (i-1)*4
  * ```
  */
 export class ChainableExpr {
@@ -466,7 +466,7 @@ export class ThenBuilder {
  * @example
  * ```ts
  * yield* if_(n.le(1))
- *   .then(function* () { return yield* mem.load(n.mul(4)); })
+ *   .then(function* () { return yield* Mem.load(n.mul(4)); })
  *   .else(function* () { ... });
  * ```
  */

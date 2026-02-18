@@ -38,6 +38,8 @@ docs/         # 技術ドキュメント
 - Generator DSL: `yield*` で合成、`compile()` でバイナリ出力
 - プリミティブは Generator を直接返す（IIFE パターン）、body は `function*() {}` factory
 - `Expr = WasmVal | FuncGen<WasmVal>` — `resolve()` で統一的に解決
+- Namespace は PascalCase（`Mod`, `Op`, `Mem`, `Ctrl`, `Loc`）— ローカル変数との視覚的区別
+- 型リテラルは `Type.i32` / `Type.i64` / `Type.f64` 定数を使用（typo 防止 + 補完支援）
 
 ## Docs
 

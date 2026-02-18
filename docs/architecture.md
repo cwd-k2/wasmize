@@ -17,7 +17,7 @@ Generator ベースの DSL。`yield*` による直感的な合成と、ローカ
 
 ### 2 レベルの Generator
 
-- **Module レベル**: `WasmProgram` — `import_`, `func`, `export_`, `memory` を yield
+- **Module レベル**: `WasmProgram` — `Mod.import`, `Mod.func`, `Mod.export`, `Mod.memory` を yield
 - **Function レベル**: `FuncBody` — `param`, `local`, 式・文・制御フローを yield
 
 ### 型システム
@@ -40,40 +40,43 @@ type Expr = WasmVal | FuncGen<WasmVal>
 
 ### プリミティブの 3 分類
 
-| 分類 | yield する | 例 |
-|------|-----------|-----|
-| 式（pure） | No | `i32()`, `add()`, `get()`, `load()`, `call()` |
-| 文（statement） | Yes (`StmtInstruction`) | `set()`, `store()`, `br()`, `return_()` |
-| 制御フロー | Yes (compound) | `if_()`, `loop_()`, `block_()` |
+| 分類 | yield する | Namespace | 例 |
+|------|-----------|-----------|-----|
+| 式（pure） | No | `Op`, `Mem` | `Op.add()`, `Mem.load()`, `Mem.i32()` |
+| 文（statement） | Yes (`StmtInstruction`) | `Loc`, `Mem`, `Ctrl` | `Loc.set()`, `Mem.store()`, `Ctrl.br()` |
+| 制御フロー | Yes (compound) | `Ctrl` | `Ctrl.if()`, `Ctrl.loop()`, `Ctrl.block()` |
 
 ### 使用例
 
 ```typescript
+import { compile, param, local, Type, Mod, Mem, Ctrl, Loc } from "./dsl/compiler";
+
 const fibonacci: WasmProgram = function* () {
-  const fib = yield* func(function* () {
-    const n = yield* param("i32");
-    const i = yield* local("i32");
-    yield* store(i32(0), i32(0));
-    yield* store(i32(4), i32(1));
-    return yield* if_(
-      le(get(n), i32(1)),
-      function* () { return yield* load(mul(get(n), i32(4))); },
-      function* () {
-        yield* set(i, i32(2));
-        yield* block_(function* () {
-          yield* loop_(function* () {
-            yield* store(mul(get(i), i32(4)),
-              add(load(mul(sub(get(i), i32(1)), i32(4))),
-                  load(mul(sub(get(i), i32(2)), i32(4)))));
-            yield* set(i, add(get(i), i32(1)));
-            yield* br_if(0, le(get(i), get(n)));
+  const fib = yield* Mod.func(function* () {
+    const n = yield* param(Type.i32);
+    const i = yield* local(Type.i32);
+    yield* Mem.store(0, 0);
+    yield* Mem.store(4, 1);
+    return yield* Ctrl.if(n.le(1))
+      .then(function* () {
+        return yield* Mem.load(n.mul(4));
+      })
+      .else(function* () {
+        yield* Loc.set(i, 2);
+        yield* Ctrl.block(function* () {
+          yield* Ctrl.loop(function* () {
+            yield* Mem.store(
+              i.mul(4),
+              Mem.load(i.sub(1).mul(4)).add(Mem.load(i.sub(2).mul(4))),
+            );
+            yield* i.set(i.add(1));
+            yield* Ctrl.br_if(0, i.le(n));
           });
         });
-        return yield* load(mul(get(n), i32(4)));
-      },
-    );
+        return yield* Mem.load(n.mul(4));
+      });
   });
-  yield* export_("fib", fib);
+  yield* Mod.export("fib", fib);
 };
 compile(fibonacci); // → Uint8Array
 ```
@@ -91,13 +94,13 @@ compile(fibonacci); // → Uint8Array
 `resolve()` ヘルパーが `Expr` を WasmVal に解決:
 
 ```
-store(i32(0), add(get(n), i32(1))) の処理フロー:
-1. store() が Generator を返す
-2. yield* store(...) → interpreter が generator を駆動
-3. store 内で resolve(i32(0)) → pure、即 return val(const_i32(0))
-4. store 内で resolve(add(get(n), i32(1))) → yield* add の generator
-   → add 内で resolve(get(n)) → pure、return val(local_get(idx))
-   → add 内で resolve(i32(1)) → pure、return val(const_i32(1))
+Mem.store(0, n.add(1)) の処理フロー:
+1. Mem.store() → 内部の store() が Generator を返す
+2. yield* Mem.store(...) → interpreter が generator を駆動
+3. store 内で resolve(0) → number なので即 return val(const_i32(0))
+4. store 内で resolve(n.add(1)) → yield* ChainableExpr
+   → resolve(n) → WasmRef なので return val(local_get(idx))
+   → resolve(1) → number なので return val(const_i32(1))
    → return val(binop("add", ...))
 5. store が StmtInstruction を yield → interpreter が body[] に追加
 ```
@@ -248,11 +251,11 @@ Index:  0        1        ...  N-1      N        N+1     ...
 
 `compile()` が自動的にインデックスを管理します:
 
-- `yield* import_(...)` → FuncRef(0), FuncRef(1), ...
-- `yield* func(...)` → FuncRef(N), FuncRef(N+1), ...
+- `yield* Mod.import(...)` → FuncRef(0), FuncRef(1), ...
+- `yield* Mod.func(...)` → FuncRef(N), FuncRef(N+1), ...
 
 **例: Tower of Hanoi**
-- `import_("env", "effect_move", ...)` → FuncRef(0)
-- `func(function* () { ... })` → FuncRef(1)
+- `Mod.import("env", "effect_move", ...)` → FuncRef(0)
+- `Mod.func(function* () { ... })` → FuncRef(1)
 - `call(hanoi, ...)` = FuncRef(1) で自分自身を再帰呼び出し
 - `call_(effect_move, ...)` = FuncRef(0) で void import を呼び出し
