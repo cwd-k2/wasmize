@@ -5,14 +5,9 @@ import {
   memory,
   param,
   local,
-  i32,
   get,
-  add,
-  mul,
-  gt,
-  lt,
-  set,
   load,
+  set,
   br_if,
   nop_,
   if_,
@@ -33,51 +28,45 @@ export function problem3_kadane(): Uint8Array {
       const v = yield* local("i32");
 
       // max_sum = current_sum = mem[BASE]
-      yield* set(current_sum, load(i32(BASE)));
+      yield* set(current_sum, load(BASE));
       yield* set(max_sum, get(current_sum));
-      yield* set(i, i32(1));
+      yield* set(i, 1);
 
       // if len > 1, run loop
-      yield* if_(
-        gt(get(len), i32(1)),
-        function* () {
+      yield* if_(len.gt(1))
+        .then(function* () {
           yield* block_(function* () {
             yield* loop_(function* () {
               // val = mem[BASE + i*4]
-              yield* set(v, load(add(i32(BASE), mul(get(i), i32(4)))));
+              yield* v.set(i.mul(4).add(BASE).load());
               // current_sum = max(val, current_sum + val)
               yield* set(
                 current_sum,
-                if_(
-                  gt(add(get(current_sum), get(v)), get(v)),
-                  function* () {
-                    return yield* add(get(current_sum), get(v));
-                  },
-                  function* () {
+                if_(current_sum.add(v).gt(v))
+                  .then(function* () {
+                    return yield* current_sum.add(v);
+                  })
+                  .else(function* () {
                     return yield* get(v);
-                  },
-                ),
+                  }),
               );
               // max_sum = max(max_sum, current_sum)
               yield* set(
                 max_sum,
-                if_(
-                  gt(get(current_sum), get(max_sum)),
-                  function* () {
+                if_(current_sum.gt(max_sum))
+                  .then(function* () {
                     return yield* get(current_sum);
-                  },
-                  function* () {
+                  })
+                  .else(function* () {
                     return yield* get(max_sum);
-                  },
-                ),
+                  }),
               );
-              yield* set(i, add(get(i), i32(1)));
-              yield* br_if(0, lt(get(i), get(len)));
+              yield* i.set(i.add(1));
+              yield* br_if(0, i.lt(len));
             });
           });
           yield* nop_();
-        },
-      );
+        });
 
       return yield* get(max_sum);
     });

@@ -5,16 +5,7 @@ import {
   param,
   local,
   i32,
-  get,
-  add,
-  sub,
-  mul,
-  div,
-  eq,
-  lt,
-  gt,
   set,
-  load,
   return_,
   br,
   br_if,
@@ -34,32 +25,28 @@ export function problem5_binary_search(): Uint8Array {
       const mid = yield* local("i32");
       const v = yield* local("i32");
 
-      yield* set(lo, i32(0));
-      yield* set(hi, sub(get(len), i32(1)));
+      yield* set(lo, 0);
+      yield* hi.set(len.sub(1));
 
       yield* block_(function* () {
         yield* loop_(function* () {
-          yield* br_if(1, gt(get(lo), get(hi)));
-          yield* set(mid, div(add(get(lo), get(hi)), i32(2)));
-          yield* set(v, load(mul(get(mid), i32(4))));
-          yield* if_(
-            eq(get(v), get(target)),
-            function* () {
-              yield* return_(get(mid));
-            },
-            function* () {
-              yield* if_(
-                lt(get(v), get(target)),
-                function* () {
-                  yield* set(lo, add(get(mid), i32(1)));
-                },
-                function* () {
-                  yield* set(hi, sub(get(mid), i32(1)));
-                },
-              );
+          yield* br_if(1, lo.gt(hi));
+          yield* mid.set(lo.add(hi).div(2));
+          yield* v.set(mid.mul(4).load());
+          yield* if_(v.eq(target))
+            .then(function* () {
+              yield* return_(mid);
+            })
+            .else(function* () {
+              yield* if_(v.lt(target))
+                .then(function* () {
+                  yield* lo.set(mid.add(1));
+                })
+                .else(function* () {
+                  yield* hi.set(mid.sub(1));
+                });
               yield* nop_();
-            },
-          );
+            });
           yield* br(0);
         });
       });

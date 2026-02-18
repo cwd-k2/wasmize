@@ -6,17 +6,8 @@ import {
   param,
   local,
   i32,
-  get,
-  add,
-  sub,
-  mul,
-  eq,
-  lt,
-  le,
-  gt,
   set,
   store,
-  load,
   br,
   br_if,
   if_,
@@ -40,67 +31,58 @@ export function problem4_coin_change(): Uint8Array {
       const tmp = yield* local("i32");
 
       // dp[0] = 0
-      yield* store(i32(0), i32(0));
+      yield* store(0, 0);
 
       // fill dp[1..amount] = INF
-      yield* set(i, i32(1));
+      yield* set(i, 1);
       yield* block_(function* () {
         yield* loop_(function* () {
-          yield* store(mul(get(i), i32(4)), i32(INF));
-          yield* set(i, add(get(i), i32(1)));
-          yield* br_if(0, le(get(i), get(amount)));
+          yield* i.mul(4).store(INF);
+          yield* i.set(i.add(1));
+          yield* br_if(0, i.le(amount));
         });
       });
 
       // for each coin j
-      yield* set(j, i32(0));
+      yield* set(j, 0);
       yield* block_(function* () {
         yield* loop_(function* () {
           // coin = mem[COIN_BASE + j*4]
-          yield* set(coin, load(add(i32(COIN_BASE), mul(get(j), i32(4)))));
+          yield* coin.set(j.mul(4).add(COIN_BASE).load());
           // for i = coin to amount
-          yield* set(i, get(coin));
+          yield* i.set(coin);
           yield* block_(function* () {
             yield* loop_(function* () {
-              yield* br_if(1, gt(get(i), get(amount)));
+              yield* br_if(1, i.gt(amount));
               // guard: skip if dp[i - coin] == INF
-              yield* if_(
-                lt(load(mul(sub(get(i), get(coin)), i32(4))), i32(INF)),
-                function* () {
+              yield* if_(i.sub(coin).mul(4).load().lt(INF))
+                .then(function* () {
                   // tmp = dp[i - coin] + 1
-                  yield* set(
-                    tmp,
-                    add(load(mul(sub(get(i), get(coin)), i32(4))), i32(1)),
-                  );
+                  yield* tmp.set(i.sub(coin).mul(4).load().add(1));
                   // if tmp < dp[i], dp[i] = tmp
-                  yield* if_(
-                    lt(get(tmp), load(mul(get(i), i32(4)))),
-                    function* () {
-                      yield* store(mul(get(i), i32(4)), get(tmp));
-                    },
-                  );
-                },
-              );
-              yield* set(i, add(get(i), i32(1)));
+                  yield* if_(tmp.lt(i.mul(4).load()))
+                    .then(function* () {
+                      yield* i.mul(4).store(tmp);
+                    });
+                });
+              yield* i.set(i.add(1));
               yield* br(0);
             });
           });
           // next coin
-          yield* set(j, add(get(j), i32(1)));
-          yield* br_if(0, lt(get(j), get(num_coins)));
+          yield* j.set(j.add(1));
+          yield* br_if(0, j.lt(num_coins));
         });
       });
 
       // return dp[amount] == INF ? -1 : dp[amount]
-      return yield* if_(
-        eq(load(mul(get(amount), i32(4))), i32(INF)),
-        function* () {
+      return yield* if_(amount.mul(4).load().eq(INF))
+        .then(function* () {
           return yield* i32(-1);
-        },
-        function* () {
-          return yield* load(mul(get(amount), i32(4)));
-        },
-      );
+        })
+        .else(function* () {
+          return yield* amount.mul(4).load();
+        });
     });
 
     yield* export_("coin_change", coin_change);

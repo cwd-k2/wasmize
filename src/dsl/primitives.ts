@@ -17,9 +17,9 @@ import {
 
 /**
  * Extended expression type accepted by all DSL primitives.
- * Includes everything in {@link Expr} plus {@link ChainableExpr} for method chaining.
+ * Includes everything in {@link Expr} plus {@link ChainableExpr} and {@link ThenBuilder}.
  */
-export type ExprInput = Expr | ChainableExpr;
+export type ExprInput = Expr | ChainableExpr | ThenBuilder;
 
 /**
  * Wraps an {@link Expr} and provides chainable arithmetic, comparison,
@@ -119,6 +119,7 @@ export function* resolve(
 ): Generator<FuncInstruction, WasmVal, any> {
   if (typeof expr === "number") return val(IR.const_i32(expr));
   if (expr instanceof ChainableExpr) return yield* expr;
+  if (expr instanceof ThenBuilder) return yield* expr;
   if (expr instanceof WasmRef) return val(IR.local_get(expr._idx));
   if ("_tag" in expr && expr._tag === "val") return expr as WasmVal;
   return yield* (expr as FuncGen<WasmVal>);
@@ -407,15 +408,45 @@ function if_impl(
   })();
 }
 
+class IfBuilder {
+  constructor(private readonly _cond: ExprInput) {}
+  then(body: FuncBody<WasmVal | void>): ThenBuilder {
+    return new ThenBuilder(this._cond, body);
+  }
+}
+
 /**
- * Conditional execution (`if`/`else`).
+ * Builder for conditional execution with `.then()` / `.else()` chaining.
+ * Use `yield*` to execute the conditional.
  */
-export function if_(
-  cond: ExprInput,
-  then_: FuncBody<WasmVal | void>,
-  else_?: FuncBody<WasmVal | void>,
-): FuncGen<any> {
-  return if_impl(cond, then_, else_);
+export class ThenBuilder {
+  constructor(
+    private readonly _cond: ExprInput,
+    private readonly _then: FuncBody<WasmVal | void>,
+    private readonly _else?: FuncBody<WasmVal | void>,
+  ) {}
+
+  else(body: FuncBody<WasmVal | void>): ThenBuilder {
+    return new ThenBuilder(this._cond, this._then, body);
+  }
+
+  [Symbol.iterator](): Generator<FuncInstruction, any, any> {
+    return if_impl(this._cond, this._then, this._else);
+  }
+}
+
+/**
+ * Conditional execution — returns an {@link IfBuilder} for `.then()` / `.else()` chaining.
+ *
+ * @example
+ * ```ts
+ * yield* if_(n.le(1))
+ *   .then(function* () { return yield* n.mul(4).load(); })
+ *   .else(function* () { ... });
+ * ```
+ */
+export function if_(cond: ExprInput): IfBuilder {
+  return new IfBuilder(cond);
 }
 
 /** Wasm `loop` block. */

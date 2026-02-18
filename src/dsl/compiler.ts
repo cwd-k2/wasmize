@@ -68,6 +68,7 @@ export {
   block_,
   // Fluent API
   ChainableExpr,
+  ThenBuilder,
   type ExprInput,
 } from "./primitives";
 export {

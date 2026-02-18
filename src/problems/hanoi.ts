@@ -6,10 +6,6 @@ import {
   param,
   local,
   i32,
-  get,
-  add,
-  sub,
-  le,
   set,
   call,
   call_,
@@ -30,22 +26,20 @@ export function problem1_hanoi(): Uint8Array {
       const count1 = yield* local("i32");
       const count2 = yield* local("i32");
 
-      return yield* if_(
-        le(get(n), i32(0)),
-        function* () {
+      return yield* if_(n.le(0))
+        .then(function* () {
           return yield* i32(0);
-        },
-        function* () {
+        })
+        .else(function* () {
           // count1 = hanoi(n-1, from, aux, to)
-          yield* set(count1, call(hanoi, sub(get(n), i32(1)), get(from), get(aux), get(to)));
+          yield* set(count1, call(hanoi, n.sub(1), from, aux, to));
           // effect_move(from, to)
-          yield* call_(effect_move, get(from), get(to));
+          yield* call_(effect_move, from, to);
           // count2 = hanoi(n-1, aux, to, from)
-          yield* set(count2, call(hanoi, sub(get(n), i32(1)), get(aux), get(to), get(from)));
+          yield* set(count2, call(hanoi, n.sub(1), aux, to, from));
           // return count1 + 1 + count2
-          return yield* add(add(get(count1), i32(1)), get(count2));
-        },
-      );
+          return yield* count1.add(1).add(count2);
+        });
     });
 
     yield* export_("hanoi", hanoi);

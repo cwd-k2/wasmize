@@ -4,15 +4,8 @@ import {
   export_,
   param,
   local,
-  i32,
-  get,
-  add,
-  sub,
-  mul,
-  le,
   set,
   store,
-  load,
   if_,
   loop_,
   block_,
@@ -26,34 +19,28 @@ export function problem2_fib_dp(): Uint8Array {
       const i = yield* local("i32");
 
       // mem[0] = 0, mem[4] = 1
-      yield* store(i32(0), i32(0));
-      yield* store(i32(4), i32(1));
+      yield* store(0, 0);
+      yield* store(4, 1);
 
       // if n <= 1, return mem[n*4], else loop
-      return yield* if_(
-        le(get(n), i32(1)),
-        function* () {
-          return yield* load(mul(get(n), i32(4)));
-        },
-        function* () {
-          yield* set(i, i32(2));
+      return yield* if_(n.le(1))
+        .then(function* () {
+          return yield* n.mul(4).load();
+        })
+        .else(function* () {
+          yield* set(i, 2);
           yield* block_(function* () {
             yield* loop_(function* () {
               // mem[i*4] = mem[(i-1)*4] + mem[(i-2)*4]
-              yield* store(
-                mul(get(i), i32(4)),
-                add(
-                  load(mul(sub(get(i), i32(1)), i32(4))),
-                  load(mul(sub(get(i), i32(2)), i32(4))),
-                ),
+              yield* i.mul(4).store(
+                i.sub(1).mul(4).load().add(i.sub(2).mul(4).load()),
               );
-              yield* set(i, add(get(i), i32(1)));
-              yield* br_if(0, le(get(i), get(n)));
+              yield* i.set(i.add(1));
+              yield* br_if(0, i.le(n));
             });
           });
-          return yield* load(mul(get(n), i32(4)));
-        },
-      );
+          return yield* n.mul(4).load();
+        });
     });
 
     yield* export_("fib", fib);
