@@ -1,4 +1,4 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
+import { compile, local, Type, Mod, Mem, Ctrl } from "../dsl/compiler";
 
 export function problem7_sieve() {
   return compile<{ sieve: (n: number) => number }>(function* () {
@@ -28,11 +28,11 @@ export function problem7_sieve() {
       // Count primes
       yield* Ctrl.for(i, 2, i.le(n), i.add(1), () => [
         Ctrl.when(Mem.load8(i).eq(1), () => [
-          count.set(count.add(1)),
+          count.incrBy(1),
         ]),
       ]);
 
-      return yield* Loc.get(count);
+      return count;
     });
   });
 }

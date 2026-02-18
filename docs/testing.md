@@ -108,7 +108,7 @@ npm run test:e2e   # Playwright E2E テスト
 `src/problems/new-problem.ts`:
 
 ```typescript
-import { compile, param, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
+import { compile, local, Type, Mod, Mem, Ctrl } from "../dsl/compiler";
 
 export function problem16_xxx() {
   return compile<{ func_name: (n: number) => number }>(function* () {
@@ -116,16 +116,13 @@ export function problem16_xxx() {
     // yield* Mod.memory(2);
     // const arr = Mem.i32Array();
 
-    const f = yield* Mod.func(function* () {
-      const n = yield* param(Type.i32);
+    yield* Mod.exportFunc("func_name", { n: Type.i32 }, function* (n) {
       // ローカル変数（初期値付き）:
       // const tmp = yield* local(Type.i32, 0);
 
       // アルゴリズムを記述
-      return yield* Loc.get(n);
+      return n;  // 暗黙の return coercion (WasmRef → local_get)
     });
-
-    yield* Mod.export("func_name", f);
   });
 }
 ```

@@ -33,8 +33,9 @@ env.effect_move(from: i32, to: i32) → void
 
 ### DSL の見どころ
 
-- `let hanoi: CallableFunc` による前方宣言 + 再帰呼び出し
+- `Mod.recursive(self => ...)` による自己参照再帰（前方宣言不要）
 - `effect_move.void()` による void import 呼び出し
+- `return 0` / `return count1.add(1).add(count2)` — 暗黙の return coercion
 
 ---
 
@@ -351,7 +352,7 @@ Lomuto partition + 再帰クイックソート。
 ### Wasm Export
 
 ```
-quicksort(lo: i32, hi: i32) → i32  (partition 回数)
+quicksort(lo: i32, hi: i32) → void
 ```
 
 ### メモリレイアウト
@@ -367,7 +368,8 @@ Memory pages: 1。
 - `arr.swap(i, j, tmp)` — 3行の swap パターンを1行で
 - `Ctrl.for` で partition ループ、`Ctrl.when` で swap 条件
 - `Mem.i32Array()` で配列アクセスの `.mul(4)` を排除
-- `let quicksort: CallableFunc` による再帰前方宣言（変更なし）
+- `Mod.recursive` による自己参照再帰（前方宣言不要）
+- `i.incrBy(1)` — 複合代入で partition の `i = i + 1` を簡潔に
 
 ---
 
@@ -473,7 +475,9 @@ Memory pages: 1（ほぼ不使用、ローカル変数のみ）。
 
 - `Ctrl.for` で列スキャン、`Ctrl.when` で配置可能判定
 - `local(Type.i32, 0)` でカウンタ初期化
-- `let solve: CallableFunc` による再帰前方宣言（変更なし）
+- `Mod.recursive` による自己参照再帰（前方宣言不要）
+- `i32(1).shl(col)` — トップレベル `i32()` でビットマスク生成
+- `count.incrBy(...)` — 複合代入で解のカウントアップ
 
 ---
 

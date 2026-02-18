@@ -46,14 +46,16 @@ docs/         # 技術ドキュメント
 - ループ糖衣: `Ctrl.for(var, start, cond, step, body)`, `Ctrl.while(cond, body)`, `Ctrl.when(cond, body)`
 - 多方向分岐: `Ctrl.switch(expr, cases, default?)` — nested if/else に展開
 - 値選択: `Op.select(cond, a, b)` は Wasm `select` 命令、`Op.max(a, b)` / `Op.min(a, b)` は select ベース
-- 配列ヘルパ: `Mem.i32Array(base)` で `.mul(4)` を隠蔽、`.swap(i, j, tmp)` で要素交換
+- 配列ヘルパ: `Mem.i32Array(base)` で `.mul(4)` を隠蔽、`.swap(i, j, tmp)` で要素交換、`.fill(start, end, value)` で一括初期化
 - 2D配列: `Mem.i32Array2D(base, cols)` で `.load(row, col)` / `.store(row, col, val)`
 - 一括 export: `Mod.exportAll({ name: funcRef, ... })`
 - i32 unsigned ops: `Op.div_u`, `Op.rem_u`, `Op.shr_u`, `Op.lt_u`, `Op.gt_u`, `Op.le_u`, `Op.ge_u`
 - i64 演算: `Op.i64.add/sub/mul/div`, `Op.i64.eqz`
 - f64 演算: `Op.f64.add/sub/mul/div`, `Op.f64.neg`, `Op.f64.abs`
 - 型変換: `Op.wrap` (i64→i32), `Op.extend` (i32→i64), `Op.toF64` (i32→f64), `Op.truncI32` (f64→i32)
-- f64 定数: `Mem.f64(v)` — f64 リテラル（`resolve(number)` は常に i32）
+- 定数ヘルパ: トップレベル `i32(v)`, `i64(v)`, `f64(v)` で chainable 定数生成（`i32(1).shl(col)` 等）。`Mem.i32/i64/f64` のエイリアス
+- 暗黙戻り値変換: 関数本体から `return count`（WasmRef → local_get）や `return 0`（number → i32.const）が直接可能。`FuncReturn = WasmVal | WasmRef | number | void`
+- 破壊的更新: `x.incrBy(v)`, `x.decrBy(v)`, `x.mulBy(v)`, `x.divBy(v)`, `x.remBy(v)`, `x.andBy(v)`, `x.orBy(v)`, `x.xorBy(v)`, `x.shlBy(v)`, `x.shrBy(v)`（`x.set(x.op(v))` の糖衣）
 - typed メモリ: `Mem.loadI64/storeI64`, `Mem.loadF64/storeF64`
 - メモリシステム: `Mem.size()`, `Mem.grow(pages)`
 - トラップ: `Ctrl.unreachable()`

@@ -1,5 +1,4 @@
-import { compile, local, Type, Mod, Op, Ctrl } from "../dsl/compiler";
-import { Mem } from "../dsl/compiler";
+import { compile, local, Type, Mod, Op, Mem, Ctrl } from "../dsl/compiler";
 
 export function problem10_knapsack() {
   const W_BASE = 0;
@@ -21,10 +20,7 @@ export function problem10_knapsack() {
         const wi = yield* local(Type.i32);
         const vi = yield* local(Type.i32);
 
-        // Initialize DP[0..cap] = 0
-        yield* Ctrl.for(w, 0, w.le(cap), w.add(1), () => [
-          dp.store(w, 0),
-        ]);
+        yield* dp.fill(0, cap, 0);
 
         // For each item i
         yield* Ctrl.for(i, 0, i.lt(n), i.add(1), () => [

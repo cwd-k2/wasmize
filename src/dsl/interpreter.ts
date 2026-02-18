@@ -7,11 +7,14 @@ import { optimizeFunc } from "../wasm/optimize";
 import type { WasmBinary } from "./types";
 import {
   ref,
+  val,
   funcRef,
   globalRef,
+  WasmRef,
   type WasmVal,
   type FuncRef,
   type FuncBody,
+  type FuncReturn,
   type FuncInstruction,
   type WasmProgram,
 } from "./types";
@@ -99,8 +102,20 @@ function isVal(v: unknown): v is WasmVal {
   return v != null && typeof v === "object" && (v as WasmVal)._tag === "val";
 }
 
+/**
+ * Coerces a generator return value into a WasmVal.
+ * Supports: WasmVal (passthrough), WasmRef (→ local_get), number (→ i32.const).
+ */
+function coerceReturn(v: unknown): WasmVal | void {
+  if (v == null) return undefined;
+  if (isVal(v)) return v;
+  if (v instanceof WasmRef) return val(IR.local_get(v._idx));
+  if (typeof v === "number") return val(IR.const_i32(v));
+  return undefined;
+}
+
 function interpretSubBody(
-  body: FuncBody<WasmVal | void>,
+  body: FuncBody<FuncReturn>,
   ctx: FuncContext,
 ): { nodes: IRNode[]; result: WasmVal | void } {
   const gen = body();
@@ -156,13 +171,13 @@ function interpretSubBody(
         break;
       }
       case "loop": {
-        const loopResult = interpretSubBody(instr.body as FuncBody<WasmVal | void>, ctx);
+        const loopResult = interpretSubBody(instr.body as FuncBody<FuncReturn>, ctx);
         nodes.push(IR.loop(loopResult.nodes));
         next = gen.next();
         break;
       }
       case "block": {
-        const blockResult = interpretSubBody(instr.body as FuncBody<WasmVal | void>, ctx);
+        const blockResult = interpretSubBody(instr.body as FuncBody<FuncReturn>, ctx);
         nodes.push(IR.block(blockResult.nodes));
         next = gen.next();
         break;
@@ -170,7 +185,7 @@ function interpretSubBody(
     }
   }
 
-  return { nodes, result: next.value };
+  return { nodes, result: coerceReturn(next.value) };
 }
 
 // --- Module interpreter ---
@@ -182,7 +197,7 @@ export function compile<T = Record<string, unknown>>(
   const shouldOptimize = options?.optimize !== false;
   const gen = program();
   const imports: ImportDef[] = [];
-  const bodies: FuncBody<WasmVal | void>[] = [];
+  const bodies: FuncBody<FuncReturn>[] = [];
   const exports_: ExportDef[] = [];
   const globals: GlobalDef[] = [];
   let memoryPages = 1;

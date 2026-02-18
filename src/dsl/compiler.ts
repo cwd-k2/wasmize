@@ -43,6 +43,10 @@ export {
   Mem,
   Ctrl,
   Loc,
+  // Top-level constant helpers
+  i32,
+  i64,
+  f64,
 } from "./primitives";
 export {
   WasmRef,

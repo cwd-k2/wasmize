@@ -7,6 +7,7 @@ import {
   type FuncRef,
   type FuncGen,
   type FuncBody,
+  type FuncReturn,
   type FuncInstruction,
   type ModuleGen,
   type VoidBody,
@@ -70,11 +71,11 @@ function toBody(body: VoidBody): FuncBody<void> {
 
 /** Builds a FuncBody from either a plain body or a params record + callback. */
 function buildBody(
-  bodyOrParams: FuncBody<WasmVal | void> | Record<string, WasmValType>,
+  bodyOrParams: FuncBody<FuncReturn> | Record<string, WasmValType>,
   bodyWithParams?: (
     ...refs: WasmRef[]
-  ) => Generator<FuncInstruction, WasmVal | void, any>,
-): FuncBody<WasmVal | void> {
+  ) => Generator<FuncInstruction, FuncReturn, any>,
+): FuncBody<FuncReturn> {
   if (typeof bodyOrParams === "function") return bodyOrParams;
   const entries = Object.entries(bodyOrParams);
   for (const [key] of entries) {
@@ -93,13 +94,20 @@ function buildBody(
   };
 }
 
-/** Module-level declarations: functions, exports, imports, memory. */
+/** Module-level declarations: functions, exports, imports, memory, globals. */
 export const Mod = {
+  /**
+   * Declares a local function.
+   *
+   * Accepts either a plain body or a params record with a callback:
+   * - `Mod.func(function* () { ... })`
+   * - `Mod.func({ a: Type.i32, b: Type.i32 }, function* (a, b) { ... })`
+   */
   func(
-    bodyOrParams: FuncBody<WasmVal | void> | Record<string, WasmValType>,
+    bodyOrParams: FuncBody<FuncReturn> | Record<string, WasmValType>,
     bodyWithParams?: (
       ...refs: WasmRef[]
-    ) => Generator<FuncInstruction, WasmVal | void, any>,
+    ) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc> {
     const body = buildBody(bodyOrParams, bodyWithParams);
     return (function* () {
@@ -107,11 +115,13 @@ export const Mod = {
       return callableFunc(r._idx);
     })();
   },
+  /** Exports a function with the given name. */
   export(name: string, funcref: FuncRef): ModuleGen<void> {
     return (function* () {
       yield { _type: "export", name, ref: funcref } as ModuleInstruction;
     })();
   },
+  /** Declares an imported function from the host environment. */
   import(
     moduleName: string,
     name: string,
@@ -129,6 +139,7 @@ export const Mod = {
       return callableFunc(r._idx);
     })();
   },
+  /** Exports multiple functions at once. `Mod.exportAll({ add, sub })` */
   exportAll(funcs: Record<string, FuncRef>): ModuleGen<void> {
     return (function* () {
       for (const [name, ref] of Object.entries(funcs)) {
@@ -136,12 +147,22 @@ export const Mod = {
       }
     })();
   },
+  /**
+   * Declares and exports a function in one step.
+   *
+   * @example
+   * ```ts
+   * yield* Mod.exportFunc("add", { a: Type.i32, b: Type.i32 }, function* (a, b) {
+   *   return yield* a.add(b);
+   * });
+   * ```
+   */
   exportFunc(
     name: string,
-    bodyOrParams: FuncBody<WasmVal | void> | Record<string, WasmValType>,
+    bodyOrParams: FuncBody<FuncReturn> | Record<string, WasmValType>,
     bodyWithParams?: (
       ...refs: WasmRef[]
-    ) => Generator<FuncInstruction, WasmVal | void, any>,
+    ) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc> {
     const body = buildBody(bodyOrParams, bodyWithParams);
     return (function* () {
@@ -151,16 +172,28 @@ export const Mod = {
       return fn;
     })();
   },
+  /**
+   * Declares a recursive function with self-reference via a `self` parameter.
+   * Eliminates the `let f: CallableFunc` forward-declaration pattern.
+   *
+   * @example
+   * ```ts
+   * const fib = yield* Mod.recursive(
+   *   { n: Type.i32 },
+   *   function* (self, n) { ... yield* self(n.sub(1)); },
+   * );
+   * ```
+   */
   recursive(
     bodyOrParams:
       | ((
           self: CallableFunc,
-        ) => Generator<FuncInstruction, WasmVal | void, any>)
+        ) => Generator<FuncInstruction, FuncReturn, any>)
       | Record<string, WasmValType>,
     bodyWithParams?: (
       self: CallableFunc,
       ...refs: WasmRef[]
-    ) => Generator<FuncInstruction, WasmVal | void, any>,
+    ) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc> {
     return (function* () {
       const r: FuncRef = yield {
@@ -188,11 +221,13 @@ export const Mod = {
       return callableFunc(r._idx);
     })();
   },
+  /** Declares linear memory with the given minimum page count (1 page = 64KB). */
   memory(pages: number): ModuleGen<void> {
     return (function* () {
       yield { _type: "memory", pages } as ModuleInstruction;
     })();
   },
+  /** Declares a global variable with the given type and initial value. */
   global(
     type: WasmValType,
     init: number,
@@ -229,6 +264,7 @@ export const Op = {
   eq, ne, lt, gt, le, ge,
   and: and_, or: or_, xor: xor_, shl, shr,
   select: select_,
+  /** Branchless maximum via `select`. `Op.max(a, b)` = `a > b ? a : b`. */
   max(a: ExprInput, b: ExprInput): ChainableExpr {
     return new ChainableExpr(
       (function* () {
@@ -238,6 +274,7 @@ export const Op = {
       })(),
     );
   },
+  /** Branchless minimum via `select`. `Op.min(a, b)` = `a < b ? a : b`. */
   min(a: ExprInput, b: ExprInput): ChainableExpr {
     return new ChainableExpr(
       (function* () {
@@ -353,30 +390,35 @@ export const Op = {
   },
 
   // --- Conversion shortcuts ---
+  /** Converts i64 to i32 (`i32.wrap_i64`). */
   wrap(a: ExprInput): FuncGen<WasmVal> {
     return (function* () {
       const va = yield* resolve(a);
       return val(IR.i32_wrap_i64(va._node));
     })();
   },
+  /** Sign-extends i32 to i64 (`i64.extend_i32_s`). */
   extend(a: ExprInput): FuncGen<WasmVal> {
     return (function* () {
       const va = yield* resolve(a);
       return val(IR.i64_extend_i32_s(va._node));
     })();
   },
+  /** Converts signed i32 to f64 (`f64.convert_i32_s`). */
   toF64(a: ExprInput): FuncGen<WasmVal> {
     return (function* () {
       const va = yield* resolve(a);
       return val(IR.f64_convert_i32_s(va._node));
     })();
   },
+  /** Truncates f64 to signed i32 (`i32.trunc_f64_s`). */
   truncI32(a: ExprInput): FuncGen<WasmVal> {
     return (function* () {
       const va = yield* resolve(a);
       return val(IR.i32_trunc_f64_s(va._node));
     })();
   },
+  /** Converts signed i32 to f32 (`f32.convert_i32_s`). */
   toF32(a: ExprInput): FuncGen<WasmVal> {
     return makeConvert("f32_convert_i32_s")(a);
   },
@@ -397,8 +439,9 @@ export const Op = {
   ) as Record<ConvertKind, (a: ExprInput) => FuncGen<WasmVal>>,
 };
 
-/** Memory and constant operations. */
+/** Memory access, constants, and array helpers. */
 export const Mem = {
+  /** Loads an i32 from the given byte address. */
   load(addr: ExprInput): ChainableExpr {
     return new ChainableExpr(
       (function* () {
@@ -407,6 +450,7 @@ export const Mem = {
       })(),
     );
   },
+  /** Stores an i32 at the given byte address. */
   store(addr: ExprInput, value: ExprInput): FuncGen<void> {
     return (function* () {
       const va = yield* resolve(addr);
@@ -414,6 +458,7 @@ export const Mem = {
       yield { _type: "stmt", node: IR.store_i32(va._node, vv._node) };
     })();
   },
+  /** Loads a single byte (zero-extended to i32) from the given address. */
   load8(addr: ExprInput): ChainableExpr {
     return new ChainableExpr(
       (function* () {
@@ -422,6 +467,7 @@ export const Mem = {
       })(),
     );
   },
+  /** Stores a single byte at the given address. */
   store8(addr: ExprInput, value: ExprInput): FuncGen<void> {
     return (function* () {
       const va = yield* resolve(addr);
@@ -429,6 +475,7 @@ export const Mem = {
       yield { _type: "stmt", node: IR.store_i32_8(va._node, vv._node) };
     })();
   },
+  /** Creates a chainable i32 constant expression. */
   i32(v: number): ChainableExpr {
     return new ChainableExpr(
       (function* () {
@@ -436,6 +483,7 @@ export const Mem = {
       })(),
     );
   },
+  /** Creates a chainable i64 constant expression. */
   i64(v: number): ChainableExpr {
     return new ChainableExpr(
       (function* () {
@@ -443,6 +491,7 @@ export const Mem = {
       })(),
     );
   },
+  /** Creates a chainable f32 constant expression. */
   f32(v: number): ChainableExpr {
     return new ChainableExpr(
       (function* () {
@@ -450,6 +499,7 @@ export const Mem = {
       })(),
     );
   },
+  /** Creates a chainable f64 constant expression. */
   f64(v: number): ChainableExpr {
     return new ChainableExpr(
       (function* () {
@@ -607,23 +657,30 @@ export const Mem = {
       yield { _type: "stmt", node: IR.mem_store("i64_store32", va._node, vv._node) };
     })();
   },
-  // --- Memory misc ---
+  /** Returns the current memory size in pages (`memory.size`). */
   size(): FuncGen<WasmVal> {
     return (function* () {
       return val(IR.memory_size());
     })();
   },
+  /** Grows memory by the given number of pages. Returns previous size or -1 on failure. */
   grow(pages: ExprInput): FuncGen<WasmVal> {
     return (function* () {
       const vp = yield* resolve(pages);
       return val(IR.memory_grow(vp._node));
     })();
   },
-  // --- Array helpers ---
+  /**
+   * Creates an i32 array helper that hides `.mul(4)` byte addressing.
+   *
+   * @param base - Base byte offset (default 0)
+   * @returns Object with `load(idx)`, `store(idx, val)`, `swap(i, j, tmp)`, `fill(start, end, val)`
+   */
   i32Array(base: number = 0): {
     load(idx: ExprInput): ChainableExpr;
     store(idx: ExprInput, value: ExprInput): FuncGen<void>;
     swap(i: ExprInput, j: ExprInput, tmp: WasmRef): FuncGen<void>;
+    fill(start: ExprInput, end: ExprInput, value: ExprInput): FuncGen<void>;
   } {
     const addrOf = (idx: ExprInput): ChainableExpr => {
       const scaled = new ChainableExpr(mul(idx, 4));
@@ -639,9 +696,36 @@ export const Mem = {
           yield* arr.store(i, arr.load(j));
           yield* arr.store(j, tmp);
         })(),
+      fill: (startIdx: ExprInput, endIdx: ExprInput, value: ExprInput): FuncGen<void> =>
+        (function* () {
+          const idx: WasmRef = yield { _type: "decl" as const, kind: "local" as const, valType: "i32" as WasmValType };
+          yield* set(idx, startIdx);
+          yield {
+            _type: "block" as const,
+            body: function* () {
+              yield {
+                _type: "loop" as const,
+                body: function* () {
+                  const vc = yield* resolve(gt(idx, endIdx));
+                  yield { _type: "stmt" as const, node: IR.br_if(1, vc._node) };
+                  yield* arr.store(idx, value);
+                  yield* set(idx, add(idx, 1));
+                  yield { _type: "stmt" as const, node: IR.br(0) };
+                },
+              };
+            },
+          };
+        })(),
     };
     return arr;
   },
+  /**
+   * Creates a 2D i32 array helper. Computes `(row * cols + col) * 4 + base`.
+   *
+   * @param base - Base byte offset (default 0)
+   * @param cols - Number of columns (can be a runtime expression)
+   * @returns Object with `load(row, col)`, `store(row, col, val)`
+   */
   i32Array2D(base: number = 0, cols: ExprInput): {
     load(row: ExprInput, col: ExprInput): ChainableExpr;
     store(row: ExprInput, col: ExprInput, value: ExprInput): FuncGen<void>;
@@ -661,38 +745,45 @@ export const Mem = {
   },
 };
 
-/** Control flow: branching, loops, blocks. */
+/** Control flow: branching, loops, blocks, and structured sugar. */
 export const Ctrl = {
+  /** Starts a conditional branch. Chain with `.then()` and optionally `.else()`. */
   if(cond: ExprInput): IfBuilder {
     return new IfBuilder(cond);
   },
+  /** Raw Wasm loop block. Prefer `Ctrl.for` or `Ctrl.while` for structured loops. */
   loop(body: VoidBody): FuncGen<void> {
     return (function* () {
       yield { _type: "loop", body: toBody(body) };
     })();
   },
+  /** Raw Wasm block. Use `br(depth)` to break out. */
   block(body: VoidBody): FuncGen<void> {
     return (function* () {
       yield { _type: "block", body: toBody(body) };
     })();
   },
+  /** Unconditional branch to the enclosing block/loop at the given depth. */
   br(depth: number): FuncGen<void> {
     return (function* () {
       yield { _type: "stmt", node: IR.br(depth) };
     })();
   },
+  /** Conditional branch. Branches if `cond` is truthy. */
   br_if(depth: number, cond: ExprInput): FuncGen<void> {
     return (function* () {
       const vc = yield* resolve(cond);
       yield { _type: "stmt", node: IR.br_if(depth, vc._node) };
     })();
   },
+  /** Multi-way branch table. Branches to `labels[expr]` or `default_` if out of range. */
   br_table(expr: ExprInput, labels: number[], default_: number): FuncGen<void> {
     return (function* () {
       const ve = yield* resolve(expr);
       yield { _type: "stmt", node: IR.br_table(labels, default_, ve._node) };
     })();
   },
+  /** While loop. Repeats `body` as long as `cond` is truthy. Expands to `block { loop { br_if; ...; br } }`. */
   while(cond: ExprInput, body: VoidBody): FuncGen<void> {
     const nb = toBody(body);
     return (function* () {
@@ -712,6 +803,15 @@ export const Ctrl = {
       };
     })();
   },
+  /**
+   * For loop sugar. `Ctrl.for(i, 0, i.lt(n), i.add(1), body)` is equivalent to `for (i = 0; i < n; i++)`.
+   *
+   * @param variable - Loop variable (must be a declared local)
+   * @param start - Initial value
+   * @param cond - Continue condition (checked before each iteration)
+   * @param step - Step expression (applied after each iteration)
+   * @param body - Loop body
+   */
   for(
     variable: WasmRef,
     start: ExprInput,
@@ -739,6 +839,7 @@ export const Ctrl = {
       };
     })();
   },
+  /** Void-only conditional. Short for `if(cond).then(body)` without `.else()` or return value. */
   when(cond: ExprInput, body: VoidBody): FuncGen<void> {
     return (function* () {
       const vc = yield* resolve(cond);
@@ -749,6 +850,13 @@ export const Ctrl = {
       };
     })();
   },
+  /**
+   * Multi-way switch. Dense contiguous cases use `br_table`; sparse cases fall back to if/else chain.
+   *
+   * @param expr - Value to match against
+   * @param cases - `[value, body]` pairs
+   * @param default_ - Optional default case body
+   */
   switch(
     expr: ExprInput,
     cases: [number, VoidBody][],
@@ -855,17 +963,20 @@ export const Ctrl = {
       if (chain) yield* chain();
     })();
   },
+  /** No-op instruction. */
   nop(): FuncGen<void> {
     return (function* () {
       yield { _type: "stmt", node: IR.nop() };
     })();
   },
+  /** Emits a side-effect (writes tag + payload to mem[0..8] and returns -1). */
   effect(tag: number, payload: ExprInput): FuncGen<void> {
     return (function* () {
       const vp = yield* resolve(payload);
       yield { _type: "stmt", node: IR.effect(tag, vp._node) };
     })();
   },
+  /** Triggers a Wasm trap (unreachable instruction). */
   unreachable(): FuncGen<void> {
     return (function* () {
       yield { _type: "stmt", node: IR.unreachable() };
@@ -873,8 +984,20 @@ export const Ctrl = {
   },
 };
 
-/** Local variable operations. */
+// --- Top-level constant helpers ---
+
+/** Creates a chainable i32 constant. `i32(1).shl(col)` instead of `Mem.i32(1).shl(col)`. */
+export const i32 = Mem.i32;
+
+/** Creates a chainable i64 constant. */
+export const i64 = Mem.i64;
+
+/** Creates a chainable f64 constant. */
+export const f64 = Mem.f64;
+
+/** Local variable operations (get, set, tee, drop, return). */
 export const Loc = {
+  /** Reads a local variable's value. With implicit return coercion, `return r` often suffices. */
   get(r: WasmRef): FuncGen<WasmVal> {
     return (function* () {
       return val(IR.local_get(r._idx));
@@ -882,12 +1005,14 @@ export const Loc = {
   },
   set,
   tee,
+  /** Evaluates an expression and discards its result. */
   drop(value: ExprInput): FuncGen<void> {
     return (function* () {
       const v = yield* resolve(value);
       yield { _type: "stmt", node: IR.drop(v._node) };
     })();
   },
+  /** Early return from the current function with the given value. */
   return(value: ExprInput): FuncGen<void> {
     return (function* () {
       const v = yield* resolve(value);

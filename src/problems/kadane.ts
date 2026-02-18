@@ -1,5 +1,4 @@
-import { compile, local, Type, Mod, Op, Ctrl, Loc } from "../dsl/compiler";
-import { Mem } from "../dsl/compiler";
+import { compile, local, Type, Mod, Op, Mem, Ctrl } from "../dsl/compiler";
 
 export function problem3_kadane() {
   const BASE = 1024;
@@ -14,7 +13,7 @@ export function problem3_kadane() {
       const v = yield* local(Type.i32);
 
       yield* current_sum.set(arr.load(0));
-      yield* max_sum.set(Loc.get(current_sum));
+      yield* max_sum.set(current_sum);
 
       yield* Ctrl.for(i, 1, i.lt(len), i.add(1), () => [
         v.set(arr.load(i)),
@@ -22,7 +21,7 @@ export function problem3_kadane() {
         max_sum.set(Op.max(current_sum, max_sum)),
       ]);
 
-      return yield* Loc.get(max_sum);
+      return max_sum;
     });
   });
 }

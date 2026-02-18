@@ -8,6 +8,7 @@ import {
   type Expr,
   type FuncGen,
   type FuncBody,
+  type FuncReturn,
   type FuncInstruction,
 } from "./types";
 
@@ -309,8 +310,8 @@ function call_(funcref: FuncRef, ...args: ExprInput[]): FuncGen<void> {
 
 function if_impl(
   cond: ExprInput,
-  then_: FuncBody<WasmVal | void>,
-  else_?: FuncBody<WasmVal | void>,
+  then_: FuncBody<FuncReturn>,
+  else_?: FuncBody<FuncReturn>,
 ): FuncGen<any> {
   return (function* () {
     const vc = yield* resolve(cond);
@@ -327,7 +328,7 @@ function if_impl(
 export class IfBuilder {
   constructor(private readonly _cond: ExprInput) {}
   /** Specifies the then-branch body. Returns a {@link ThenBuilder} for optional `.else()` chaining. */
-  then(body: FuncBody<WasmVal | void>): ThenBuilder {
+  then(body: FuncBody<FuncReturn>): ThenBuilder {
     return new ThenBuilder(this._cond, body);
   }
 }
@@ -339,12 +340,12 @@ export class IfBuilder {
 export class ThenBuilder {
   constructor(
     private readonly _cond: ExprInput,
-    private readonly _then: FuncBody<WasmVal | void>,
-    private readonly _else?: FuncBody<WasmVal | void>,
+    private readonly _then: FuncBody<FuncReturn>,
+    private readonly _else?: FuncBody<FuncReturn>,
   ) {}
 
   /** Specifies the else-branch body. Returns a new ThenBuilder (immutable chaining). */
-  else(body: FuncBody<WasmVal | void>): ThenBuilder {
+  else(body: FuncBody<FuncReturn>): ThenBuilder {
     return new ThenBuilder(this._cond, this._then, body);
   }
 

@@ -28,7 +28,7 @@ export function problem5_binary_search() {
             .else(function* () { yield* hi.set(mid.sub(1)); }),
         ]);
 
-        return yield* Mem.i32(-1);
+        return -1;
       },
     );
 
@@ -40,10 +40,10 @@ export function problem5_binary_search() {
         const sum = yield* local(Type.i32, 0);
 
         yield* Ctrl.for(ti, 0, ti.lt(tcount), ti.add(1), () => [
-          sum.set(sum.add(binary_search(len, Mem.load(tbase.add(ti.mul(4)))))),
+          sum.incrBy(binary_search(len, Mem.load(tbase.add(ti.mul(4))))),
         ]);
 
-        return yield* Loc.get(sum);
+        return sum;
       },
     );
 

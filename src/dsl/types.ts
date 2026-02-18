@@ -146,6 +146,16 @@ export type WasmProgram = () => Generator<ModuleInstruction, void, any>;
  */
 export type Expr = WasmVal | FuncGen<WasmVal> | WasmRef | number;
 
+/**
+ * Allowed return types from function bodies.
+ * The interpreter coerces these to `WasmVal`:
+ * - `WasmVal` — returned as-is
+ * - `WasmRef` — coerced to `local_get`
+ * - `number` — coerced to `i32.const`
+ * - `void` — no return value
+ */
+export type FuncReturn = WasmVal | WasmRef | number | void;
+
 // --- Function-level instructions ---
 
 /**
@@ -183,9 +193,9 @@ export interface IfInstruction {
   /** The condition IR node (should evaluate to i32). */
   cond: IRNode;
   /** Body executed when the condition is truthy. */
-  then_: FuncBody<WasmVal | void>;
+  then_: FuncBody<FuncReturn>;
   /** Optional body executed when the condition is falsy. */
-  else_?: FuncBody<WasmVal | void>;
+  else_?: FuncBody<FuncReturn>;
 }
 
 /**
@@ -249,7 +259,7 @@ export type ModuleInstruction =
       params: WasmValType[];
       results: WasmValType[];
     }
-  | { _type: "func"; body: FuncBody<WasmVal | void> }
+  | { _type: "func"; body: FuncBody<FuncReturn> }
   | { _type: "export"; name: string; ref: FuncRef }
   | { _type: "memory"; pages: number }
   | { _type: "global"; valType: WasmValType; init: number; mutable: boolean };

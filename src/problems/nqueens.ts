@@ -1,4 +1,4 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
+import { compile, local, i32, Type, Mod, Ctrl } from "../dsl/compiler";
 
 export function problem14_nqueens() {
   return compile<{ nqueens: (n: number) => number }>(function* () {
@@ -16,42 +16,40 @@ export function problem14_nqueens() {
 
         return yield* Ctrl.if(row.ge(n))
           .then(function* () {
-            return yield* Mem.i32(1);
+            return 1;
           })
           .else(function* () {
             yield* Ctrl.for(col, 0, col.lt(n), col.add(1), () => [
-              bit.set(Mem.i32(1).shl(col)),
-              d1bit.set(Mem.i32(1).shl(row.add(col))),
-              d2bit.set(Mem.i32(1).shl(row.sub(col).add(n.sub(1)))),
+              bit.set(i32(1).shl(col)),
+              d1bit.set(i32(1).shl(row.add(col))),
+              d2bit.set(i32(1).shl(row.sub(col).add(n.sub(1)))),
 
               Ctrl.when(
                 cols.and(bit).eq(0)
                   .and(diag1.and(d1bit).eq(0))
                   .and(diag2.and(d2bit).eq(0)),
                 () => [
-                  count.set(
-                    count.add(
-                      self(
-                        n,
-                        row.add(1),
-                        cols.or(bit),
-                        diag1.or(d1bit),
-                        diag2.or(d2bit),
-                      ),
+                  count.incrBy(
+                    self(
+                      n,
+                      row.add(1),
+                      cols.or(bit),
+                      diag1.or(d1bit),
+                      diag2.or(d2bit),
                     ),
                   ),
                 ],
               ),
             ]);
 
-            return yield* Loc.get(count);
+            return count;
           });
       },
     );
 
     // nqueens(n) -> total solutions
     yield* Mod.exportFunc("nqueens", { n: Type.i32 }, function* (n) {
-      return yield* solve(n, Mem.i32(0), Mem.i32(0), Mem.i32(0), Mem.i32(0));
+      return yield* solve(n, 0, 0, 0, 0);
     });
   });
 }

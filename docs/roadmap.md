@@ -21,13 +21,11 @@
 
 | 層 | カバー | 全体 | 比率 |
 |----|--------|------|------|
-| opcodes.ts | 71 | 172 | 41% |
-| codegen | 68 | 172 | 40% |
-| DSL | 68 | 172 | 40% |
+| opcodes.ts | 172 | 172 | 100% |
+| codegen | 171 | 172 | 99% |
+| DSL | 171 | 172 | 99% |
 
-P14 で 30 命令を配線し、codegen/DSL のカバー率を 22% → 40% に引き上げた。opcodes.ts 登録済みだが未配線の 3 命令:
-- `br_table` — Ctrl.switch は nested if/else で展開（将来の最適化候補）
-- `global_get` / `global_set` — 現状 local 変数で代替可能（global state が必要な問題がない）
+P14 で 30 命令を配線し 40% に到達後、さらに `br_table`, `global_get/set` 等を追加して 99% まで引き上げた。未実装は `call_indirect` のみ。
 
 ---
 
@@ -318,10 +316,27 @@ export function problem5_binary_search() {
           .else(function* () { yield* hi.set(mid.sub(1)); });
       });
 
-      return yield* Mem.i32(-1);
-    });
-    yield* Mod.export("binary_search", search);
-  });
+      return -1;
+    },
+  );
+
+  // Batch search
+  const search_batch = yield* Mod.func(
+    { len: Type.i32, tbase: Type.i32, tcount: Type.i32 },
+    function* (len, tbase, tcount) {
+      const ti = yield* local(Type.i32);
+      const sum = yield* local(Type.i32, 0);
+
+      yield* Ctrl.for(ti, 0, ti.lt(tcount), ti.add(1), () => [
+        sum.incrBy(binary_search(len, Mem.load(tbase.add(ti.mul(4))))),
+      ]);
+
+      return sum;
+    },
+  );
+
+  yield* Mod.exportAll({ binary_search, search_batch });
+});
 }
 ```
 
@@ -330,7 +345,8 @@ export function problem5_binary_search() {
 1. `block + loop + br_if(1) + br(0)` → `Ctrl.while(cond, body)` — 4 行分のセレモニー消失
 2. `Mem.load(mid.mul(4))` → `arr.load(mid)` — アドレス計算の隠蔽
 3. `local(Type.i32); set(0)` → `local(Type.i32, 0)` — 宣言＋初期化の統合
-4. void-only `.then()` に `.else()` + `Ctrl.nop()` 不要 — 自然な void 分岐
+4. `return yield* Mem.i32(-1)` → `return -1` — 暗黙の return coercion
+5. `sum.incrBy(...)` — 複合代入メソッドで `sum.set(sum.add(...))` を簡潔に
 
 ---
 
@@ -354,44 +370,48 @@ function sieve(n) {
 
 4 つの `block + loop + br_if + br` と `Mem.store8/load8` が展開されて 61 行。
 
-### 実装後 DSL（32 行）
+### 実装後 DSL（38 行）
 
 ```ts
 export function problem7_sieve() {
   return compile<{ sieve: (n: number) => number }>(function* () {
     yield* Mod.memory(2);
-    const sieve = yield* Mod.func(function* () {
-      const n = yield* param(Type.i32);
+
+    yield* Mod.exportFunc("sieve", { n: Type.i32 }, function* (n) {
       const i = yield* local(Type.i32);
       const j = yield* local(Type.i32);
       const count = yield* local(Type.i32, 0);
 
-      yield* Ctrl.for(i, 2, i.le(n), i.add(1), function* () {
-        yield* Mem.store8(i, 1);
-      });
+      // Bulk init: write 0x01010101 in i32 chunks (4x fewer iterations)
+      yield* Ctrl.for(i, 0, i.le(n.div(4)), i.add(1), () => [
+        Mem.store(i.mul(4), 0x01010101),
+      ]);
+      yield* Mem.store8(0, 0);
+      yield* Mem.store8(1, 0);
 
-      yield* Ctrl.for(i, 2, i.mul(i).le(n), i.add(1), function* () {
-        yield* Ctrl.when(Mem.load8(i).eq(1), function* () {
-          yield* Ctrl.for(j, i.mul(i), j.le(n), j.add(i), function* () {
-            yield* Mem.store8(j, 0);
-          });
-        });
-      });
+      // Sieve: for p from 2 while p*p <= n
+      yield* Ctrl.for(i, 2, i.mul(i).le(n), i.add(1), () => [
+        Ctrl.when(Mem.load8(i).eq(1), () => [
+          Ctrl.for(j, i.mul(i), j.le(n), j.add(i), () => [
+            Mem.store8(j, 0),
+          ]),
+        ]),
+      ]);
 
-      yield* Ctrl.for(i, 2, i.le(n), i.add(1), function* () {
-        yield* Ctrl.when(Mem.load8(i).eq(1), function* () {
-          yield* count.set(count.add(1));
-        });
-      });
+      // Count primes
+      yield* Ctrl.for(i, 2, i.le(n), i.add(1), () => [
+        Ctrl.when(Mem.load8(i).eq(1), () => [
+          count.incrBy(1),
+        ]),
+      ]);
 
-      return yield* Loc.get(count);
+      return count;
     });
-    yield* Mod.export("sieve", sieve);
   });
 }
 ```
 
-**61 → 32 行（48% 削減）。** JS の `for` ループとほぼ 1:1 対応になる。
+**61 → 38 行（38% 削減）。** `Mod.exportFunc` で関数宣言と export を統合、`count.incrBy(1)` で複合代入、`return count` で暗黙の local_get。
 
 ---
 
@@ -520,8 +540,6 @@ compile<{ fib: (n: number) => number }>(...)
 
 | 命令群 | 用途 | 優先度 |
 |--------|------|--------|
-| `br_table` | switch/case 最適化（現在は nested if/else） | 低 |
-| `global_get/set` | グローバル変数 | 低 |
 | `call_indirect` | 関数ポインタ。仮想ディスパッチ | 低 |
 
 ### Tier 3: 新しい問題で動機づけ

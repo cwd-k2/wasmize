@@ -1,4 +1,4 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
+import { compile, local, Type, Mod, Ctrl } from "../dsl/compiler";
 
 export function problem1_hanoi() {
   return compile<{ hanoi: (n: number, from: number, to: number, aux: number) => number }>(function* () {
@@ -10,11 +10,11 @@ export function problem1_hanoi() {
 
         return yield* Ctrl.if(n.le(0))
           .then(function* () {
-            return yield* Mem.i32(0);
+            return 0;
           })
           .else(function* () {
-            yield* Loc.set(count1, self(n.sub(1), from, aux, to));
-            yield* Loc.set(count2, self(n.sub(1), aux, to, from));
+            yield* count1.set(self(n.sub(1), from, aux, to));
+            yield* count2.set(self(n.sub(1), aux, to, from));
             return yield* count1.add(1).add(count2);
           });
       },

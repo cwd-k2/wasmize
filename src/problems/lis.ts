@@ -1,5 +1,4 @@
-import { compile, local, Type, Mod, Ctrl, Loc } from "../dsl/compiler";
-import { Mem } from "../dsl/compiler";
+import { compile, local, Type, Mod, Mem, Ctrl } from "../dsl/compiler";
 
 export function problem13_lis() {
   const TAILS_BASE = 65536;
@@ -33,11 +32,11 @@ export function problem13_lis() {
 
         yield* tails.store(lo, val);
         yield* Ctrl.when(lo.eq(tails_len), () => [
-          tails_len.set(tails_len.add(1)),
+          tails_len.incrBy(1),
         ]);
       });
 
-      return yield* Loc.get(tails_len);
+      return tails_len;
     });
   });
 }

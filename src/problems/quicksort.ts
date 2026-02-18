@@ -1,4 +1,4 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
+import { compile, local, Type, Mod, Mem, Ctrl } from "../dsl/compiler";
 
 export function problem11_quicksort() {
   return compile<{ quicksort: (lo: number, hi: number) => void }>(function* () {
@@ -20,12 +20,12 @@ export function problem11_quicksort() {
         yield* Ctrl.for(j, lo, j.lt(hi), j.add(1), () => [
           Ctrl.when(arr.load(j).le(pivot), () => [
             arr.swap(i, j, tmp),
-            i.set(i.add(1)),
+            i.incrBy(1),
           ]),
         ]);
 
         yield* arr.swap(i, hi, tmp);
-        return yield* Loc.get(i);
+        return i;
       },
     );
 

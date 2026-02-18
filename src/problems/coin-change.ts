@@ -19,11 +19,7 @@ export function problem4_coin_change() {
         const tmp = yield* local(Type.i32);
 
         yield* dp.store(0, 0);
-
-        // fill dp[1..amount] = INF
-        yield* Ctrl.for(i, 1, i.le(amount), i.add(1), () => [
-          dp.store(i, INF),
-        ]);
+        yield* dp.fill(1, amount, INF);
 
         // for each coin j
         yield* Ctrl.for(j, 0, j.lt(num_coins), j.add(1), () => [

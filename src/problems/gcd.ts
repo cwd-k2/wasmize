@@ -1,5 +1,4 @@
-import { compile, local, Type, Mod, Ctrl, Loc } from "../dsl/compiler";
-import { Mem } from "../dsl/compiler";
+import { compile, local, Type, Mod, Mem, Ctrl } from "../dsl/compiler";
 
 export function problem6_gcd_array() {
   return compile<{ array_gcd: (len: number) => number }>(function* () {
@@ -27,7 +26,7 @@ export function problem6_gcd_array() {
         yield* result.set(a);
       });
 
-      return yield* Loc.get(result);
+      return result;
     });
   });
 }

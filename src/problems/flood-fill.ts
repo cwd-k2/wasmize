@@ -1,4 +1,4 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
+import { compile, local, Type, Mod, Mem, Ctrl } from "../dsl/compiler";
 
 export function problem12_flood_fill() {
   return compile<{
@@ -27,12 +27,12 @@ export function problem12_flood_fill() {
           Mem.load(sy.mul(W).add(sx).mul(4)).ne(target),
         )
           .then(function* () {
-            return yield* Mem.i32(0);
+            return 0;
           })
           .else(function* () {
             yield* Mem.store(tail.mul(4).add(qbase), sx);
             yield* Mem.store(tail.add(1).mul(4).add(qbase), sy);
-            yield* tail.set(tail.add(2));
+            yield* tail.incrBy(2);
             yield* Mem.store(sy.mul(W).add(sx).mul(4), fill);
             yield* count.set(1);
 
@@ -40,7 +40,7 @@ export function problem12_flood_fill() {
             yield* Ctrl.while(head.lt(tail), () => [
               cx.set(Mem.load(head.mul(4).add(qbase))),
               cy.set(Mem.load(head.add(1).mul(4).add(qbase))),
-              head.set(head.add(2)),
+              head.incrBy(2),
 
               // Right: (cx+1, cy)
               nx.set(cx.add(1)),
@@ -53,8 +53,8 @@ export function problem12_flood_fill() {
                     Mem.store(addr, fill),
                     Mem.store(tail.mul(4).add(qbase), nx),
                     Mem.store(tail.add(1).mul(4).add(qbase), ny),
-                    tail.set(tail.add(2)),
-                    count.set(count.add(1)),
+                    tail.incrBy(2),
+                    count.incrBy(1),
                   ]),
                 ],
               ),
@@ -70,8 +70,8 @@ export function problem12_flood_fill() {
                     Mem.store(addr, fill),
                     Mem.store(tail.mul(4).add(qbase), nx),
                     Mem.store(tail.add(1).mul(4).add(qbase), ny),
-                    tail.set(tail.add(2)),
-                    count.set(count.add(1)),
+                    tail.incrBy(2),
+                    count.incrBy(1),
                   ]),
                 ],
               ),
@@ -87,8 +87,8 @@ export function problem12_flood_fill() {
                     Mem.store(addr, fill),
                     Mem.store(tail.mul(4).add(qbase), nx),
                     Mem.store(tail.add(1).mul(4).add(qbase), ny),
-                    tail.set(tail.add(2)),
-                    count.set(count.add(1)),
+                    tail.incrBy(2),
+                    count.incrBy(1),
                   ]),
                 ],
               ),
@@ -104,14 +104,14 @@ export function problem12_flood_fill() {
                     Mem.store(addr, fill),
                     Mem.store(tail.mul(4).add(qbase), nx),
                     Mem.store(tail.add(1).mul(4).add(qbase), ny),
-                    tail.set(tail.add(2)),
-                    count.set(count.add(1)),
+                    tail.incrBy(2),
+                    count.incrBy(1),
                   ]),
                 ],
               ),
             ]);
 
-            return yield* Loc.get(count);
+            return count;
           });
       },
     );

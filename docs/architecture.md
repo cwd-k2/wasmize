@@ -34,6 +34,9 @@ type FuncBody<T> = () => Generator<FuncInstruction, T, any>  // body 用
 type ModuleGen<T> = Generator<ModuleInstruction, T, any>
 type WasmProgram = () => Generator<ModuleInstruction, void, any>
 
+// 関数 body の戻り値型（暗黙 coercion 対応）
+type FuncReturn = WasmVal | WasmRef | number | void
+
 // 式の型: 解決済みの値 or 遅延 generator
 type Expr = WasmVal | FuncGen<WasmVal>
 
@@ -86,6 +89,54 @@ const binary = compile<{ fib: (n: number) => number }>(function* () {
 **Phase 2**: 全 FuncRef が確定後、保存された body を順にコンパイル。各 body を `interpretSubBody()` で IRNode 列に変換。
 
 **Phase 3**: 既存の `buildModule()` を呼んで Wasm バイナリ生成。`compile()` は `WasmBinary<T>` を返す。
+
+### 暗黙の return coercion
+
+`FuncBody<FuncReturn>` の戻り値は `coerceReturn()` で自動変換される:
+
+| 戻り値の型 | 変換先 | 例 |
+|-----------|--------|-----|
+| `WasmVal` | そのまま | `return yield* arr.load(n)` |
+| `WasmRef` | `local_get(idx)` | `return count` |
+| `number` | `i32.const(n)` | `return -1` |
+| `void` / `undefined` | なし | `return` |
+
+これにより `return yield* Loc.get(count)` → `return count`、`return yield* Mem.i32(-1)` → `return -1` と書ける。
+
+### 複合代入メソッド
+
+`WasmRef` のプロトタイプに in-place mutation メソッドを追加（`augment.ts`）:
+
+| メソッド | 等価式 |
+|---------|--------|
+| `x.incrBy(n)` | `x.set(x.add(n))` |
+| `x.decrBy(n)` | `x.set(x.sub(n))` |
+| `x.mulBy(n)` | `x.set(x.mul(n))` |
+| `x.divBy(n)` | `x.set(x.div(n))` |
+| `x.remBy(n)` | `x.set(x.rem(n))` |
+| `x.andBy(n)` | `x.set(x.and(n))` |
+| `x.orBy(n)` | `x.set(x.or(n))` |
+| `x.xorBy(n)` | `x.set(x.xor(n))` |
+| `x.shlBy(n)` | `x.set(x.shl(n))` |
+| `x.shrBy(n)` | `x.set(x.shr(n))` |
+
+### トップレベル定数ヘルパ
+
+`i32(v)`, `i64(v)`, `f64(v)` をトップレベルで export。`Mem.i32(v)` の別名だが、定数リテラルであることが明確になる。
+
+```typescript
+import { i32 } from "./dsl/compiler";
+i32(1).shl(col)  // ビットマスク生成
+```
+
+### 配列 fill ヘルパ
+
+`Mem.i32Array()` が返すオブジェクトに `fill(startIdx, endIdx, value)` メソッドを追加。内部で while ループに展開。
+
+```typescript
+const dp = Mem.i32Array(DP_BASE);
+yield* dp.fill(1, amount, INF);  // dp[1]..dp[amount] = INF
+```
 
 ### Expr 解決の仕組み
 

@@ -62,6 +62,28 @@ declare module "./types" {
     shl(b: ExprInput): ChainableExpr;
     /** Returns a new expression: `this >> b` (`i32.shr_s`). */
     shr(b: ExprInput): ChainableExpr;
+
+    // --- In-place mutation (x op= v → set(x, op(x, v))) ---
+    /** Increments this variable by `b`. */
+    incrBy(b: ExprInput): FuncGen<void>;
+    /** Decrements this variable by `b`. */
+    decrBy(b: ExprInput): FuncGen<void>;
+    /** Multiplies this variable by `b` in-place. */
+    mulBy(b: ExprInput): FuncGen<void>;
+    /** Divides this variable by `b` in-place. */
+    divBy(b: ExprInput): FuncGen<void>;
+    /** Takes remainder by `b` in-place. */
+    remBy(b: ExprInput): FuncGen<void>;
+    /** Bitwise AND with `b` in-place. */
+    andBy(b: ExprInput): FuncGen<void>;
+    /** Bitwise OR with `b` in-place. */
+    orBy(b: ExprInput): FuncGen<void>;
+    /** Bitwise XOR with `b` in-place. */
+    xorBy(b: ExprInput): FuncGen<void>;
+    /** Left-shifts this variable by `b` in-place. */
+    shlBy(b: ExprInput): FuncGen<void>;
+    /** Right-shifts this variable by `b` in-place. */
+    shrBy(b: ExprInput): FuncGen<void>;
   }
 }
 
@@ -125,4 +147,36 @@ WasmRef.prototype.shl = function (this: WasmRef, b: ExprInput): ChainableExpr {
 };
 WasmRef.prototype.shr = function (this: WasmRef, b: ExprInput): ChainableExpr {
   return new ChainableExpr(shr(this, b));
+};
+
+// In-place mutation: x op= v → set(x, op(x, v))
+WasmRef.prototype.incrBy = function (this: WasmRef, b: ExprInput): FuncGen<void> {
+  return set(this, add(this, b));
+};
+WasmRef.prototype.decrBy = function (this: WasmRef, b: ExprInput): FuncGen<void> {
+  return set(this, sub(this, b));
+};
+WasmRef.prototype.mulBy = function (this: WasmRef, b: ExprInput): FuncGen<void> {
+  return set(this, mul(this, b));
+};
+WasmRef.prototype.divBy = function (this: WasmRef, b: ExprInput): FuncGen<void> {
+  return set(this, div(this, b));
+};
+WasmRef.prototype.remBy = function (this: WasmRef, b: ExprInput): FuncGen<void> {
+  return set(this, rem(this, b));
+};
+WasmRef.prototype.andBy = function (this: WasmRef, b: ExprInput): FuncGen<void> {
+  return set(this, and_(this, b));
+};
+WasmRef.prototype.orBy = function (this: WasmRef, b: ExprInput): FuncGen<void> {
+  return set(this, or_(this, b));
+};
+WasmRef.prototype.xorBy = function (this: WasmRef, b: ExprInput): FuncGen<void> {
+  return set(this, xor_(this, b));
+};
+WasmRef.prototype.shlBy = function (this: WasmRef, b: ExprInput): FuncGen<void> {
+  return set(this, shl(this, b));
+};
+WasmRef.prototype.shrBy = function (this: WasmRef, b: ExprInput): FuncGen<void> {
+  return set(this, shr(this, b));
 };

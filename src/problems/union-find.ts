@@ -1,4 +1,4 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
+import { compile, local, Type, Mod, Mem, Ctrl } from "../dsl/compiler";
 
 export function problem15_union_find() {
   const PARENT_BASE = 0;
@@ -32,7 +32,7 @@ export function problem15_union_find() {
         yield* parent.store(x, parent.load(parent.load(x)));
         yield* x.set(parent.load(x));
       });
-      return yield* Loc.get(x);
+      return x;
     });
 
     // uf_union(u, v): union by rank
