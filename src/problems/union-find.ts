@@ -84,9 +84,6 @@ export function problem15_union_find() {
       return yield* Mem.load(COUNT_ADDR);
     });
 
-    yield* Mod.export("uf_init", uf_init);
-    yield* Mod.export("uf_find", uf_find);
-    yield* Mod.export("uf_union", uf_union);
-    yield* Mod.export("uf_count", uf_count);
+    yield* Mod.exportAll({ uf_init, uf_find, uf_union, uf_count });
   });
 }

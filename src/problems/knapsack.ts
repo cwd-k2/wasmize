@@ -1,4 +1,4 @@
-import { compile, param, local, Type, Mod, Ctrl } from "../dsl/compiler";
+import { compile, param, local, Type, Mod, Op, Ctrl } from "../dsl/compiler";
 import { Mem } from "../dsl/compiler";
 
 export function problem10_knapsack() {
@@ -19,7 +19,6 @@ export function problem10_knapsack() {
       const w = yield* local(Type.i32);
       const wi = yield* local(Type.i32);
       const vi = yield* local(Type.i32);
-      const newVal = yield* local(Type.i32);
 
       // Initialize DP[0..cap] = 0
       yield* Ctrl.for(w, 0, w.le(cap), w.add(1), function* () {
@@ -33,10 +32,7 @@ export function problem10_knapsack() {
 
         // Reverse loop: w from cap down to wi
         yield* Ctrl.for(w, cap, w.ge(wi), w.sub(1), function* () {
-          yield* newVal.set(dp.load(w.sub(wi)).add(vi));
-          yield* Ctrl.when(newVal.gt(dp.load(w)), function* () {
-            yield* dp.store(w, newVal);
-          });
+          yield* dp.store(w, Op.max(dp.load(w), dp.load(w.sub(wi)).add(vi)));
         });
       });
 

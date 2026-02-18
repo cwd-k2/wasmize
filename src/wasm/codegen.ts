@@ -134,6 +134,12 @@ export function emitIR(enc: WasmEncoder, node: IRNode | undefined): void {
       enc.byte(0);
       enc.u32(0);
       break;
+    case "select":
+      emitIR(enc, node.a);
+      emitIR(enc, node.b);
+      emitIR(enc, node.cond);
+      enc.byte(OP.select);
+      break;
     case "eqz":
       emitIR(enc, node.val);
       enc.byte(OP.i32_eqz);

@@ -49,29 +49,12 @@ export function problem12_flood_fill() {
 
             // 4 directions: right(1,0), left(-1,0), down(0,1), up(0,-1)
             yield* Ctrl.for(d, 0, d.lt(4), d.add(1), function* () {
-              yield* Ctrl.if(d.eq(0))
-                .then(function* () {
-                  yield* nx.set(cx.add(1));
-                  yield* ny.set(cy);
-                })
-                .else(function* () {
-                  yield* Ctrl.if(d.eq(1))
-                    .then(function* () {
-                      yield* nx.set(cx.sub(1));
-                      yield* ny.set(cy);
-                    })
-                    .else(function* () {
-                      yield* Ctrl.if(d.eq(2))
-                        .then(function* () {
-                          yield* nx.set(cx);
-                          yield* ny.set(cy.add(1));
-                        })
-                        .else(function* () {
-                          yield* nx.set(cx);
-                          yield* ny.set(cy.sub(1));
-                        });
-                    });
-                });
+              yield* Ctrl.switch(d, [
+                [0, function* () { yield* nx.set(cx.add(1)); yield* ny.set(cy); }],
+                [1, function* () { yield* nx.set(cx.sub(1)); yield* ny.set(cy); }],
+                [2, function* () { yield* nx.set(cx); yield* ny.set(cy.add(1)); }],
+                [3, function* () { yield* nx.set(cx); yield* ny.set(cy.sub(1)); }],
+              ]);
 
               // Bounds check first, then value check
               yield* Ctrl.when(

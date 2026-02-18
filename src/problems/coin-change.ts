@@ -1,4 +1,4 @@
-import { compile, param, local, Type, Mod, Mem, Ctrl } from "../dsl/compiler";
+import { compile, param, local, Type, Mod, Op, Mem, Ctrl } from "../dsl/compiler";
 
 export function problem4_coin_change() {
   const COIN_BASE = 2048;
@@ -40,13 +40,7 @@ export function problem4_coin_change() {
       });
 
       // return dp[amount] == INF ? -1 : dp[amount]
-      return yield* Ctrl.if(dp.load(amount).eq(INF))
-        .then(function* () {
-          return yield* Mem.i32(-1);
-        })
-        .else(function* () {
-          return yield* dp.load(amount);
-        });
+      return yield* Op.select(dp.load(amount).eq(INF), -1, dp.load(amount));
     });
 
     yield* Mod.export("coin_change", coin_change);

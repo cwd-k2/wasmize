@@ -1,4 +1,4 @@
-import { compile, param, local, Type, Mod, Ctrl } from "../dsl/compiler";
+import { compile, param, local, Type, Mod, Op, Ctrl } from "../dsl/compiler";
 import { Mem } from "../dsl/compiler";
 
 export function problem9_lcs() {
@@ -10,7 +10,6 @@ export function problem9_lcs() {
     yield* Mod.memory(5);
     const a = Mem.i32Array(A_BASE);
     const b = Mem.i32Array(B_BASE);
-    const dpArr = Mem.i32Array(DP_BASE);
 
     const lcs = yield* Mod.func(function* () {
       const len_a = yield* param(Type.i32);
@@ -18,13 +17,14 @@ export function problem9_lcs() {
       const i = yield* local(Type.i32);
       const j = yield* local(Type.i32);
       const cols = yield* local(Type.i32, len_b.add(1));
+      const dp = Mem.i32Array2D(DP_BASE, cols);
 
       // Initialize DP[0][j] = 0 and DP[i][0] = 0
       yield* Ctrl.for(i, 0, i.le(len_a), i.add(1), function* () {
-        yield* dpArr.store(i.mul(cols), 0);
+        yield* dp.store(i, 0, 0);
       });
       yield* Ctrl.for(j, 0, j.le(len_b), j.add(1), function* () {
-        yield* dpArr.store(j, 0);
+        yield* dp.store(0, j, 0);
       });
 
       // Fill DP table
@@ -32,35 +32,15 @@ export function problem9_lcs() {
         yield* Ctrl.for(j, 1, j.le(len_b), j.add(1), function* () {
           yield* Ctrl.if(a.load(i.sub(1)).eq(b.load(j.sub(1))))
             .then(function* () {
-              // DP[i][j] = DP[i-1][j-1] + 1
-              yield* dpArr.store(
-                i.mul(cols).add(j),
-                dpArr.load(i.sub(1).mul(cols).add(j.sub(1))).add(1),
-              );
+              yield* dp.store(i, j, dp.load(i.sub(1), j.sub(1)).add(1));
             })
             .else(function* () {
-              // DP[i][j] = max(DP[i-1][j], DP[i][j-1])
-              yield* Ctrl.if(
-                dpArr.load(i.sub(1).mul(cols).add(j))
-                  .ge(dpArr.load(i.mul(cols).add(j.sub(1)))),
-              )
-                .then(function* () {
-                  yield* dpArr.store(
-                    i.mul(cols).add(j),
-                    dpArr.load(i.sub(1).mul(cols).add(j)),
-                  );
-                })
-                .else(function* () {
-                  yield* dpArr.store(
-                    i.mul(cols).add(j),
-                    dpArr.load(i.mul(cols).add(j.sub(1))),
-                  );
-                });
+              yield* dp.store(i, j, Op.max(dp.load(i.sub(1), j), dp.load(i, j.sub(1))));
             });
         });
       });
 
-      return yield* dpArr.load(len_a.mul(cols).add(len_b));
+      return yield* dp.load(len_a, len_b);
     });
 
     yield* Mod.export("lcs", lcs);

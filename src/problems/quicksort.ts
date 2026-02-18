@@ -29,17 +29,13 @@ export function problem11_quicksort() {
 
       yield* Ctrl.for(j, lo, j.lt(hi), j.add(1), function* () {
         yield* Ctrl.when(arr.load(j).le(pivot), function* () {
-          yield* tmp.set(arr.load(i));
-          yield* arr.store(i, arr.load(j));
-          yield* arr.store(j, tmp);
+          yield* arr.swap(i, j, tmp);
           yield* i.set(i.add(1));
         });
       });
 
       // swap arr[i] and arr[hi]
-      yield* tmp.set(arr.load(i));
-      yield* arr.store(i, arr.load(hi));
-      yield* arr.store(hi, tmp);
+      yield* arr.swap(i, hi, tmp);
 
       return yield* Loc.get(i);
     });

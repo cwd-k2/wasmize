@@ -35,6 +35,7 @@ import {
   shr,
   set,
   tee,
+  select_,
 } from "./expr";
 
 /** Module-level declarations: functions, exports, imports, memory. */
@@ -68,6 +69,21 @@ export const Mod = {
         results,
       };
       return callableFunc(r._idx);
+    })();
+  },
+  /**
+   * Exports multiple functions at once.
+   *
+   * @example
+   * ```ts
+   * yield* Mod.exportAll({ init, find, union, count });
+   * ```
+   */
+  exportAll(funcs: Record<string, FuncRef>): ModuleGen<void> {
+    return (function* () {
+      for (const [name, ref] of Object.entries(funcs)) {
+        yield { _type: "export", name, ref } as ModuleInstruction;
+      }
     })();
   },
   /** Declares linear memory with the given initial size. */
@@ -112,6 +128,28 @@ export const Op = {
   shl,
   /** Bitwise shift right — signed (`i32.shr_s`). */
   shr,
+  /** Ternary select — `cond ? ifTrue : ifFalse` (Wasm `select` instruction, branchless). */
+  select: select_,
+  /** Returns the greater of two values (`select`-based, branchless). */
+  max(a: ExprInput, b: ExprInput): ChainableExpr {
+    return new ChainableExpr(
+      (function* () {
+        const va = yield* resolve(a);
+        const vb = yield* resolve(b);
+        return val(IR.select(va._node, vb._node, IR.cmp("gt", va._node, vb._node)));
+      })(),
+    );
+  },
+  /** Returns the lesser of two values (`select`-based, branchless). */
+  min(a: ExprInput, b: ExprInput): ChainableExpr {
+    return new ChainableExpr(
+      (function* () {
+        const va = yield* resolve(a);
+        const vb = yield* resolve(b);
+        return val(IR.select(va._node, vb._node, IR.cmp("lt", va._node, vb._node)));
+      })(),
+    );
+  },
 } as const;
 
 /** Memory and constant operations. */
@@ -171,20 +209,53 @@ export const Mem = {
    * Automatically applies `idx * 4 + base` address calculation.
    *
    * @param base - Byte offset where the array starts (default: 0)
-   * @returns Object with `load(idx)` and `store(idx, val)` methods
+   * @returns Object with `load(idx)`, `store(idx, val)`, and `swap(i, j, tmp)` methods
    */
   i32Array(base: number = 0): {
     load(idx: ExprInput): ChainableExpr;
     store(idx: ExprInput, value: ExprInput): FuncGen<void>;
+    swap(i: ExprInput, j: ExprInput, tmp: WasmRef): FuncGen<void>;
   } {
     const addrOf = (idx: ExprInput): ChainableExpr => {
       const scaled = new ChainableExpr(mul(idx, 4));
       return base === 0 ? scaled : scaled.add(base);
     };
-    return {
+    const arr = {
       load: (idx: ExprInput): ChainableExpr => Mem.load(addrOf(idx)),
       store: (idx: ExprInput, value: ExprInput): FuncGen<void> =>
         Mem.store(addrOf(idx), value),
+      swap: (i: ExprInput, j: ExprInput, tmp: WasmRef): FuncGen<void> =>
+        (function* () {
+          yield* set(tmp, arr.load(i));
+          yield* arr.store(i, arr.load(j));
+          yield* arr.store(j, tmp);
+        })(),
+    };
+    return arr;
+  },
+  /**
+   * Creates a 2D typed i32 array accessor for linear memory.
+   * Address calculation: `(row * cols + col) * 4 + base`.
+   *
+   * @param base - Byte offset where the 2D array starts (default: 0)
+   * @param cols - Number of columns (can be a runtime expression)
+   * @returns Object with `load(row, col)` and `store(row, col, val)` methods
+   */
+  i32Array2D(base: number = 0, cols: ExprInput): {
+    load(row: ExprInput, col: ExprInput): ChainableExpr;
+    store(row: ExprInput, col: ExprInput, value: ExprInput): FuncGen<void>;
+  } {
+    const flatIdx = (row: ExprInput, col: ExprInput): ChainableExpr =>
+      new ChainableExpr(add(mul(row, cols), col));
+    const addrOf = (row: ExprInput, col: ExprInput): ChainableExpr => {
+      const scaled = new ChainableExpr(mul(flatIdx(row, col), 4));
+      return base === 0 ? scaled : scaled.add(base);
+    };
+    return {
+      load: (row: ExprInput, col: ExprInput): ChainableExpr =>
+        Mem.load(addrOf(row, col)),
+      store: (row: ExprInput, col: ExprInput, value: ExprInput): FuncGen<void> =>
+        Mem.store(addrOf(row, col), value),
     };
   },
 };
@@ -290,6 +361,47 @@ export const Ctrl = {
         cond: vc._node,
         then_: body,
       };
+    })();
+  },
+  /**
+   * Multi-way branch (switch/case) — expands to nested if/else.
+   *
+   * @param expr - The expression to match against
+   * @param cases - Array of `[value, body]` pairs
+   * @param default_ - Optional default body when no case matches
+   *
+   * @example
+   * ```ts
+   * yield* Ctrl.switch(direction, [
+   *   [0, function* () { yield* nx.set(cx.add(1)); }],
+   *   [1, function* () { yield* nx.set(cx.sub(1)); }],
+   * ], function* () { yield* Ctrl.nop(); });
+   * ```
+   */
+  switch(
+    expr: ExprInput,
+    cases: [number, FuncBody<void>][],
+    default_?: FuncBody<void>,
+  ): FuncGen<void> {
+    return (function* () {
+      // Build nested if/else from the last case backward
+      const buildChain = (i: number): FuncBody<void> | undefined => {
+        if (i >= cases.length) return default_;
+        const [value, body] = cases[i]!;
+        const rest = buildChain(i + 1);
+        return function* () {
+          const ve = yield* resolve(expr);
+          const vc = yield* resolve(eq(ve, value));
+          yield {
+            _type: "if" as const,
+            cond: vc._node,
+            then_: body,
+            else_: rest,
+          };
+        };
+      };
+      const chain = buildChain(0);
+      if (chain) yield* chain();
     })();
   },
   /** Emits a no-op instruction. */

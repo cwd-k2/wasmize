@@ -200,6 +200,21 @@ export const gt = makeCmp("gt");
 export const le = makeCmp("le");
 export const ge = makeCmp("ge");
 
+// --- Select primitive ---
+
+export function select_(
+  cond: ExprInput,
+  ifTrue: ExprInput,
+  ifFalse: ExprInput,
+): FuncGen<WasmVal> {
+  return (function* () {
+    const vc = yield* resolve(cond);
+    const va = yield* resolve(ifTrue);
+    const vb = yield* resolve(ifFalse);
+    return val(IR.select(va._node, vb._node, vc._node));
+  })();
+}
+
 // --- Statement primitives ---
 
 export function set(r: WasmRef, value: ExprInput): FuncGen<void> {
