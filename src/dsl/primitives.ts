@@ -13,23 +13,112 @@ import {
   type ModuleInstruction,
 } from "./types";
 
+// --- ExprInput + ChainableExpr ---
+
+/**
+ * Extended expression type accepted by all DSL primitives.
+ * Includes everything in {@link Expr} plus {@link ChainableExpr} for method chaining.
+ */
+export type ExprInput = Expr | ChainableExpr;
+
+/**
+ * Wraps an {@link Expr} and provides chainable arithmetic, comparison,
+ * bitwise, and memory operations.
+ *
+ * Implements `[Symbol.iterator]()` so `yield* chainableExpr` works
+ * in generator-based DSL code.
+ *
+ * @example
+ * ```ts
+ * yield* i.sub(1).mul(4).load();  // load(mul(sub(i, 1), 4))
+ * ```
+ */
+export class ChainableExpr {
+  constructor(private readonly _inner: Expr) {}
+
+  [Symbol.iterator](): Generator<FuncInstruction, WasmVal, any> {
+    return resolve(this._inner);
+  }
+
+  // --- Arithmetic ---
+  add(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(add(this._inner, b));
+  }
+  sub(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(sub(this._inner, b));
+  }
+  mul(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(mul(this._inner, b));
+  }
+  div(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(div(this._inner, b));
+  }
+  rem(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(rem(this._inner, b));
+  }
+
+  // --- Comparison ---
+  eq(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(eq(this._inner, b));
+  }
+  ne(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(ne(this._inner, b));
+  }
+  lt(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(lt(this._inner, b));
+  }
+  gt(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(gt(this._inner, b));
+  }
+  le(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(le(this._inner, b));
+  }
+  ge(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(ge(this._inner, b));
+  }
+
+  // --- Bitwise ---
+  and(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(and_(this._inner, b));
+  }
+  or(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(or_(this._inner, b));
+  }
+  xor(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(xor_(this._inner, b));
+  }
+  shl(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(shl(this._inner, b));
+  }
+  shr(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(shr(this._inner, b));
+  }
+
+  // --- Memory ---
+  load(): ChainableExpr {
+    return new ChainableExpr(load(this._inner));
+  }
+  store(value: ExprInput): FuncGen<void> {
+    return store(this._inner, value);
+  }
+}
+
 // --- resolve helper ---
 
 /**
- * Resolves an {@link Expr} to a concrete {@link WasmVal}.
+ * Resolves an {@link ExprInput} to a concrete {@link WasmVal}.
  *
  * - `number` → `i32.const`
+ * - `ChainableExpr` → delegated via `yield*`
  * - `WasmRef` → `local_get`
  * - `WasmVal` → returned as-is
  * - `FuncGen<WasmVal>` → driven via `yield*`
- *
- * @param expr - A value, reference, number, or lazy generator expression
- * @returns The resolved `WasmVal`
  */
 export function* resolve(
-  expr: Expr,
+  expr: ExprInput,
 ): Generator<FuncInstruction, WasmVal, any> {
   if (typeof expr === "number") return val(IR.const_i32(expr));
+  if (expr instanceof ChainableExpr) return yield* expr;
   if (expr instanceof WasmRef) return val(IR.local_get(expr._idx));
   if ("_tag" in expr && expr._tag === "val") return expr as WasmVal;
   return yield* (expr as FuncGen<WasmVal>);
@@ -39,17 +128,6 @@ export function* resolve(
 
 /**
  * Declares an imported function from a host module.
- *
- * @param mod - The import module name (e.g. `"env"`)
- * @param name - The import field name
- * @param params - Parameter types of the imported function
- * @param results - Result types of the imported function
- * @returns A generator that yields a {@link FuncRef} to the imported function
- *
- * @example
- * ```ts
- * const log = yield* import_("env", "log", ["i32"], []);
- * ```
  */
 export function import_(
   mod: string,
@@ -71,22 +149,6 @@ export function import_(
 
 /**
  * Defines a new function in the module.
- *
- * The body is a factory (`FuncBody`) invoked lazily during compilation.
- * Inside the body, use `yield*` with function-level primitives to build the function.
- *
- * @param body - Factory that produces the function body generator
- * @returns A generator that yields a {@link FuncRef} to the new function
- *
- * @example
- * ```ts
- * const add = yield* func(function* () {
- *   const a = yield* param("i32");
- *   const b = yield* param("i32");
- *   return yield* add(get(a), get(b));
- * });
- * yield* export_("add", add);
- * ```
  */
 export function func(
   body: FuncBody<WasmVal | void>,
@@ -98,15 +160,7 @@ export function func(
 }
 
 /**
- * Exports a function under the given name, making it callable from the host.
- *
- * @param name - The export name visible to the host
- * @param funcref - Reference to the function to export
- *
- * @example
- * ```ts
- * yield* export_("main", f);
- * ```
+ * Exports a function under the given name.
  */
 export function export_(
   name: string,
@@ -119,8 +173,6 @@ export function export_(
 
 /**
  * Declares linear memory with the given initial size.
- *
- * @param pages - Number of 64 KiB pages to allocate
  */
 export function memory(pages: number): ModuleGen<void> {
   return (function* () {
@@ -128,19 +180,10 @@ export function memory(pages: number): ModuleGen<void> {
   })();
 }
 
-// --- Declaration primitives (yield to interpreter for index allocation) ---
+// --- Declaration primitives ---
 
 /**
  * Declares a function parameter of the given type.
- * Must appear before any other statements in a function body.
- *
- * @param type - The Wasm value type (e.g. `"i32"`, `"i64"`)
- * @returns A generator that yields a {@link WasmRef} bound to this parameter slot
- *
- * @example
- * ```ts
- * const x = yield* param("i32");
- * ```
  */
 export function param(type: WasmValType): FuncGen<WasmRef> {
   return (function* () {
@@ -151,14 +194,6 @@ export function param(type: WasmValType): FuncGen<WasmRef> {
 
 /**
  * Declares a local variable of the given type, initialized to zero.
- *
- * @param type - The Wasm value type (e.g. `"i32"`, `"i64"`)
- * @returns A generator that yields a {@link WasmRef} bound to this local slot
- *
- * @example
- * ```ts
- * const tmp = yield* local("i32");
- * ```
  */
 export function local(type: WasmValType): FuncGen<WasmRef> {
   return (function* () {
@@ -167,53 +202,30 @@ export function local(type: WasmValType): FuncGen<WasmRef> {
   })();
 }
 
-// --- Expression primitives (pure — no yield, build IRNode directly) ---
+// --- Expression primitives ---
 
-/**
- * Creates an i32 constant value.
- *
- * @param v - The 32-bit integer value
- * @returns A generator producing a {@link WasmVal} for the constant
- */
+/** Creates an i32 constant value. */
 export function i32(v: number): FuncGen<WasmVal> {
   return (function* () {
     return val(IR.const_i32(v));
   })();
 }
 
-/**
- * Creates an i64 constant value.
- *
- * @param v - The 64-bit integer value
- * @returns A generator producing a {@link WasmVal} for the constant
- */
+/** Creates an i64 constant value. */
 export function i64(v: number): FuncGen<WasmVal> {
   return (function* () {
     return val(IR.const_i64(v));
   })();
 }
 
-/**
- * Reads the current value of a local variable or parameter.
- *
- * @param r - Reference to the local/param slot
- * @returns A generator producing a {@link WasmVal} with the slot's value
- */
+/** Reads the current value of a local variable or parameter. */
 export function get(r: WasmRef): FuncGen<WasmVal> {
   return (function* () {
     return val(IR.local_get(r._idx));
   })();
 }
 
-/**
- * Factory that creates a binary operator primitive.
- * The returned function takes two {@link Expr} operands, resolves them,
- * and produces a {@link WasmVal} from the IR `binop` node.
- *
- * @param kind - The binary operation kind (e.g. `"add"`, `"sub"`)
- * @returns A binary operator function `(a: Expr, b: Expr) => FuncGen<WasmVal>`
- */
-function makeBinop(kind: BinopKind): (a: Expr, b: Expr) => FuncGen<WasmVal> {
+function makeBinop(kind: BinopKind): (a: ExprInput, b: ExprInput) => FuncGen<WasmVal> {
   return (a, b) =>
     (function* () {
       const va = yield* resolve(a);
@@ -243,15 +255,7 @@ export const shl = makeBinop("shl");
 /** Bitwise shift right — signed (`i32.shr_s`). */
 export const shr = makeBinop("shr");
 
-/**
- * Factory that creates a comparison operator primitive.
- * The returned function takes two {@link Expr} operands, resolves them,
- * and produces a {@link WasmVal} (i32 boolean: 0 or 1).
- *
- * @param kind - The comparison kind (e.g. `"eq"`, `"lt"`)
- * @returns A comparison function `(a: Expr, b: Expr) => FuncGen<WasmVal>`
- */
-function makeCmp(kind: CmpKind): (a: Expr, b: Expr) => FuncGen<WasmVal> {
+function makeCmp(kind: CmpKind): (a: ExprInput, b: ExprInput) => FuncGen<WasmVal> {
   return (a, b) =>
     (function* () {
       const va = yield* resolve(a);
@@ -260,43 +264,31 @@ function makeCmp(kind: CmpKind): (a: Expr, b: Expr) => FuncGen<WasmVal> {
     })();
 }
 
-/** Equal (`i32.eq`). Returns i32 boolean. */
+/** Equal (`i32.eq`). */
 export const eq = makeCmp("eq");
-/** Not equal (`i32.ne`). Returns i32 boolean. */
+/** Not equal (`i32.ne`). */
 export const ne = makeCmp("ne");
-/** Less than — signed (`i32.lt_s`). Returns i32 boolean. */
+/** Less than — signed (`i32.lt_s`). */
 export const lt = makeCmp("lt");
-/** Greater than — signed (`i32.gt_s`). Returns i32 boolean. */
+/** Greater than — signed (`i32.gt_s`). */
 export const gt = makeCmp("gt");
-/** Less than or equal — signed (`i32.le_s`). Returns i32 boolean. */
+/** Less than or equal — signed (`i32.le_s`). */
 export const le = makeCmp("le");
-/** Greater than or equal — signed (`i32.ge_s`). Returns i32 boolean. */
+/** Greater than or equal — signed (`i32.ge_s`). */
 export const ge = makeCmp("ge");
 
-/**
- * Loads a 32-bit integer from linear memory.
- *
- * @param addr - Expression for the byte address
- * @returns A generator producing a {@link WasmVal} with the loaded value
- */
-export function load(addr: Expr): FuncGen<WasmVal> {
+/** Loads a 32-bit integer from linear memory. */
+export function load(addr: ExprInput): FuncGen<WasmVal> {
   return (function* () {
     const va = yield* resolve(addr);
     return val(IR.load_i32(va._node));
   })();
 }
 
-/**
- * Calls a function and returns its result as a value.
- * Use {@link call_} for void calls (discards result).
- *
- * @param funcref - Reference to the function to call
- * @param args - Argument expressions
- * @returns A generator producing a {@link WasmVal} with the call result
- */
+/** Calls a function and returns its result. */
 export function call(
   funcref: FuncRef,
-  ...args: Expr[]
+  ...args: ExprInput[]
 ): FuncGen<WasmVal> {
   return (function* () {
     const resolved = [];
@@ -307,30 +299,18 @@ export function call(
   })();
 }
 
-// --- Statement primitives (yield StmtInstruction) ---
+// --- Statement primitives ---
 
-/**
- * Sets a local variable to a new value.
- *
- * @param r - Reference to the local/param slot
- * @param value - Expression for the new value
- */
-export function set(r: WasmRef, value: Expr): FuncGen<void> {
+/** Sets a local variable to a new value. */
+export function set(r: WasmRef, value: ExprInput): FuncGen<void> {
   return (function* () {
     const v = yield* resolve(value);
     yield { _type: "stmt", node: IR.local_set(r._idx, v._node) };
   })();
 }
 
-/**
- * Sets a local variable and also returns the value (tee).
- * Equivalent to `local.tee` — useful for chaining assignments.
- *
- * @param r - Reference to the local/param slot
- * @param value - Expression for the new value
- * @returns A generator producing a {@link WasmVal} equal to the assigned value
- */
-export function tee(r: WasmRef, value: Expr): FuncGen<WasmVal> {
+/** Sets a local variable and also returns the value (tee). */
+export function tee(r: WasmRef, value: ExprInput): FuncGen<WasmVal> {
   return (function* () {
     const v = yield* resolve(value);
     yield { _type: "stmt", node: IR.local_tee(r._idx, v._node) };
@@ -338,13 +318,8 @@ export function tee(r: WasmRef, value: Expr): FuncGen<WasmVal> {
   })();
 }
 
-/**
- * Stores a 32-bit integer to linear memory.
- *
- * @param addr - Expression for the byte address
- * @param value - Expression for the value to store
- */
-export function store(addr: Expr, value: Expr): FuncGen<void> {
+/** Stores a 32-bit integer to linear memory. */
+export function store(addr: ExprInput, value: ExprInput): FuncGen<void> {
   return (function* () {
     const va = yield* resolve(addr);
     const vv = yield* resolve(value);
@@ -352,14 +327,8 @@ export function store(addr: Expr, value: Expr): FuncGen<void> {
   })();
 }
 
-/**
- * Calls a function as a statement (discards any return value).
- * Use {@link call} to capture the return value.
- *
- * @param funcref - Reference to the function to call
- * @param args - Argument expressions
- */
-export function call_(funcref: FuncRef, ...args: Expr[]): FuncGen<void> {
+/** Calls a function as a statement (discards return value). */
+export function call_(funcref: FuncRef, ...args: ExprInput[]): FuncGen<void> {
   return (function* () {
     const resolved = [];
     for (const a of args) {
@@ -372,49 +341,31 @@ export function call_(funcref: FuncRef, ...args: Expr[]): FuncGen<void> {
   })();
 }
 
-/**
- * Evaluates an expression and discards its value.
- *
- * @param value - Expression whose value to discard
- */
-export function drop_(value: Expr): FuncGen<void> {
+/** Evaluates an expression and discards its value. */
+export function drop_(value: ExprInput): FuncGen<void> {
   return (function* () {
     const v = yield* resolve(value);
     yield { _type: "stmt", node: IR.drop(v._node) };
   })();
 }
 
-/**
- * Returns a value from the current function.
- *
- * @param value - Expression for the return value
- */
-export function return_(value: Expr): FuncGen<void> {
+/** Returns a value from the current function. */
+export function return_(value: ExprInput): FuncGen<void> {
   return (function* () {
     const v = yield* resolve(value);
     yield { _type: "stmt", node: IR.return_(v._node) };
   })();
 }
 
-/**
- * Unconditional branch to the enclosing block/loop at the given depth.
- * For `loop`: jumps back to the loop header. For `block`: breaks out.
- *
- * @param depth - Number of enclosing scopes to break out of (0 = innermost)
- */
+/** Unconditional branch to the enclosing block/loop at the given depth. */
 export function br(depth: number): FuncGen<void> {
   return (function* () {
     yield { _type: "stmt", node: IR.br(depth) };
   })();
 }
 
-/**
- * Conditional branch — branches if the condition is non-zero.
- *
- * @param depth - Number of enclosing scopes to break out of (0 = innermost)
- * @param cond - Condition expression (i32 boolean)
- */
-export function br_if(depth: number, cond: Expr): FuncGen<void> {
+/** Conditional branch — branches if the condition is non-zero. */
+export function br_if(depth: number, cond: ExprInput): FuncGen<void> {
   return (function* () {
     const vc = yield* resolve(cond);
     yield { _type: "stmt", node: IR.br_if(depth, vc._node) };
@@ -428,42 +379,19 @@ export function nop_(): FuncGen<void> {
   })();
 }
 
-/**
- * Emits a side-effect instruction (e.g. for host interaction).
- *
- * @param tag - Numeric tag identifying the effect kind
- * @param payload - Expression for the payload value
- */
-export function effect(tag: number, payload: Expr): FuncGen<void> {
+/** Emits a side-effect instruction. */
+export function effect(tag: number, payload: ExprInput): FuncGen<void> {
   return (function* () {
     const vp = yield* resolve(payload);
     yield { _type: "stmt", node: IR.effect(tag, vp._node) };
   })();
 }
 
-// --- Control flow primitives (yield compound instructions) ---
+// --- Control flow primitives ---
 
-/**
- * Conditional execution (`if`/`else`).
- *
- * Both branches are `FuncBody` factories for deferred interpretation.
- * If both branches return a {@link WasmVal}, the `if_` itself produces a value.
- *
- * @param cond - Condition expression (i32 boolean)
- * @param then_ - Body executed when condition is truthy
- * @param else_ - Optional body executed when condition is falsy
- *
- * @example
- * ```ts
- * const result = yield* if_(
- *   gt(get(x), i32(0)),
- *   function* () { return yield* i32(1); },
- *   function* () { return yield* i32(0); },
- * );
- * ```
- */
-export function if_(
-  cond: Expr,
+/** Internal if_ implementation. */
+function if_impl(
+  cond: ExprInput,
   then_: FuncBody<WasmVal | void>,
   else_?: FuncBody<WasmVal | void>,
 ): FuncGen<any> {
@@ -480,31 +408,123 @@ export function if_(
 }
 
 /**
- * Wasm `loop` block. The body is re-entered when `br(0)` is executed.
- *
- * @param body - Loop body factory
- *
- * @example
- * ```ts
- * yield* loop_(function* () {
- *   yield* set(i, sub(get(i), i32(1)));
- *   yield* br_if(0, gt(get(i), i32(0)));
- * });
- * ```
+ * Conditional execution (`if`/`else`).
  */
+export function if_(
+  cond: ExprInput,
+  then_: FuncBody<WasmVal | void>,
+  else_?: FuncBody<WasmVal | void>,
+): FuncGen<any> {
+  return if_impl(cond, then_, else_);
+}
+
+/** Wasm `loop` block. */
 export function loop_(body: FuncBody<void>): FuncGen<void> {
   return (function* () {
     yield { _type: "loop", body };
   })();
 }
 
-/**
- * Wasm `block`. Use `br(0)` to break out of the block early.
- *
- * @param body - Block body factory
- */
+/** Wasm `block`. */
 export function block_(body: FuncBody<void>): FuncGen<void> {
   return (function* () {
     yield { _type: "block", body };
   })();
 }
+
+// --- WasmRef method augmentation ---
+
+declare module "./types" {
+  interface WasmRef {
+    set(value: ExprInput): FuncGen<void>;
+    tee(value: ExprInput): ChainableExpr;
+    add(b: ExprInput): ChainableExpr;
+    sub(b: ExprInput): ChainableExpr;
+    mul(b: ExprInput): ChainableExpr;
+    div(b: ExprInput): ChainableExpr;
+    rem(b: ExprInput): ChainableExpr;
+    eq(b: ExprInput): ChainableExpr;
+    ne(b: ExprInput): ChainableExpr;
+    lt(b: ExprInput): ChainableExpr;
+    gt(b: ExprInput): ChainableExpr;
+    le(b: ExprInput): ChainableExpr;
+    ge(b: ExprInput): ChainableExpr;
+    and(b: ExprInput): ChainableExpr;
+    or(b: ExprInput): ChainableExpr;
+    xor(b: ExprInput): ChainableExpr;
+    shl(b: ExprInput): ChainableExpr;
+    shr(b: ExprInput): ChainableExpr;
+    load(): ChainableExpr;
+    store(value: ExprInput): FuncGen<void>;
+  }
+}
+
+// set & tee
+WasmRef.prototype.set = function (this: WasmRef, value: ExprInput): FuncGen<void> {
+  return set(this, value);
+};
+WasmRef.prototype.tee = function (this: WasmRef, value: ExprInput): ChainableExpr {
+  return new ChainableExpr(tee(this, value));
+};
+
+// Arithmetic
+WasmRef.prototype.add = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(add(this, b));
+};
+WasmRef.prototype.sub = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(sub(this, b));
+};
+WasmRef.prototype.mul = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(mul(this, b));
+};
+WasmRef.prototype.div = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(div(this, b));
+};
+WasmRef.prototype.rem = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(rem(this, b));
+};
+
+// Comparison
+WasmRef.prototype.eq = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(eq(this, b));
+};
+WasmRef.prototype.ne = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(ne(this, b));
+};
+WasmRef.prototype.lt = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(lt(this, b));
+};
+WasmRef.prototype.gt = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(gt(this, b));
+};
+WasmRef.prototype.le = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(le(this, b));
+};
+WasmRef.prototype.ge = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(ge(this, b));
+};
+
+// Bitwise
+WasmRef.prototype.and = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(and_(this, b));
+};
+WasmRef.prototype.or = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(or_(this, b));
+};
+WasmRef.prototype.xor = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(xor_(this, b));
+};
+WasmRef.prototype.shl = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(shl(this, b));
+};
+WasmRef.prototype.shr = function (this: WasmRef, b: ExprInput): ChainableExpr {
+  return new ChainableExpr(shr(this, b));
+};
+
+// Memory
+WasmRef.prototype.load = function (this: WasmRef): ChainableExpr {
+  return new ChainableExpr(load(this));
+};
+WasmRef.prototype.store = function (this: WasmRef, value: ExprInput): FuncGen<void> {
+  return store(this, value);
+};

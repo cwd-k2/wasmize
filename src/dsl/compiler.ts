@@ -66,14 +66,17 @@ export {
   if_,
   loop_,
   block_,
+  // Fluent API
+  ChainableExpr,
+  type ExprInput,
 } from "./primitives";
-export type {
+export {
   WasmRef,
-  WasmVal,
-  FuncRef,
-  Expr,
-  FuncGen,
-  FuncBody,
-  ModuleGen,
-  WasmProgram,
+  type WasmVal,
+  type FuncRef,
+  type Expr,
+  type FuncGen,
+  type FuncBody,
+  type ModuleGen,
+  type WasmProgram,
 } from "./types";
