@@ -15,6 +15,10 @@ import {
 
 // --- Function body interpreter ---
 
+/**
+ * Mutable context accumulated while interpreting a single function body.
+ * Tracks parameter/local declarations so the final `FuncDef` can be built.
+ */
 interface FuncContext {
   params: WasmValType[];
   locals: WasmValType[];
@@ -22,10 +26,25 @@ interface FuncContext {
   localCount: number;
 }
 
+/**
+ * Type guard: checks whether a value is a {@link WasmVal}.
+ */
 function isVal(v: unknown): v is WasmVal {
   return v != null && typeof v === "object" && (v as WasmVal)._tag === "val";
 }
 
+/**
+ * Recursively interprets a function body (or sub-body such as an `if` branch).
+ *
+ * Drives the generator to completion, handling each yielded {@link FuncInstruction}:
+ * - `decl` — allocates a parameter/local index and sends back a `WasmRef`
+ * - `stmt` — collects the IR node
+ * - `if` / `loop` / `block` — recursively interprets nested bodies
+ *
+ * @param body - Factory producing the body generator
+ * @param ctx - Shared mutable context for index allocation
+ * @returns Collected IR nodes and the optional return value
+ */
 function interpretSubBody(
   body: FuncBody<WasmVal | void>,
   ctx: FuncContext,
@@ -101,6 +120,35 @@ function interpretSubBody(
 
 // --- Module interpreter ---
 
+/**
+ * Compiles a {@link WasmProgram} into a Wasm binary (`Uint8Array`).
+ *
+ * Operates in three phases:
+ * 1. **Collect declarations** — drives the module-level generator to gather
+ *    imports, function bodies, exports, and memory configuration.
+ * 2. **Compile function bodies** — interprets each function body generator,
+ *    resolving declarations and building IR nodes.
+ * 3. **Build binary** — passes the collected IR to the module builder/encoder.
+ *
+ * @param program - A factory function that produces the module-level generator
+ * @returns The compiled Wasm binary as a `Uint8Array`
+ *
+ * @example
+ * ```ts
+ * import { compile, func, export_, param, add, get, i32 } from "./compiler";
+ *
+ * const binary = compile(function* () {
+ *   const f = yield* func(function* () {
+ *     const a = yield* param("i32");
+ *     const b = yield* param("i32");
+ *     return yield* add(get(a), get(b));
+ *   });
+ *   yield* export_("add", f);
+ * });
+ *
+ * const { instance } = await WebAssembly.instantiate(binary);
+ * ```
+ */
 export function compile(program: WasmProgram): Uint8Array {
   const gen = program();
   const imports: ImportDef[] = [];

@@ -1,3 +1,24 @@
+/**
+ * @module compiler
+ *
+ * Public entry point for the generator-based DSL.
+ * Re-exports all primitives, types, and the {@link compile} function
+ * from their respective modules.
+ *
+ * @example
+ * ```ts
+ * import { compile, func, export_, param, add, get } from "./compiler";
+ *
+ * const binary = compile(function* () {
+ *   const f = yield* func(function* () {
+ *     const a = yield* param("i32");
+ *     const b = yield* param("i32");
+ *     return yield* add(get(a), get(b));
+ *   });
+ *   yield* export_("add", f);
+ * });
+ * ```
+ */
 export { compile } from "./interpreter";
 export {
   // Module-level
