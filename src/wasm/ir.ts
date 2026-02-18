@@ -13,19 +13,40 @@ export type BinopKind =
   | "shr"
   | "div_u"
   | "rem_u"
-  | "shr_u";
+  | "shr_u"
+  | "rotl"
+  | "rotr"
+  | "copysign"
+  | "min"
+  | "max";
 
 export type CmpKind = "eq" | "ne" | "lt" | "gt" | "le" | "ge" | "lt_u" | "gt_u" | "le_u" | "ge_u";
+
+export type UnaryKind = "clz" | "ctz" | "popcnt" | "abs" | "neg" | "ceil" | "floor" | "trunc" | "nearest" | "sqrt";
+
+export type ConvertKind =
+  | "i32_wrap_i64"
+  | "i32_trunc_f32_s" | "i32_trunc_f32_u" | "i32_trunc_f64_s" | "i32_trunc_f64_u"
+  | "i64_extend_i32_s" | "i64_extend_i32_u"
+  | "i64_trunc_f32_s" | "i64_trunc_f32_u" | "i64_trunc_f64_s" | "i64_trunc_f64_u"
+  | "f32_convert_i32_s" | "f32_convert_i32_u" | "f32_convert_i64_s" | "f32_convert_i64_u"
+  | "f32_demote_f64"
+  | "f64_convert_i32_s" | "f64_convert_i32_u" | "f64_convert_i64_s" | "f64_convert_i64_u"
+  | "f64_promote_f32"
+  | "i32_reinterpret_f32" | "i64_reinterpret_f64" | "f32_reinterpret_i32" | "f64_reinterpret_i64";
 
 export type IRNode =
   | { op: "const_i32"; v: number }
   | { op: "const_i64"; v: number }
+  | { op: "const_f32"; v: number }
   | { op: "const_f64"; v: number }
   | { op: "local_get"; i: number }
   | { op: "local_set"; i: number; val: IRNode }
   | { op: "local_tee"; i: number; val: IRNode }
   | { op: "binop"; kind: BinopKind; a: IRNode; b: IRNode; type?: WasmValType }
   | { op: "cmp"; kind: CmpKind; a: IRNode; b: IRNode; type?: WasmValType }
+  | { op: "unary"; kind: UnaryKind; val: IRNode; type?: WasmValType }
+  | { op: "convert"; kind: ConvertKind; val: IRNode }
   | {
       op: "if";
       cond: IRNode;
@@ -36,6 +57,7 @@ export type IRNode =
   | { op: "loop"; body: IRNode[] }
   | { op: "br_if"; depth: number; cond: IRNode }
   | { op: "br"; depth: number }
+  | { op: "br_table"; labels: number[]; default_: number; val: IRNode }
   | { op: "block"; body: IRNode[] }
   | { op: "seq"; stmts: IRNode[] }
   | { op: "call"; idx: number; args: IRNode[] }
@@ -49,6 +71,8 @@ export type IRNode =
   | { op: "store_i64"; addr: IRNode; val: IRNode }
   | { op: "load_f64"; addr: IRNode }
   | { op: "store_f64"; addr: IRNode; val: IRNode }
+  | { op: "mem_load"; kind: string; addr: IRNode }
+  | { op: "mem_store"; kind: string; addr: IRNode; val: IRNode }
   | { op: "select"; a: IRNode; b: IRNode; cond: IRNode }
   | { op: "eqz"; val: IRNode; type?: WasmValType }
   | { op: "f64_neg"; val: IRNode }
@@ -66,6 +90,7 @@ export type IRNode =
 export const IR = {
   const_i32: (v: number): IRNode => ({ op: "const_i32", v }),
   const_i64: (v: number): IRNode => ({ op: "const_i64", v }),
+  const_f32: (v: number): IRNode => ({ op: "const_f32", v }),
   const_f64: (v: number): IRNode => ({ op: "const_f64", v }),
   local_get: (i: number): IRNode => ({ op: "local_get", i }),
   local_set: (i: number, val: IRNode): IRNode => ({ op: "local_set", i, val }),
@@ -84,6 +109,13 @@ export const IR = {
     b,
     ...(type && type !== "i32" ? { type } : {}),
   }),
+  unary: (kind: UnaryKind, val: IRNode, type?: WasmValType): IRNode => ({
+    op: "unary",
+    kind,
+    val,
+    ...(type && type !== "i32" ? { type } : {}),
+  }),
+  convert: (kind: ConvertKind, val: IRNode): IRNode => ({ op: "convert", kind, val }),
   if_then_else: (
     cond: IRNode,
     then_: IRNode[],
@@ -103,6 +135,12 @@ export const IR = {
     cond,
   }),
   br: (depth: number): IRNode => ({ op: "br", depth }),
+  br_table: (labels: number[], default_: number, val: IRNode): IRNode => ({
+    op: "br_table",
+    labels,
+    default_,
+    val,
+  }),
   block: (body: IRNode[]): IRNode => ({ op: "block", body }),
   seq: (stmts: IRNode[]): IRNode => ({ op: "seq", stmts }),
   call: (idx: number, args: IRNode[]): IRNode => ({ op: "call", idx, args }),
@@ -124,6 +162,8 @@ export const IR = {
   store_i64: (addr: IRNode, val: IRNode): IRNode => ({ op: "store_i64", addr, val }),
   load_f64: (addr: IRNode): IRNode => ({ op: "load_f64", addr }),
   store_f64: (addr: IRNode, val: IRNode): IRNode => ({ op: "store_f64", addr, val }),
+  mem_load: (kind: string, addr: IRNode): IRNode => ({ op: "mem_load", kind, addr }),
+  mem_store: (kind: string, addr: IRNode, val: IRNode): IRNode => ({ op: "mem_store", kind, addr, val }),
   select: (a: IRNode, b: IRNode, cond: IRNode): IRNode => ({ op: "select", a, b, cond }),
   eqz: (val: IRNode, type?: WasmValType): IRNode => ({
     op: "eqz",

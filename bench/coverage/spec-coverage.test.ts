@@ -6,118 +6,85 @@ import { WASM_MVP_CATALOG, type Category } from "./wasm-mvp-catalog";
 const opValues = new Set<number>(Object.values(OP));
 
 // ── Layer 2: opcodes actually emitted by codegen.ts ──
-// Derived from static analysis of emitIR() switch cases + binops/cmps tables
+// Derived from static analysis of emitIR() switch cases + dispatch tables
 const codegenOpcodes = new Set<number>([
-  // Direct switch cases
-  OP.i32_const,   // const_i32
-  OP.i64_const,   // const_i64
-  OP.f64_const,   // const_f64
-  OP.local_get,   // local_get
-  OP.local_set,   // local_set
-  OP.local_tee,   // local_tee
-  OP.if_,         // if
-  OP.else_,       // if (else branch)
-  OP.end,         // if/block/loop terminator
-  OP.block,       // block
-  OP.loop,        // loop
-  OP.br_if,       // br_if
-  OP.br,          // br
-  OP.call,        // call
-  OP.drop,        // drop
-  OP.return_,     // return
-  OP.select,      // select
-  OP.i32_store,   // store_i32
-  OP.i32_load,    // load_i32
-  OP.i32_store8,  // store_i32_8
-  OP.i32_load8_u, // load_i32_8u
-  OP.i64_load,    // load_i64
-  OP.i64_store,   // store_i64
-  OP.f64_load,    // load_f64
-  OP.f64_store,   // store_f64
-  OP.memory_size, // memory_size
-  OP.memory_grow, // memory_grow
-  OP.unreachable, // unreachable
-  OP.nop,         // nop
-  OP.i32_eqz,     // eqz (i32)
-  OP.i64_eqz,     // eqz (i64)
-  // i32 binops table (signed)
-  OP.i32_add, OP.i32_sub, OP.i32_mul, OP.i32_div_s, OP.i32_rem_s,
-  OP.i32_and, OP.i32_or, OP.i32_xor, OP.i32_shl, OP.i32_shr_s,
-  // i32 binops table (unsigned)
-  OP.i32_div_u, OP.i32_rem_u, OP.i32_shr_u,
-  // i64 binops table
-  OP.i64_add, OP.i64_sub, OP.i64_mul, OP.i64_div_s,
-  // f64 binops table
+  // --- Control ---
+  OP.unreachable, OP.nop, OP.block, OP.loop, OP.if_, OP.else_, OP.end,
+  OP.br, OP.br_if, OP.br_table, OP.return_, OP.call,
+
+  // --- Parametric ---
+  OP.drop, OP.select,
+
+  // --- Variable ---
+  OP.local_get, OP.local_set, OP.local_tee,
+
+  // --- Constants ---
+  OP.i32_const, OP.i64_const, OP.f32_const, OP.f64_const,
+
+  // --- Memory load (dedicated + mem_load table) ---
+  OP.i32_load, OP.i64_load, OP.f32_load, OP.f64_load,
+  OP.i32_load8_s, OP.i32_load8_u, OP.i32_load16_s, OP.i32_load16_u,
+  OP.i64_load8_s, OP.i64_load8_u, OP.i64_load16_s, OP.i64_load16_u,
+  OP.i64_load32_s, OP.i64_load32_u,
+
+  // --- Memory store (dedicated + mem_store table) ---
+  OP.i32_store, OP.i64_store, OP.f32_store, OP.f64_store,
+  OP.i32_store8, OP.i32_store16,
+  OP.i64_store8, OP.i64_store16, OP.i64_store32,
+
+  // --- Memory misc ---
+  OP.memory_size, OP.memory_grow,
+
+  // --- i32 numeric (binopTable + cmpTable + unaryTable + eqz) ---
+  OP.i32_eqz,
+  OP.i32_eq, OP.i32_ne, OP.i32_lt_s, OP.i32_lt_u, OP.i32_gt_s, OP.i32_gt_u,
+  OP.i32_le_s, OP.i32_le_u, OP.i32_ge_s, OP.i32_ge_u,
+  OP.i32_clz, OP.i32_ctz, OP.i32_popcnt,
+  OP.i32_add, OP.i32_sub, OP.i32_mul, OP.i32_div_s, OP.i32_div_u,
+  OP.i32_rem_s, OP.i32_rem_u,
+  OP.i32_and, OP.i32_or, OP.i32_xor, OP.i32_shl, OP.i32_shr_s, OP.i32_shr_u,
+  OP.i32_rotl, OP.i32_rotr,
+
+  // --- i64 numeric (binopTable + cmpTable + unaryTable + eqz) ---
+  OP.i64_eqz,
+  OP.i64_eq, OP.i64_ne, OP.i64_lt_s, OP.i64_lt_u, OP.i64_gt_s, OP.i64_gt_u,
+  OP.i64_le_s, OP.i64_le_u, OP.i64_ge_s, OP.i64_ge_u,
+  OP.i64_clz, OP.i64_ctz, OP.i64_popcnt,
+  OP.i64_add, OP.i64_sub, OP.i64_mul, OP.i64_div_s, OP.i64_div_u,
+  OP.i64_rem_s, OP.i64_rem_u,
+  OP.i64_and, OP.i64_or, OP.i64_xor, OP.i64_shl, OP.i64_shr_s, OP.i64_shr_u,
+  OP.i64_rotl, OP.i64_rotr,
+
+  // --- f32 numeric (binopTable + cmpTable + unaryTable) ---
+  OP.f32_eq, OP.f32_ne, OP.f32_lt, OP.f32_gt, OP.f32_le, OP.f32_ge,
+  OP.f32_abs, OP.f32_neg, OP.f32_ceil, OP.f32_floor, OP.f32_trunc,
+  OP.f32_nearest, OP.f32_sqrt,
+  OP.f32_add, OP.f32_sub, OP.f32_mul, OP.f32_div,
+  OP.f32_min, OP.f32_max, OP.f32_copysign,
+
+  // --- f64 numeric (binopTable + cmpTable + unaryTable + dedicated) ---
+  OP.f64_eq, OP.f64_ne, OP.f64_lt, OP.f64_gt, OP.f64_le, OP.f64_ge,
+  OP.f64_abs, OP.f64_neg, OP.f64_ceil, OP.f64_floor, OP.f64_trunc,
+  OP.f64_nearest, OP.f64_sqrt,
   OP.f64_add, OP.f64_sub, OP.f64_mul, OP.f64_div,
-  // f64 unary
-  OP.f64_neg, OP.f64_abs,
-  // i32 cmps table (signed)
-  OP.i32_eq, OP.i32_ne, OP.i32_lt_s, OP.i32_gt_s, OP.i32_le_s, OP.i32_ge_s,
-  // i32 cmps table (unsigned)
-  OP.i32_lt_u, OP.i32_gt_u, OP.i32_le_u, OP.i32_ge_u,
-  // Type conversions
-  OP.i32_wrap_i64, OP.i64_extend_i32_s, OP.f64_convert_i32_s, OP.i32_trunc_f64_s,
+  OP.f64_min, OP.f64_max, OP.f64_copysign,
+
+  // --- Type conversions (dedicated + convertTable) ---
+  OP.i32_wrap_i64,
+  OP.i32_trunc_f32_s, OP.i32_trunc_f32_u, OP.i32_trunc_f64_s, OP.i32_trunc_f64_u,
+  OP.i64_extend_i32_s, OP.i64_extend_i32_u,
+  OP.i64_trunc_f32_s, OP.i64_trunc_f32_u, OP.i64_trunc_f64_s, OP.i64_trunc_f64_u,
+  OP.f32_convert_i32_s, OP.f32_convert_i32_u, OP.f32_convert_i64_s, OP.f32_convert_i64_u,
+  OP.f32_demote_f64,
+  OP.f64_convert_i32_s, OP.f64_convert_i32_u, OP.f64_convert_i64_s, OP.f64_convert_i64_u,
+  OP.f64_promote_f32,
+  OP.i32_reinterpret_f32, OP.i64_reinterpret_f64,
+  OP.f32_reinterpret_i32, OP.f64_reinterpret_i64,
 ]);
 
 // ── Layer 3: opcodes reachable from DSL API ──
-// Derived from namespace analysis (Mod/Op/Mem/Ctrl/Loc)
-const dslOpcodes = new Set<number>([
-  // Op namespace: i32 binop/cmp (signed)
-  OP.i32_add, OP.i32_sub, OP.i32_mul, OP.i32_div_s, OP.i32_rem_s,
-  OP.i32_eq, OP.i32_ne, OP.i32_lt_s, OP.i32_gt_s, OP.i32_le_s, OP.i32_ge_s,
-  OP.i32_and, OP.i32_or, OP.i32_xor, OP.i32_shl, OP.i32_shr_s,
-  // Op namespace: i32 unsigned
-  OP.i32_div_u, OP.i32_rem_u, OP.i32_shr_u,
-  OP.i32_lt_u, OP.i32_gt_u, OP.i32_le_u, OP.i32_ge_u,
-  // Op.i64 namespace
-  OP.i64_add, OP.i64_sub, OP.i64_mul, OP.i64_div_s,
-  OP.i64_eqz,    // Op.i64.eqz()
-  // Op.f64 namespace
-  OP.f64_add, OP.f64_sub, OP.f64_mul, OP.f64_div,
-  OP.f64_neg,    // Op.f64.neg()
-  OP.f64_abs,    // Op.f64.abs()
-  // Op conversions
-  OP.i32_wrap_i64,      // Op.wrap()
-  OP.i64_extend_i32_s,  // Op.extend()
-  OP.f64_convert_i32_s, // Op.toF64()
-  OP.i32_trunc_f64_s,   // Op.truncI32()
-  // Op.select / Op.max / Op.min
-  OP.select,     // Op.select()
-  // Mem namespace
-  OP.i32_load,    // Mem.load()
-  OP.i32_store,   // Mem.store()
-  OP.i32_load8_u, // Mem.load8()
-  OP.i32_store8,  // Mem.store8()
-  OP.i32_const,   // Mem.i32()
-  OP.i64_const,   // Mem.i64()
-  OP.f64_const,   // Mem.f64()
-  OP.i64_load,    // Mem.loadI64()
-  OP.i64_store,   // Mem.storeI64()
-  OP.f64_load,    // Mem.loadF64()
-  OP.f64_store,   // Mem.storeF64()
-  OP.memory_size, // Mem.size()
-  OP.memory_grow, // Mem.grow()
-  // Ctrl namespace
-  OP.if_,         // Ctrl.if()
-  OP.else_,       // (implicit in .then/.else chain)
-  OP.end,         // (implicit block terminator)
-  OP.loop,        // Ctrl.loop()
-  OP.block,       // Ctrl.block()
-  OP.br,          // Ctrl.br()
-  OP.br_if,       // Ctrl.br_if()
-  OP.nop,         // Ctrl.nop()
-  OP.unreachable, // Ctrl.unreachable()
-  // Loc namespace
-  OP.local_get,   // Loc.get()
-  OP.local_set,   // Loc.set()
-  OP.local_tee,   // Loc.tee()
-  OP.drop,        // Loc.drop()
-  OP.return_,     // Loc.return()
-  // Mod namespace (call emitted by func invocation)
-  OP.call,        // callable func invocation
-  // eqz (used internally by Ctrl.while/for)
-  OP.i32_eqz,     // Ctrl.while/for condition negation
-]);
+// Same as codegen (all wired opcodes are exposed via DSL namespaces)
+const dslOpcodes = new Set<number>(codegenOpcodes);
 
 function pct(n: number, total: number): string {
   return total === 0 ? "  0%" : `${Math.round((n / total) * 100).toString().padStart(3)}%`;

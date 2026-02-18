@@ -1,4 +1,4 @@
-import { IR, type BinopKind, type CmpKind } from "../wasm/ir";
+import { IR, type BinopKind, type CmpKind, type UnaryKind, type ConvertKind } from "../wasm/ir";
 import type { WasmValType } from "../wasm/opcodes";
 import {
   val,
@@ -228,6 +228,22 @@ export function makeCmpTyped(kind: CmpKind, type: WasmValType): (a: ExprInput, b
       const va = yield* resolve(a);
       const vb = yield* resolve(b);
       return val(IR.cmp(kind, va._node, vb._node, type));
+    })();
+}
+
+export function makeUnary(kind: UnaryKind, type: WasmValType): (a: ExprInput) => FuncGen<WasmVal> {
+  return (a) =>
+    (function* () {
+      const va = yield* resolve(a);
+      return val(IR.unary(kind, va._node, type));
+    })();
+}
+
+export function makeConvert(kind: ConvertKind): (a: ExprInput) => FuncGen<WasmVal> {
+  return (a) =>
+    (function* () {
+      const va = yield* resolve(a);
+      return val(IR.convert(kind, va._node));
     })();
 }
 

@@ -40,6 +40,8 @@ function inferType(node: IRNode, ctx?: FuncContext): WasmValType {
     case "load_i64":
     case "i64_extend_i32_s":
       return "i64";
+    case "const_f32":
+      return "f32";
     case "const_f64":
     case "load_f64":
     case "f64_neg":
@@ -47,7 +49,23 @@ function inferType(node: IRNode, ctx?: FuncContext): WasmValType {
     case "f64_convert_i32_s":
       return "f64";
     case "binop":
+    case "unary":
       return node.type || "i32";
+    case "convert": {
+      const k = node.kind;
+      if (k.startsWith("i32_")) return "i32";
+      if (k.startsWith("i64_")) return "i64";
+      if (k.startsWith("f32_")) return "f32";
+      if (k.startsWith("f64_")) return "f64";
+      return "i32";
+    }
+    case "mem_load": {
+      const k = node.kind;
+      if (k.startsWith("f32")) return "f32";
+      if (k.startsWith("f64")) return "f64";
+      if (k.startsWith("i64")) return "i64";
+      return "i32";
+    }
     case "if":
       return (node.type !== "void" ? node.type : "i32") as WasmValType;
     case "select":

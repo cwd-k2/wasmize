@@ -29,6 +29,12 @@ export class WasmEncoder {
     this.i32(v); // works for small values
   }
 
+  f32(v: number): void {
+    const buf = new ArrayBuffer(4);
+    new Float32Array(buf)[0] = v;
+    new Uint8Array(buf).forEach((b) => this.bytes.push(b));
+  }
+
   f64(v: number): void {
     const buf = new ArrayBuffer(8);
     new Float64Array(buf)[0] = v;
