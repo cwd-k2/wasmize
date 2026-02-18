@@ -1,0 +1,292 @@
+import { IR, type BinopKind, type CmpKind } from "../wasm/ir";
+import {
+  val,
+  WasmRef,
+  type WasmVal,
+  type FuncRef,
+  type Expr,
+  type FuncGen,
+  type FuncBody,
+  type FuncInstruction,
+} from "./types";
+
+// --- ExprInput + ChainableExpr ---
+
+/**
+ * Extended expression type accepted by all DSL primitives.
+ * Includes everything in {@link Expr} plus {@link ChainableExpr} and {@link ThenBuilder}.
+ */
+export type ExprInput = Expr | ChainableExpr | ThenBuilder;
+
+/**
+ * A callable function reference. Invoke directly for value-returning calls,
+ * or use `.void()` for statement (void) calls.
+ *
+ * @example
+ * ```ts
+ * yield* Loc.set(result, myFunc(a, b));     // value call
+ * yield* myFunc.void(a, b);                 // void call
+ * yield* Mod.export("myFunc", myFunc);       // export (FuncRef-compatible)
+ * ```
+ */
+export interface CallableFunc {
+  (...args: ExprInput[]): FuncGen<WasmVal>;
+  void(...args: ExprInput[]): FuncGen<void>;
+  readonly _tag: "func";
+  readonly _idx: number;
+}
+
+/**
+ * Wraps an {@link Expr} and provides chainable arithmetic, comparison,
+ * bitwise, and memory operations.
+ *
+ * Implements `[Symbol.iterator]()` so `yield* chainableExpr` works
+ * in generator-based DSL code.
+ *
+ * @example
+ * ```ts
+ * Mem.load(i.sub(1).mul(4))  // load from address (i-1)*4
+ * ```
+ */
+export class ChainableExpr {
+  constructor(private readonly _inner: Expr) {}
+
+  [Symbol.iterator](): Generator<FuncInstruction, WasmVal, any> {
+    return resolve(this._inner);
+  }
+
+  // --- Arithmetic ---
+  /** Returns a new expression: `this + b` (`i32.add`). */
+  add(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(add(this._inner, b));
+  }
+  /** Returns a new expression: `this - b` (`i32.sub`). */
+  sub(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(sub(this._inner, b));
+  }
+  /** Returns a new expression: `this * b` (`i32.mul`). */
+  mul(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(mul(this._inner, b));
+  }
+  /** Returns a new expression: `this / b` (`i32.div_s`). */
+  div(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(div(this._inner, b));
+  }
+  /** Returns a new expression: `this % b` (`i32.rem_s`). */
+  rem(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(rem(this._inner, b));
+  }
+
+  // --- Comparison ---
+  /** Returns a new expression: `this == b` (`i32.eq`). */
+  eq(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(eq(this._inner, b));
+  }
+  /** Returns a new expression: `this != b` (`i32.ne`). */
+  ne(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(ne(this._inner, b));
+  }
+  /** Returns a new expression: `this < b` (`i32.lt_s`). */
+  lt(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(lt(this._inner, b));
+  }
+  /** Returns a new expression: `this > b` (`i32.gt_s`). */
+  gt(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(gt(this._inner, b));
+  }
+  /** Returns a new expression: `this <= b` (`i32.le_s`). */
+  le(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(le(this._inner, b));
+  }
+  /** Returns a new expression: `this >= b` (`i32.ge_s`). */
+  ge(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(ge(this._inner, b));
+  }
+
+  // --- Bitwise ---
+  /** Returns a new expression: `this & b` (`i32.and`). */
+  and(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(and_(this._inner, b));
+  }
+  /** Returns a new expression: `this | b` (`i32.or`). */
+  or(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(or_(this._inner, b));
+  }
+  /** Returns a new expression: `this ^ b` (`i32.xor`). */
+  xor(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(xor_(this._inner, b));
+  }
+  /** Returns a new expression: `this << b` (`i32.shl`). */
+  shl(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(shl(this._inner, b));
+  }
+  /** Returns a new expression: `this >> b` (`i32.shr_s`). */
+  shr(b: ExprInput): ChainableExpr {
+    return new ChainableExpr(shr(this._inner, b));
+  }
+}
+
+// --- resolve helper ---
+
+/**
+ * Resolves an {@link ExprInput} to a concrete {@link WasmVal}.
+ *
+ * - `number` → `i32.const`
+ * - `ChainableExpr` → delegated via `yield*`
+ * - `WasmRef` → `local_get`
+ * - `WasmVal` → returned as-is
+ * - `FuncGen<WasmVal>` → driven via `yield*`
+ */
+export function* resolve(
+  expr: ExprInput,
+): Generator<FuncInstruction, WasmVal, any> {
+  if (typeof expr === "number") return val(IR.const_i32(expr));
+  if (expr instanceof ChainableExpr) return yield* expr;
+  if (expr instanceof ThenBuilder) return yield* expr;
+  if (expr instanceof WasmRef) return val(IR.local_get(expr._idx));
+  if ("_tag" in expr && expr._tag === "val") return expr as WasmVal;
+  return yield* (expr as FuncGen<WasmVal>);
+}
+
+// --- CallableFunc factory ---
+
+export function callableFunc(idx: number): CallableFunc {
+  const ref: FuncRef = { _tag: "func", _idx: idx };
+  return Object.assign(
+    (...args: ExprInput[]): FuncGen<WasmVal> => call(ref, ...args),
+    {
+      _tag: "func" as const,
+      _idx: idx,
+      void: (...args: ExprInput[]): FuncGen<void> => call_(ref, ...args),
+    },
+  );
+}
+
+// --- Expression primitives ---
+
+function makeBinop(kind: BinopKind): (a: ExprInput, b: ExprInput) => FuncGen<WasmVal> {
+  return (a, b) =>
+    (function* () {
+      const va = yield* resolve(a);
+      const vb = yield* resolve(b);
+      return val(IR.binop(kind, va._node, vb._node));
+    })();
+}
+
+export const add = makeBinop("add");
+export const sub = makeBinop("sub");
+export const mul = makeBinop("mul");
+export const div = makeBinop("div");
+export const rem = makeBinop("rem");
+export const and_ = makeBinop("and");
+export const or_ = makeBinop("or");
+export const xor_ = makeBinop("xor");
+export const shl = makeBinop("shl");
+export const shr = makeBinop("shr");
+
+function makeCmp(kind: CmpKind): (a: ExprInput, b: ExprInput) => FuncGen<WasmVal> {
+  return (a, b) =>
+    (function* () {
+      const va = yield* resolve(a);
+      const vb = yield* resolve(b);
+      return val(IR.cmp(kind, va._node, vb._node));
+    })();
+}
+
+export const eq = makeCmp("eq");
+export const ne = makeCmp("ne");
+export const lt = makeCmp("lt");
+export const gt = makeCmp("gt");
+export const le = makeCmp("le");
+export const ge = makeCmp("ge");
+
+// --- Statement primitives ---
+
+export function set(r: WasmRef, value: ExprInput): FuncGen<void> {
+  return (function* () {
+    const v = yield* resolve(value);
+    yield { _type: "stmt", node: IR.local_set(r._idx, v._node) };
+  })();
+}
+
+export function tee(r: WasmRef, value: ExprInput): FuncGen<WasmVal> {
+  return (function* () {
+    const v = yield* resolve(value);
+    yield { _type: "stmt", node: IR.local_tee(r._idx, v._node) };
+    return val(IR.local_get(r._idx));
+  })();
+}
+
+function call(
+  funcref: FuncRef,
+  ...args: ExprInput[]
+): FuncGen<WasmVal> {
+  return (function* () {
+    const resolved = [];
+    for (const a of args) {
+      resolved.push(yield* resolve(a));
+    }
+    return val(IR.call(funcref._idx, resolved.map((r) => r._node)));
+  })();
+}
+
+function call_(funcref: FuncRef, ...args: ExprInput[]): FuncGen<void> {
+  return (function* () {
+    const resolved = [];
+    for (const a of args) {
+      resolved.push(yield* resolve(a));
+    }
+    yield {
+      _type: "stmt",
+      node: IR.call(funcref._idx, resolved.map((r) => r._node)),
+    };
+  })();
+}
+
+// --- Control flow primitives ---
+
+function if_impl(
+  cond: ExprInput,
+  then_: FuncBody<WasmVal | void>,
+  else_?: FuncBody<WasmVal | void>,
+): FuncGen<any> {
+  return (function* () {
+    const vc = yield* resolve(cond);
+    const result: WasmVal | void = yield {
+      _type: "if",
+      cond: vc._node,
+      then_,
+      else_,
+    };
+    return result;
+  })();
+}
+
+export class IfBuilder {
+  constructor(private readonly _cond: ExprInput) {}
+  /** Specifies the then-branch body. Returns a {@link ThenBuilder} for optional `.else()` chaining. */
+  then(body: FuncBody<WasmVal | void>): ThenBuilder {
+    return new ThenBuilder(this._cond, body);
+  }
+}
+
+/**
+ * Builder for conditional execution with `.then()` / `.else()` chaining.
+ * Use `yield*` to execute the conditional.
+ */
+export class ThenBuilder {
+  constructor(
+    private readonly _cond: ExprInput,
+    private readonly _then: FuncBody<WasmVal | void>,
+    private readonly _else?: FuncBody<WasmVal | void>,
+  ) {}
+
+  /** Specifies the else-branch body. Returns a new ThenBuilder (immutable chaining). */
+  else(body: FuncBody<WasmVal | void>): ThenBuilder {
+    return new ThenBuilder(this._cond, this._then, body);
+  }
+
+  [Symbol.iterator](): Generator<FuncInstruction, any, any> {
+    return if_impl(this._cond, this._then, this._else);
+  }
+}
