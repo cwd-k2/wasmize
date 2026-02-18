@@ -6,18 +6,16 @@
 
 ## 1. 現状の定量評価
 
-### Code Comparison（15 問題平均）
+### Code Comparison（15 問題平均・P5-P10 実装後）
 
 | 指標 | JS | DSL | 比率 |
 |------|-----|-----|------|
-| LoC（非空行） | 9.3 | 64.2 | **6.9x** |
-| 最大ネスト深度 | 2.5 | 9.4 | **3.8x** |
-| 制御フロー文 | 3.3 | 10.1 | **3.1x** |
-| 変数宣言数 | 3.1 | 7.5 | **2.4x** |
+| LoC（非空行） | 9.3 | 43.6 | **4.7x** |
+| 最大ネスト深度 | 2.5 | 6.6 | **2.6x** |
 
-- LoC 比率は 3.3x（fibonacci）〜 51.5x（flood-fill）と大きく幅がある
-- flood-fill の 51.5x は 4 方向の分岐 + 境界チェックの分離（short-circuit 非対応）が主因
-- 再帰的アルゴリズム（hanoi 18x）も ceremony が重い
+- LoC 比率は 2.3x（fibonacci）〜 37.5x（flood-fill）と幅がある
+- P0-P10 の sugar 実装により LoC 比率は 6.9x → 4.7x に改善
+- flood-fill は Ctrl.switch で 22 行の分岐カスケードを解消（51.5x → 37.5x）
 
 ### Spec Coverage
 
@@ -406,7 +404,12 @@ export function problem7_sieve() {
 | **P2** | `Mem.i32Array(base)` | 80 箇所 | ~80 行 | 中 | DSL (namespaces) | ✅ 実装済 |
 | **P3** | `local(type, init)` | 30 箇所 | ~30 行 | 低 | DSL (declarations + interpreter) | ✅ 実装済 |
 | **P4** | `Ctrl.when(cond, body)` | 20 箇所 | ~40 行 | 低 | DSL (namespaces) | ✅ 実装済 |
-| **P5** | `Mod.recursive(self => body)` | 4 箇所 | ~8 行 | 中 | DSL (interpreter) | 未着手 |
+| **P5** | `Op.select` / `Op.max` / `Op.min` | ~8 箇所 | ~30 行 | 低 | IR + codegen + DSL | ✅ 実装済 |
+| **P6** | `Mem.i32Array2D(base, cols)` | ~17 箇所 | ~20 行 | 低 | DSL (namespaces) | ✅ 実装済 |
+| **P7** | `Ctrl.switch(expr, cases)` | 2 箇所 | ~14 行 | 中 | DSL (namespaces) | ✅ 実装済 |
+| **P8** | `i32Array.swap(i, j, tmp)` | 2 箇所 | ~4 行 | 低 | DSL (namespaces) | ✅ 実装済 |
+| **P9** | `Mod.exportAll({...})` | 1 箇所 | ~3 行 | 低 | DSL (namespaces) | ✅ 実装済 |
+| **P10** | `Mod.recursive(self => body)` | 4 箇所 | ~8 行 | 中 | DSL (interpreter) | 未着手 |
 
 ### P0: `instantiate()` ヘルパ
 
@@ -428,6 +431,41 @@ DSL 本体ではないが、compile → instantiate のボイラープレート�
 
 - **ファイル:** `src/dsl/namespaces.ts` に追加
 - **依存:** なし（内部で既存の `Mem.load` / `Mem.store` を呼ぶだけ）
+
+### P5: `Op.select` / `Op.max` / `Op.min`
+
+Wasm の `select` 命令（branchless 三項選択）を IR → codegen → DSL の全層に追加。`Op.max(a, b)` / `Op.min(a, b)` は select ベースの sugar。
+
+- **ファイル:** `src/wasm/ir.ts`（IRNode 追加）, `src/wasm/codegen.ts`（emit 追加）, `src/dsl/expr.ts`（`select_` 関数）, `src/dsl/namespaces.ts`（Op に追加）
+- **注意:** Generator は一度しか consume できないため、`max(a, b)` は内部で `resolve()` してから IR ノードを再利用する設計
+
+### P6: `Mem.i32Array2D(base, cols)`
+
+2D 配列のアドレス計算 `(row * cols + col) * 4 + base` を隠蔽。`cols` は `ExprInput` なので実行時の値も可。
+
+- **ファイル:** `src/dsl/namespaces.ts` に追加
+- **適用:** lcs（dpArr → dp 2D）, matmul（A 行列）
+
+### P7: `Ctrl.switch(expr, cases, default?)`
+
+多方向分岐を宣言的に記述。内部では nested if/else に展開（`br_table` は将来の最適化）。
+
+- **ファイル:** `src/dsl/namespaces.ts` に追加
+- **適用:** flood-fill（4方向分岐 22行 → 6行）
+
+### P8: `i32Array.swap(i, j, tmp)`
+
+配列の要素交換を1行で。内部は `tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp`。
+
+- **ファイル:** `src/dsl/namespaces.ts`（i32Array の返却オブジェクトに追加）
+- **適用:** quicksort（swap 2箇所）
+
+### P9: `Mod.exportAll({...})`
+
+複数 export を `Object.entries` でループして一括定義。
+
+- **ファイル:** `src/dsl/namespaces.ts` に追加
+- **適用:** union-find（4 export → 1行）
 
 ## 5.1 追加実装: WasmBinary\<T\> phantom type
 
@@ -463,6 +501,7 @@ compile<{ fib: (n: number) => number }>(...)
 | `i32.div_u`, `i32.rem_u` | 符号なし除算・剰余 | 中 |
 | `i32.lt_u`, `i32.gt_u`, `i32.le_u`, `i32.ge_u` | 符号なし比較。アドレス計算 | 中 |
 | `select` | 三項演算子 `cond ? a : b`。`Ctrl.if` なしで値選択 | 高 |
+| | ✅ 実装済 — `Op.select(cond, a, b)`, `Op.max`, `Op.min` | |
 | `memory.size`, `memory.grow` | 動的メモリ拡張 | 低 |
 
 ### Tier 2: 新規 opcode + IR + codegen 追加が必要

@@ -65,6 +65,17 @@ const { exports: { hanoi } } = await instantiate(problem1_hanoi(), {
 });
 ```
 
+### DSL sugar テスト
+
+`src/dsl/__tests__/sugar.test.ts` に DSL プリミティブ自体のテストがあります:
+
+- `Op.select` — branchless 三項選択
+- `Op.max` / `Op.min` — 値の大小比較
+- `Mem.i32Array2D` — 2D 配列の load/store（base=0, base≠0）
+- `Ctrl.switch` — 多方向分岐 + default ケース
+- `i32Array.swap` — 要素交換
+- `Mod.exportAll` — 一括 export
+
 ---
 
 ## E2E テスト（Playwright）

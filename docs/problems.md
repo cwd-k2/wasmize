@@ -97,7 +97,8 @@ BASE = 1024。Memory pages: 2。
 ### DSL の見どころ
 
 - `Mem.i32Array(BASE)` でオフセット付き配列アクセス
-- `Ctrl.for` でメインループ、`Ctrl.if` で max 判定
+- `Op.max(current_sum.add(v), v)` — branchless な値選択（if/else 4行 → 1式）
+- `Ctrl.for` でメインループ
 
 ---
 
@@ -129,6 +130,7 @@ Memory pages: 2。
 ### DSL の見どころ
 
 - `Mem.i32Array()` / `Mem.i32Array(COIN_BASE)` で DP テーブルとコイン配列を分離
+- `Op.select(dp.load(amount).eq(INF), -1, dp.load(amount))` — 条件付き戻り値を1式で
 - `Ctrl.for` による 2 重ループ、`Ctrl.when` で条件付き更新
 
 ---
@@ -261,8 +263,9 @@ Memory pages: 2（n ≤ 64）。
 
 ### DSL の見どころ
 
+- `Mem.i32Array2D(0, n)` で A 行列の 2D アクセス（`A.load(i, k)` で `(i*n+k)*4` を隠蔽）
 - `Ctrl.for` による 3 重ネストループ（i, j, k）
-- row-major 2D アドレス計算（動的ベースのため `Mem.i32Array` は未使用）
+- B / C は動的ベース（`nn*4`, `nn*8`）のため raw `Mem.load/store` を使用
 
 ---
 
@@ -294,8 +297,9 @@ Memory pages: 5。
 
 ### DSL の見どころ
 
-- `Ctrl.for` による 4 重ループ（初期化 × 2、メイン i, j）
-- `Mem.i32Array()` で A / B / DP テーブルへの型付きアクセス
+- `Mem.i32Array2D(DP_BASE, cols)` で 2D DP テーブルへのアクセス（`dp.load(i, j)` で `i.mul(cols).add(j)` を隠蔽）
+- `Op.max(dp.load(i.sub(1), j), dp.load(i, j.sub(1)))` — nested if/else 15行 → 1式
+- `Mem.i32Array()` で A / B 配列への型付きアクセス
 - `local(Type.i32, len_b.add(1))` で cols を宣言と同時に初期化
 
 ---
@@ -328,9 +332,9 @@ Memory pages: 4。
 
 ### DSL の見どころ
 
+- `Op.max(dp.load(w), dp.load(w.sub(wi)).add(vi))` — branchless な DP 更新
 - `Ctrl.for(w, cap, w.ge(wi), w.sub(1), ...)` — 逆順ループも Ctrl.for で自然に表現
 - `Mem.i32Array()` で weights / values / DP の 3 配列を分離
-- `Ctrl.when` で条件付き DP 更新
 
 ---
 
@@ -360,6 +364,7 @@ Memory pages: 1。
 
 ### DSL の見どころ
 
+- `arr.swap(i, j, tmp)` — 3行の swap パターンを1行で
 - `Ctrl.for` で partition ループ、`Ctrl.when` で swap 条件
 - `Mem.i32Array()` で配列アクセスの `.mul(4)` を排除
 - `let quicksort: CallableFunc` による再帰前方宣言（変更なし）
@@ -393,6 +398,7 @@ Memory pages: 4。
 
 ### DSL の見どころ
 
+- `Ctrl.switch(d, [[0, ...], [1, ...], ...])` — 4方向分岐を宣言的に（nested if/else 22行 → 6行）
 - `Ctrl.while(head.lt(tail), ...)` で BFS メインループ
 - `Ctrl.for` で 4 方向展開ループ
 - `Ctrl.when` で境界チェック + 塗りつぶし条件
@@ -504,6 +510,7 @@ Memory pages: 2。
 
 ### DSL の見どころ
 
+- `Mod.exportAll({ uf_init, uf_find, uf_union, uf_count })` — 4 export を1行で
 - 4 つの export 関数 — Wasm モジュールが「オブジェクト」として機能
 - ステートフルなデータ構造（状態がメモリに永続化）
 - `Ctrl.for` で init ループ

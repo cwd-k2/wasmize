@@ -45,9 +45,9 @@ type WasmBinary<T> = Uint8Array & { readonly __exports?: T }
 
 | 分類 | yield する | Namespace | 例 |
 |------|-----------|-----------|-----|
-| 式（pure） | No | `Op`, `Mem` | `Op.add()`, `Mem.load()`, `Mem.i32()`, `Mem.i32Array()` |
-| 文（statement） | Yes (`StmtInstruction`) | `Loc`, `Mem`, `Ctrl` | `Loc.set()`, `Mem.store()`, `Ctrl.br()` |
-| 制御フロー | Yes (compound) | `Ctrl` | `Ctrl.if()`, `Ctrl.loop()`, `Ctrl.block()`, `Ctrl.for()`, `Ctrl.while()`, `Ctrl.when()` |
+| 式（pure） | No | `Op`, `Mem` | `Op.add()`, `Op.select()`, `Op.max()`, `Op.min()`, `Mem.load()`, `Mem.i32()`, `Mem.i32Array()`, `Mem.i32Array2D()` |
+| 文（statement） | Yes (`StmtInstruction`) | `Loc`, `Mem`, `Mod` | `Loc.set()`, `Mem.store()`, `Ctrl.br()`, `Mod.exportAll()` |
+| 制御フロー | Yes (compound) | `Ctrl` | `Ctrl.if()`, `Ctrl.loop()`, `Ctrl.block()`, `Ctrl.for()`, `Ctrl.while()`, `Ctrl.when()`, `Ctrl.switch()` |
 
 ### 使用例
 
@@ -111,7 +111,7 @@ Mem.store(0, n.add(1)) の処理フロー:
 
 ### IRNode
 
-23 種の discriminated union（`op` フィールドで判別）。
+24 種の discriminated union（`op` フィールドで判別）。
 
 | op | フィールド | 説明 |
 |----|-----------|------|
@@ -135,6 +135,7 @@ Mem.store(0, n.add(1)) の処理フロー:
 | `load_i32` | `addr` | メモリ読み取り (i32) |
 | `store_i32_8` | `addr`, `val` | メモリ書き込み (1 byte) |
 | `load_i32_8u` | `addr` | メモリ読み取り (1 byte, 零拡張) |
+| `select` | `a`, `b`, `cond` | 三項選択 `cond ? a : b` |
 | `eqz` | `val: IRNode` | i32 == 0 判定 |
 | `nop` | — | 何もしない |
 | `effect` | `tag: number`, `payload` | エフェクト発行 |
