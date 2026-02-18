@@ -463,6 +463,32 @@ export function block_(body: FuncBody<void>): FuncGen<void> {
   })();
 }
 
+// --- Namespace objects ---
+
+/** Arithmetic, comparison, and bitwise operations. */
+export const op = {
+  add, sub, mul, div, rem,
+  eq, ne, lt, gt, le, ge,
+  and: and_, or: or_, xor: xor_, shl, shr,
+} as const;
+
+/** Memory and constant operations. */
+export const mem = { load, store, i32, i64 } as const;
+
+/** Control flow: branching, loops, blocks, calls. */
+export const ctrl = {
+  if: if_, loop: loop_, block: block_,
+  br, br_if,
+  call, call_,
+  nop: nop_, effect,
+} as const;
+
+/** Local variable operations. */
+export const loc = {
+  get, set, tee,
+  drop: drop_, return: return_,
+} as const;
+
 // --- WasmRef method augmentation ---
 
 declare module "./types" {

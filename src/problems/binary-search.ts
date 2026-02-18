@@ -4,15 +4,9 @@ import {
   export_,
   param,
   local,
-  i32,
-  set,
-  return_,
-  br,
-  br_if,
-  nop_,
-  if_,
-  loop_,
-  block_,
+  mem,
+  ctrl,
+  loc,
 } from "../dsl/compiler";
 
 export function problem5_binary_search(): Uint8Array {
@@ -25,33 +19,33 @@ export function problem5_binary_search(): Uint8Array {
       const mid = yield* local("i32");
       const v = yield* local("i32");
 
-      yield* set(lo, 0);
+      yield* loc.set(lo, 0);
       yield* hi.set(len.sub(1));
 
-      yield* block_(function* () {
-        yield* loop_(function* () {
-          yield* br_if(1, lo.gt(hi));
+      yield* ctrl.block(function* () {
+        yield* ctrl.loop(function* () {
+          yield* ctrl.br_if(1, lo.gt(hi));
           yield* mid.set(lo.add(hi).div(2));
           yield* v.set(mid.mul(4).load());
-          yield* if_(v.eq(target))
+          yield* ctrl.if(v.eq(target))
             .then(function* () {
-              yield* return_(mid);
+              yield* loc.return(mid);
             })
             .else(function* () {
-              yield* if_(v.lt(target))
+              yield* ctrl.if(v.lt(target))
                 .then(function* () {
                   yield* lo.set(mid.add(1));
                 })
                 .else(function* () {
                   yield* hi.set(mid.sub(1));
                 });
-              yield* nop_();
+              yield* ctrl.nop();
             });
-          yield* br(0);
+          yield* ctrl.br(0);
         });
       });
 
-      return yield* i32(-1);
+      return yield* mem.i32(-1);
     });
 
     yield* export_("binary_search", search);
