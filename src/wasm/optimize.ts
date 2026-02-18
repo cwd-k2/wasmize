@@ -18,6 +18,17 @@ function toI32(v: number): number {
   return v | 0;
 }
 
+// Structural equality for IR nodes (self-cancelling detection)
+function irEqual(a: IRNode, b: IRNode): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+// Comparison inversion map for eqz-of-cmp optimization
+const invertCmp: Partial<Record<CmpKind, CmpKind>> = {
+  lt: "ge", ge: "lt", gt: "le", le: "gt", eq: "ne", ne: "eq",
+  lt_u: "ge_u", ge_u: "lt_u", gt_u: "le_u", le_u: "gt_u",
+};
+
 // --- Constant folding for i32 binop ---
 
 function foldBinop(kind: BinopKind, a: number, b: number): number | null {
@@ -107,6 +118,11 @@ function optimizeNode(node: IRNode): IRNode {
             if (b.op === "const_i32" && b.v === 0) return a;
             break;
         }
+
+        // Self-cancelling: sub(x, x) → 0, xor(x, x) → 0
+        if ((node.kind === "sub" || node.kind === "xor") && irEqual(a, b)) {
+          return IR.const_i32(0);
+        }
       }
 
       // Strength reduction: mul by power of 2 → shl (i32 only)
@@ -123,6 +139,12 @@ function optimizeNode(node: IRNode): IRNode {
           return IR.binop("shr_u", a, IR.const_i32(log2(b.v)));
       }
 
+      // Strength reduction: rem_u by power of 2 → and mask (i32 only)
+      if (type === "i32" && node.kind === "rem_u") {
+        if (b.op === "const_i32" && isPow2(b.v))
+          return IR.binop("and", a, IR.const_i32(b.v - 1));
+      }
+
       return IR.binop(node.kind, a, b, node.type);
     }
 
@@ -135,6 +157,18 @@ function optimizeNode(node: IRNode): IRNode {
         return IR.const_i32(foldCmp(node.kind, a.v, b.v));
       }
 
+      // Unsigned comparisons with zero
+      if (type === "i32") {
+        if (node.kind === "lt_u" && b.op === "const_i32" && b.v === 0)
+          return IR.const_i32(0);
+        if (node.kind === "ge_u" && b.op === "const_i32" && b.v === 0)
+          return IR.const_i32(1);
+        if (node.kind === "gt_u" && a.op === "const_i32" && a.v === 0)
+          return IR.const_i32(0);
+        if (node.kind === "le_u" && a.op === "const_i32" && a.v === 0)
+          return IR.const_i32(1);
+      }
+
       return IR.cmp(node.kind, a, b, node.type);
     }
 
@@ -142,8 +176,21 @@ function optimizeNode(node: IRNode): IRNode {
       const v = optimizeNode(node.val);
       const type = node.type || "i32";
 
+      // Constant fold
       if (type === "i32" && v.op === "const_i32") {
         return IR.const_i32(v.v === 0 ? 1 : 0);
+      }
+
+      // eqz(cmp(kind, a, b)) → cmp(inverted_kind, a, b)
+      if (type === "i32" && v.op === "cmp") {
+        const inv = invertCmp[v.kind];
+        if (inv) return IR.cmp(inv, v.a, v.b, v.type);
+      }
+
+      // eqz(eqz(x)) → x (when x is boolean: cmp or eqz result)
+      if (type === "i32" && v.op === "eqz") {
+        const inner = v.val;
+        if (inner.op === "cmp" || inner.op === "eqz") return inner;
       }
 
       return IR.eqz(v, node.type);
@@ -152,8 +199,26 @@ function optimizeNode(node: IRNode): IRNode {
     case "unary":
       return IR.unary(node.kind, optimizeNode(node.val), node.type);
 
-    case "convert":
-      return IR.convert(node.kind, optimizeNode(node.val));
+    case "convert": {
+      const v = optimizeNode(node.val);
+
+      // Round-trip: wrap(extend(x)) → x
+      if (node.kind === "i32_wrap_i64") {
+        if (v.op === "i64_extend_i32_s") return v.val;
+        if (v.op === "convert" && v.kind === "i64_extend_i32_u") return v.val;
+        if (v.op === "const_i64") return IR.const_i32(toI32(v.v));
+      }
+
+      // Constant conversions
+      if (node.kind === "i64_extend_i32_s" && v.op === "const_i32")
+        return IR.const_i64(v.v);
+      if (node.kind === "i64_extend_i32_u" && v.op === "const_i32")
+        return IR.const_i64(v.v >>> 0);
+      if (node.kind === "f64_convert_i32_s" && v.op === "const_i32")
+        return IR.const_f64(v.v);
+
+      return IR.convert(node.kind, v);
+    }
 
     case "local_set":
       return IR.local_set(node.i, optimizeNode(node.val));
@@ -161,25 +226,58 @@ function optimizeNode(node: IRNode): IRNode {
     case "local_tee":
       return IR.local_tee(node.i, optimizeNode(node.val));
 
-    case "if":
-      return IR.if_then_else(
-        optimizeNode(node.cond),
-        eliminateDeadCode(node.then.map(optimizeNode)),
-        eliminateDeadCode(node.else.map(optimizeNode)),
-        node.type,
-      );
+    case "if": {
+      const cond = optimizeNode(node.cond);
+      const then_ = eliminateDeadCode(node.then.map(optimizeNode));
+      const else_ = eliminateDeadCode(node.else.map(optimizeNode));
+
+      // Constant condition elimination
+      if (cond.op === "const_i32") {
+        const taken = cond.v !== 0 ? then_ : else_;
+        if (taken.length === 0) return IR.nop();
+        if (taken.length === 1) return taken[0]!;
+        return IR.seq(taken);
+      }
+
+      return IR.if_then_else(cond, then_, else_, node.type);
+    }
 
     case "loop":
       return IR.loop(eliminateDeadCode(node.body.map(optimizeNode)));
 
-    case "block":
-      return IR.block(eliminateDeadCode(node.body.map(optimizeNode)));
+    case "block": {
+      const body = eliminateDeadCode(node.body.map(optimizeNode));
+      // Unwrap single non-control-flow statement
+      if (body.length === 1) {
+        const s = body[0]!;
+        if (s.op !== "if" && s.op !== "loop" && s.op !== "block" && s.op !== "seq"
+          && s.op !== "br" && s.op !== "br_if" && s.op !== "br_table")
+          return s;
+      }
+      return IR.block(body);
+    }
 
-    case "seq":
-      return IR.seq(eliminateDeadCode(node.stmts.map(optimizeNode)));
+    case "seq": {
+      const stmts = node.stmts.map(optimizeNode);
+      // Flatten nested seqs
+      const flat: IRNode[] = [];
+      for (const s of stmts) {
+        if (s.op === "seq") flat.push(...s.stmts);
+        else flat.push(s);
+      }
+      const result = eliminateDeadCode(flat);
+      if (result.length === 1) return result[0]!;
+      return IR.seq(result);
+    }
 
-    case "br_if":
-      return IR.br_if(node.depth, optimizeNode(node.cond));
+    case "br_if": {
+      const cond = optimizeNode(node.cond);
+      // Constant condition
+      if (cond.op === "const_i32") {
+        return cond.v !== 0 ? IR.br(node.depth) : IR.nop();
+      }
+      return IR.br_if(node.depth, cond);
+    }
 
     case "br_table":
       return IR.br_table(node.labels, node.default_, optimizeNode(node.val));
@@ -196,12 +294,16 @@ function optimizeNode(node: IRNode): IRNode {
     case "return":
       return IR.return_(optimizeNode(node.val));
 
-    case "select":
-      return IR.select(
-        optimizeNode(node.a),
-        optimizeNode(node.b),
-        optimizeNode(node.cond),
-      );
+    case "select": {
+      const a = optimizeNode(node.a);
+      const b = optimizeNode(node.b);
+      const cond = optimizeNode(node.cond);
+      // Constant condition
+      if (cond.op === "const_i32") {
+        return cond.v !== 0 ? a : b;
+      }
+      return IR.select(a, b, cond);
+    }
 
     case "store_i32":
       return IR.store_i32(optimizeNode(node.addr), optimizeNode(node.val));
@@ -228,12 +330,27 @@ function optimizeNode(node: IRNode): IRNode {
       return IR.f64_neg(optimizeNode(node.val));
     case "f64_abs":
       return IR.f64_abs(optimizeNode(node.val));
-    case "i32_wrap_i64":
-      return IR.i32_wrap_i64(optimizeNode(node.val));
-    case "i64_extend_i32_s":
-      return IR.i64_extend_i32_s(optimizeNode(node.val));
-    case "f64_convert_i32_s":
-      return IR.f64_convert_i32_s(optimizeNode(node.val));
+
+    case "i32_wrap_i64": {
+      const v = optimizeNode(node.val);
+      if (v.op === "i64_extend_i32_s") return v.val;
+      if (v.op === "convert" && v.kind === "i64_extend_i32_u") return v.val;
+      if (v.op === "const_i64") return IR.const_i32(toI32(v.v));
+      return IR.i32_wrap_i64(v);
+    }
+
+    case "i64_extend_i32_s": {
+      const v = optimizeNode(node.val);
+      if (v.op === "const_i32") return IR.const_i64(v.v);
+      return IR.i64_extend_i32_s(v);
+    }
+
+    case "f64_convert_i32_s": {
+      const v = optimizeNode(node.val);
+      if (v.op === "const_i32") return IR.const_f64(v.v);
+      return IR.f64_convert_i32_s(v);
+    }
+
     case "i32_trunc_f64_s":
       return IR.i32_trunc_f64_s(optimizeNode(node.val));
 
@@ -276,5 +393,8 @@ function eliminateDeadCode(stmts: IRNode[]): IRNode[] {
 // --- Public API ---
 
 export function optimizeFunc(body: IRNode[]): IRNode[] {
-  return eliminateDeadCode(body.map(optimizeNode));
+  let result = eliminateDeadCode(body.map(optimizeNode));
+  // Second pass: cascade effects (e.g. constant fold → eqz inversion → branch elimination)
+  result = eliminateDeadCode(result.map(optimizeNode));
+  return result;
 }
