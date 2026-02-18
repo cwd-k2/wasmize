@@ -221,6 +221,20 @@ export type FuncInstruction =
   | LoopInstruction
   | BlockInstruction;
 
+/**
+ * Opaque reference to a global variable by its index in the module.
+ */
+export interface GlobalRef {
+  readonly _tag: "global";
+  readonly _idx: number;
+  readonly _type: WasmValType;
+  readonly _mutable: boolean;
+}
+
+export function globalRef(idx: number, type: WasmValType, mutable: boolean): GlobalRef {
+  return { _tag: "global", _idx: idx, _type: type, _mutable: mutable };
+}
+
 // --- Module-level instructions ---
 
 /**
@@ -237,4 +251,5 @@ export type ModuleInstruction =
     }
   | { _type: "func"; body: FuncBody<WasmVal | void> }
   | { _type: "export"; name: string; ref: FuncRef }
-  | { _type: "memory"; pages: number };
+  | { _type: "memory"; pages: number }
+  | { _type: "global"; valType: WasmValType; init: number; mutable: boolean };

@@ -81,6 +81,8 @@ export type IRNode =
   | { op: "i64_extend_i32_s"; val: IRNode }
   | { op: "f64_convert_i32_s"; val: IRNode }
   | { op: "i32_trunc_f64_s"; val: IRNode }
+  | { op: "global_get"; idx: number }
+  | { op: "global_set"; idx: number; val: IRNode }
   | { op: "memory_size" }
   | { op: "memory_grow"; pages: IRNode }
   | { op: "unreachable" }
@@ -176,6 +178,8 @@ export const IR = {
   i64_extend_i32_s: (val: IRNode): IRNode => ({ op: "i64_extend_i32_s", val }),
   f64_convert_i32_s: (val: IRNode): IRNode => ({ op: "f64_convert_i32_s", val }),
   i32_trunc_f64_s: (val: IRNode): IRNode => ({ op: "i32_trunc_f64_s", val }),
+  global_get: (idx: number): IRNode => ({ op: "global_get", idx }),
+  global_set: (idx: number, val: IRNode): IRNode => ({ op: "global_set", idx, val }),
   memory_size: (): IRNode => ({ op: "memory_size" }),
   memory_grow: (pages: IRNode): IRNode => ({ op: "memory_grow", pages }),
   unreachable: (): IRNode => ({ op: "unreachable" }),

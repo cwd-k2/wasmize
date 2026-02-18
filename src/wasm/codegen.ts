@@ -107,6 +107,15 @@ const memStoreInfo: Record<string, { opcode: number; align: number }> = {
   i64_store32: { opcode: OP.i64_store32, align: 2 },
 };
 
+function extractOffset(addr: IRNode): { base: IRNode; offset: number } {
+  if (addr.op === "binop" && addr.kind === "add") {
+    if (addr.b.op === "const_i32" && addr.b.v >= 0) return { base: addr.a, offset: addr.b.v };
+    if (addr.a.op === "const_i32" && addr.a.v >= 0) return { base: addr.b, offset: addr.a.v };
+  }
+  if (addr.op === "const_i32" && addr.v >= 0) return { base: IR.const_i32(0), offset: addr.v };
+  return { base: addr, offset: 0 };
+}
+
 export function emitIR(enc: WasmEncoder, node: IRNode | undefined): void {
   if (!node) return;
   switch (node.op) {
@@ -213,73 +222,91 @@ export function emitIR(enc: WasmEncoder, node: IRNode | undefined): void {
     case "seq":
       node.stmts.forEach((n) => emitIR(enc, n));
       break;
-    case "store_i32":
-      emitIR(enc, node.addr);
+    case "store_i32": {
+      const { base, offset } = extractOffset(node.addr);
+      emitIR(enc, base);
       emitIR(enc, node.val);
       enc.byte(OP.i32_store);
       enc.byte(2);
-      enc.u32(0);
+      enc.u32(offset);
       break;
-    case "load_i32":
-      emitIR(enc, node.addr);
+    }
+    case "load_i32": {
+      const { base, offset } = extractOffset(node.addr);
+      emitIR(enc, base);
       enc.byte(OP.i32_load);
       enc.byte(2);
-      enc.u32(0);
+      enc.u32(offset);
       break;
-    case "store_i32_8":
-      emitIR(enc, node.addr);
+    }
+    case "store_i32_8": {
+      const { base, offset } = extractOffset(node.addr);
+      emitIR(enc, base);
       emitIR(enc, node.val);
       enc.byte(OP.i32_store8);
       enc.byte(0);
-      enc.u32(0);
+      enc.u32(offset);
       break;
-    case "load_i32_8u":
-      emitIR(enc, node.addr);
+    }
+    case "load_i32_8u": {
+      const { base, offset } = extractOffset(node.addr);
+      emitIR(enc, base);
       enc.byte(OP.i32_load8_u);
       enc.byte(0);
-      enc.u32(0);
+      enc.u32(offset);
       break;
-    case "load_i64":
-      emitIR(enc, node.addr);
+    }
+    case "load_i64": {
+      const { base, offset } = extractOffset(node.addr);
+      emitIR(enc, base);
       enc.byte(OP.i64_load);
       enc.byte(3);
-      enc.u32(0);
+      enc.u32(offset);
       break;
-    case "store_i64":
-      emitIR(enc, node.addr);
+    }
+    case "store_i64": {
+      const { base, offset } = extractOffset(node.addr);
+      emitIR(enc, base);
       emitIR(enc, node.val);
       enc.byte(OP.i64_store);
       enc.byte(3);
-      enc.u32(0);
+      enc.u32(offset);
       break;
-    case "load_f64":
-      emitIR(enc, node.addr);
+    }
+    case "load_f64": {
+      const { base, offset } = extractOffset(node.addr);
+      emitIR(enc, base);
       enc.byte(OP.f64_load);
       enc.byte(3);
-      enc.u32(0);
+      enc.u32(offset);
       break;
-    case "store_f64":
-      emitIR(enc, node.addr);
+    }
+    case "store_f64": {
+      const { base, offset } = extractOffset(node.addr);
+      emitIR(enc, base);
       emitIR(enc, node.val);
       enc.byte(OP.f64_store);
       enc.byte(3);
-      enc.u32(0);
+      enc.u32(offset);
       break;
+    }
     case "mem_load": {
-      emitIR(enc, node.addr);
+      const { base, offset } = extractOffset(node.addr);
+      emitIR(enc, base);
       const info = memLoadInfo[node.kind]!;
       enc.byte(info.opcode);
       enc.byte(info.align);
-      enc.u32(0);
+      enc.u32(offset);
       break;
     }
     case "mem_store": {
-      emitIR(enc, node.addr);
+      const { base, offset } = extractOffset(node.addr);
+      emitIR(enc, base);
       emitIR(enc, node.val);
       const info = memStoreInfo[node.kind]!;
       enc.byte(info.opcode);
       enc.byte(info.align);
-      enc.u32(0);
+      enc.u32(offset);
       break;
     }
     case "select":
@@ -315,6 +342,15 @@ export function emitIR(enc: WasmEncoder, node: IRNode | undefined): void {
     case "i32_trunc_f64_s":
       emitIR(enc, node.val);
       enc.byte(OP.i32_trunc_f64_s);
+      break;
+    case "global_get":
+      enc.byte(OP.global_get);
+      enc.u32(node.idx);
+      break;
+    case "global_set":
+      emitIR(enc, node.val);
+      enc.byte(OP.global_set);
+      enc.u32(node.idx);
       break;
     case "memory_size":
       enc.byte(OP.memory_size);

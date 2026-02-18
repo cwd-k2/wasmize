@@ -23,15 +23,22 @@ export interface ExportDef {
   idx: number;
 }
 
+export interface GlobalDef {
+  type: WasmValType;
+  mutable: boolean;
+  init: number;
+}
+
 export interface ModuleOptions {
   imports?: ImportDef[];
   memoryPages?: number;
   exports?: ExportDef[];
+  globals?: GlobalDef[];
 }
 
 export function buildModule(
   funcs: FuncDef[],
-  { imports = [], memoryPages = 1, exports: moduleExports = [] }: ModuleOptions = {},
+  { imports = [], memoryPages = 1, exports: moduleExports = [], globals = [] }: ModuleOptions = {},
 ): Uint8Array {
   const enc = new WasmEncoder();
   // Magic + version
@@ -94,6 +101,25 @@ export function buildModule(
     s.byte(0x00);
     s.u32(memoryPages);
   });
+
+  // Global section
+  if (globals.length) {
+    enc.section(6, (s) => {
+      s.u32(globals.length);
+      globals.forEach((g) => {
+        s.byte(TYPE[g.type]);
+        s.byte(g.mutable ? 0x01 : 0x00);
+        // Init expression
+        switch (g.type) {
+          case "i32": s.byte(OP.i32_const); s.i32(g.init); break;
+          case "i64": s.byte(OP.i64_const); s.i64(g.init); break;
+          case "f32": s.byte(OP.f32_const); s.f32(g.init); break;
+          case "f64": s.byte(OP.f64_const); s.f64(g.init); break;
+        }
+        s.byte(OP.end);
+      });
+    });
+  }
 
   // Export section
   enc.section(7, (s) => {

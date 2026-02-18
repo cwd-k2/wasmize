@@ -12,6 +12,7 @@ import {
   type VoidBody,
   type WasmVal,
   type ModuleInstruction,
+  type GlobalRef,
 } from "./types";
 import {
   type ExprInput,
@@ -190,6 +191,33 @@ export const Mod = {
   memory(pages: number): ModuleGen<void> {
     return (function* () {
       yield { _type: "memory", pages } as ModuleInstruction;
+    })();
+  },
+  global(
+    type: WasmValType,
+    init: number,
+    mutable: boolean = true,
+  ): ModuleGen<{
+    get(): ChainableExpr;
+    set(value: ExprInput): FuncGen<void>;
+  }> {
+    return (function* () {
+      const ref: GlobalRef = yield { _type: "global", valType: type, init, mutable } as ModuleInstruction;
+      return {
+        get(): ChainableExpr {
+          return new ChainableExpr(
+            (function* () {
+              return val(IR.global_get(ref._idx));
+            })(),
+          );
+        },
+        set(value: ExprInput): FuncGen<void> {
+          return (function* () {
+            const vv = yield* resolve(value);
+            yield { _type: "stmt", node: IR.global_set(ref._idx, vv._node) } as FuncInstruction;
+          })();
+        },
+      };
     })();
   },
 };
@@ -727,6 +755,85 @@ export const Ctrl = {
     default_?: VoidBody,
   ): FuncGen<void> {
     const normalizedDefault = default_ ? toBody(default_) : undefined;
+
+    // Dense check: at least 3 cases with contiguous integer values
+    if (cases.length >= 3) {
+      const vals = cases.map(([v]) => v);
+      const minVal = Math.min(...vals);
+      const maxVal = Math.max(...vals);
+      const isDense = maxVal - minVal + 1 === cases.length && new Set(vals).size === cases.length;
+
+      if (isDense) {
+        const sorted = cases
+          .map(([v, b]) => ({ v, b: toBody(b) }))
+          .sort((a, b) => a.v - b.v);
+        const n = sorted.length;
+        const hasDefault = normalizedDefault != null;
+
+        // Structure (outside-in):
+        //   block $exit
+        //     [block $default]        // only if hasDefault
+        //       block B0 (outermost case block)
+        //         block B1
+        //           ...
+        //             block B_{n-1} (innermost)
+        //               br_table
+        //             end             // sorted[n-1] body here
+        //             br $exit
+        //           end               // sorted[n-2] body here
+        //           br $exit
+        //         ...
+        //       end                   // sorted[0] body here
+        //       br $exit
+        //     [end]                   // default body here
+        //   end
+        //
+        // From br_table: depth 0 = B_{n-1}, depth k = B_{n-1-k}
+        // To reach sorted[v] body: br to B_{n-1-v} → depth = n-1-v
+
+        return (function* () {
+          yield {
+            _type: "block" as const,
+            body: function* () {
+              const emitCases = function* (): Generator<FuncInstruction, void, any> {
+                const buildBlocks = (depth: number): FuncBody<void> => {
+                  if (depth === n) {
+                    return function* () {
+                      const ve = yield* resolve(expr);
+                      const adjusted = minVal === 0 ? ve : yield* resolve(sub(ve, minVal));
+                      const labels = sorted.map((_, i) => n - 1 - i);
+                      yield {
+                        _type: "stmt" as const,
+                        node: IR.br_table(labels, n, adjusted._node),
+                      };
+                    };
+                  }
+                  const inner = buildBlocks(depth + 1);
+                  return function* () {
+                    yield { _type: "block" as const, body: inner };
+                    yield* sorted[depth]!.b();
+                    yield { _type: "stmt" as const, node: IR.br(depth + (hasDefault ? 1 : 0)) };
+                  };
+                };
+                yield* buildBlocks(0)();
+              };
+
+              if (hasDefault) {
+                yield {
+                  _type: "block" as const,
+                  body: function* () { yield* emitCases(); },
+                };
+                yield* normalizedDefault!();
+              } else {
+                yield* emitCases();
+              }
+            },
+          };
+        })();
+      }
+    }
+
+    // Sparse: fallback to if/else chain
     return (function* () {
       const buildChain = (i: number): FuncBody<void> | undefined => {
         if (i >= cases.length) return normalizedDefault;

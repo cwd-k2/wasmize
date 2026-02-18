@@ -17,6 +17,7 @@ const codegenOpcodes = new Set<number>([
 
   // --- Variable ---
   OP.local_get, OP.local_set, OP.local_tee,
+  OP.global_get, OP.global_set,
 
   // --- Constants ---
   OP.i32_const, OP.i64_const, OP.f32_const, OP.f64_const,

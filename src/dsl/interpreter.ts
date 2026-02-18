@@ -1,12 +1,14 @@
 import type { IRNode } from "../wasm/ir";
 import { IR } from "../wasm/ir";
 import type { WasmValType } from "../wasm/opcodes";
-import type { FuncDef, ImportDef, ExportDef } from "../wasm/module";
+import type { FuncDef, ImportDef, ExportDef, GlobalDef } from "../wasm/module";
 import { buildModule } from "../wasm/module";
+import { optimizeFunc } from "../wasm/optimize";
 import type { WasmBinary } from "./types";
 import {
   ref,
   funcRef,
+  globalRef,
   type WasmVal,
   type FuncRef,
   type FuncBody,
@@ -82,6 +84,8 @@ function inferType(node: IRNode, ctx?: FuncContext): WasmValType {
         if (node.i < allTypes.length) return allTypes[node.i]!;
       }
       return "i32";
+    case "global_get":
+      return "i32"; // globals default to i32
     case "call":
       return "i32"; // calls default to i32 (safe fallback)
     default:
@@ -173,11 +177,14 @@ function interpretSubBody(
 
 export function compile<T = Record<string, unknown>>(
   program: WasmProgram,
+  options?: { optimize?: boolean },
 ): WasmBinary<T> {
+  const shouldOptimize = options?.optimize !== false;
   const gen = program();
   const imports: ImportDef[] = [];
   const bodies: FuncBody<WasmVal | void>[] = [];
   const exports_: ExportDef[] = [];
+  const globals: GlobalDef[] = [];
   let memoryPages = 1;
   let funcIdx = 0;
 
@@ -207,6 +214,13 @@ export function compile<T = Record<string, unknown>>(
       case "export": {
         exports_.push({ name: instr.name, idx: instr.ref._idx });
         next = gen.next();
+        break;
+      }
+      case "global": {
+        const idx = globals.length;
+        globals.push({ type: instr.valType, mutable: instr.mutable, init: instr.init });
+        const gr = globalRef(idx, instr.valType, instr.mutable);
+        next = gen.next(gr);
         break;
       }
       case "memory": {
@@ -241,10 +255,18 @@ export function compile<T = Record<string, unknown>>(
     };
   });
 
+  // Phase 2.5: optimize IR
+  if (shouldOptimize) {
+    for (const f of funcs) {
+      f.body = optimizeFunc(f.body);
+    }
+  }
+
   // Phase 3: build binary via existing module builder
   return buildModule(funcs, {
     imports,
     memoryPages,
     exports: exports_,
+    globals,
   }) as WasmBinary<T>;
 }

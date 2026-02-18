@@ -144,6 +144,55 @@ describe("Ctrl.switch", () => {
     expect(d(3)).toBe(40);
   });
 
+  test("br_table: dense cases with default", async () => {
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        const x = yield* param(Type.i32);
+        const result = yield* local(Type.i32, 0);
+        yield* Ctrl.switch(
+          x,
+          [
+            [10, function* () { yield* result.set(100); }],
+            [11, function* () { yield* result.set(110); }],
+            [12, function* () { yield* result.set(120); }],
+          ],
+          function* () { yield* result.set(-1); },
+        );
+        return yield* Loc.get(result);
+      });
+      yield* Mod.export("sw", fn);
+    });
+    const { exports: { sw } } = await instantiate(binary);
+    const f = sw as Function;
+    expect(f(10)).toBe(100);
+    expect(f(11)).toBe(110);
+    expect(f(12)).toBe(120);
+    expect(f(9)).toBe(-1);
+    expect(f(13)).toBe(-1);
+  });
+
+  test("br_table: dense non-zero-based without default", async () => {
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        const x = yield* param(Type.i32);
+        const result = yield* local(Type.i32, 0);
+        yield* Ctrl.switch(x, [
+          [5, function* () { yield* result.set(50); }],
+          [6, function* () { yield* result.set(60); }],
+          [7, function* () { yield* result.set(70); }],
+        ]);
+        return yield* Loc.get(result);
+      });
+      yield* Mod.export("sw", fn);
+    });
+    const { exports: { sw } } = await instantiate(binary);
+    const f = sw as Function;
+    expect(f(5)).toBe(50);
+    expect(f(6)).toBe(60);
+    expect(f(7)).toBe(70);
+    expect(f(4)).toBe(0); // no default, result stays 0
+  });
+
   test("falls through to default", async () => {
     const binary = compile(function* () {
       const fn = yield* Mod.func(function* () {
@@ -421,5 +470,54 @@ describe("Mod.recursive", () => {
     expect((fib as Function)(0)).toBe(0);
     expect((fib as Function)(1)).toBe(1);
     expect((fib as Function)(10)).toBe(55);
+  });
+});
+
+describe("Mod.global", () => {
+  test("mutable global as counter", async () => {
+    const binary = compile(function* () {
+      const counter = yield* Mod.global(Type.i32, 0);
+      yield* Mod.exportFunc("inc", function* () {
+        yield* counter.set(counter.get().add(1));
+        return yield* counter.get();
+      });
+      yield* Mod.exportFunc("get", function* () {
+        return yield* counter.get();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    const inc = exports.inc as Function;
+    const get = exports.get as Function;
+    expect(get()).toBe(0);
+    expect(inc()).toBe(1);
+    expect(inc()).toBe(2);
+    expect(inc()).toBe(3);
+    expect(get()).toBe(3);
+  });
+
+  test("immutable global constant", async () => {
+    const binary = compile(function* () {
+      const BASE = yield* Mod.global(Type.i32, 42, false);
+      yield* Mod.exportFunc("getBase", function* () {
+        return yield* BASE.get();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.getBase as Function)()).toBe(42);
+  });
+
+  test("global with non-zero init", async () => {
+    const binary = compile(function* () {
+      const g = yield* Mod.global(Type.i32, 100);
+      yield* Mod.exportFunc("dec", function* () {
+        const v = yield* param(Type.i32);
+        yield* g.set(g.get().sub(v));
+        return yield* g.get();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    const dec = exports.dec as Function;
+    expect(dec(10)).toBe(90);
+    expect(dec(40)).toBe(50);
   });
 });
