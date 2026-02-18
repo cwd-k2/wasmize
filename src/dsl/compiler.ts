@@ -3,36 +3,31 @@
  *
  * Public entry point for the generator-based DSL.
  *
- * Structural primitives are exported individually:
- * `compile`, `func`, `export_`, `import_`, `memory`, `param`, `local`.
+ * Structural primitives: `compile`, `param`, `local`.
  *
- * All other primitives are organized into namespaces:
+ * Namespaces:
+ * - {@link mod} — module declarations (func, export, import, memory)
  * - {@link op} — arithmetic, comparison, bitwise
  * - {@link mem} — memory access and constants
- * - {@link ctrl} — control flow, branching, calls
+ * - {@link ctrl} — control flow, branching
  * - {@link loc} — local variable operations
  *
  * @example
  * ```ts
- * import { compile, func, export_, param, local, op, mem, ctrl, loc } from "./compiler";
+ * import { compile, param, local, mod, ctrl, loc } from "./compiler";
  *
  * const binary = compile(function* () {
- *   const f = yield* func(function* () {
+ *   const f = yield* mod.func(function* () {
  *     const a = yield* param("i32");
  *     const b = yield* param("i32");
  *     return yield* a.add(b);
  *   });
- *   yield* export_("add", f);
+ *   yield* mod.export("add", f);
  * });
  * ```
  */
 export { compile } from "./interpreter";
 export {
-  // Module-level
-  import_,
-  func,
-  export_,
-  memory,
   // Declarations
   param,
   local,
@@ -40,7 +35,9 @@ export {
   ChainableExpr,
   ThenBuilder,
   type ExprInput,
+  type CallableFunc,
   // Namespaces
+  mod,
   op,
   mem,
   ctrl,

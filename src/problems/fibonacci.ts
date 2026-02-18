@@ -1,17 +1,8 @@
-import {
-  compile,
-  func,
-  export_,
-  param,
-  local,
-  mem,
-  ctrl,
-  loc,
-} from "../dsl/compiler";
+import { compile, param, local, mod, mem, ctrl, loc } from "../dsl/compiler";
 
 export function problem2_fib_dp(): Uint8Array {
   return compile(function* () {
-    const fib = yield* func(function* () {
+    const fib = yield* mod.func(function* () {
       const n = yield* param("i32");
       const i = yield* local("i32");
 
@@ -41,6 +32,6 @@ export function problem2_fib_dp(): Uint8Array {
         });
     });
 
-    yield* export_("fib", fib);
+    yield* mod.export("fib", fib);
   });
 }

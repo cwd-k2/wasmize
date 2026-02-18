@@ -1,21 +1,11 @@
-import {
-  compile,
-  func,
-  export_,
-  memory,
-  param,
-  local,
-  mem,
-  ctrl,
-  loc,
-} from "../dsl/compiler";
+import { compile, param, local, mod, mem, ctrl, loc } from "../dsl/compiler";
 
 export function problem3_kadane(): Uint8Array {
   const BASE = 1024;
   return compile(function* () {
-    yield* memory(2);
+    yield* mod.memory(2);
 
-    const kadane = yield* func(function* () {
+    const kadane = yield* mod.func(function* () {
       const len = yield* param("i32");
       const i = yield* local("i32");
       const current_sum = yield* local("i32");
@@ -66,6 +56,6 @@ export function problem3_kadane(): Uint8Array {
       return yield* loc.get(max_sum);
     });
 
-    yield* export_("kadane", kadane);
+    yield* mod.export("kadane", kadane);
   });
 }

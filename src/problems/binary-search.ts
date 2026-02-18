@@ -1,17 +1,8 @@
-import {
-  compile,
-  func,
-  export_,
-  param,
-  local,
-  mem,
-  ctrl,
-  loc,
-} from "../dsl/compiler";
+import { compile, param, local, mod, mem, ctrl, loc } from "../dsl/compiler";
 
 export function problem5_binary_search(): Uint8Array {
   return compile(function* () {
-    const search = yield* func(function* () {
+    const search = yield* mod.func(function* () {
       const len = yield* param("i32");
       const target = yield* param("i32");
       const lo = yield* local("i32");
@@ -48,6 +39,6 @@ export function problem5_binary_search(): Uint8Array {
       return yield* mem.i32(-1);
     });
 
-    yield* export_("binary_search", search);
+    yield* mod.export("binary_search", search);
   });
 }

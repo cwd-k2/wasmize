@@ -22,6 +22,24 @@ import {
 export type ExprInput = Expr | ChainableExpr | ThenBuilder;
 
 /**
+ * A callable function reference. Invoke directly for value-returning calls,
+ * or use `.void()` for statement (void) calls.
+ *
+ * @example
+ * ```ts
+ * yield* loc.set(result, myFunc(a, b));     // value call
+ * yield* myFunc.void(a, b);                 // void call
+ * yield* mod.export("myFunc", myFunc);      // export (FuncRef-compatible)
+ * ```
+ */
+export interface CallableFunc {
+  (...args: ExprInput[]): FuncGen<WasmVal>;
+  void(...args: ExprInput[]): FuncGen<void>;
+  readonly _tag: "func";
+  readonly _idx: number;
+}
+
+/**
  * Wraps an {@link Expr} and provides chainable arithmetic, comparison,
  * bitwise, and memory operations.
  *
@@ -118,26 +136,40 @@ export function* resolve(
   return yield* (expr as FuncGen<WasmVal>);
 }
 
+// --- CallableFunc factory ---
+
+function callableFunc(idx: number): CallableFunc {
+  const ref: FuncRef = { _tag: "func", _idx: idx };
+  return Object.assign(
+    (...args: ExprInput[]): FuncGen<WasmVal> => call(ref, ...args),
+    {
+      _tag: "func" as const,
+      _idx: idx,
+      void: (...args: ExprInput[]): FuncGen<void> => call_(ref, ...args),
+    },
+  );
+}
+
 // --- Module-level primitives ---
 
 /**
  * Declares an imported function from a host module.
  */
 export function import_(
-  mod: string,
+  moduleName: string,
   name: string,
   params: WasmValType[],
   results: WasmValType[],
-): ModuleGen<FuncRef> {
+): ModuleGen<CallableFunc> {
   return (function* () {
     const r: FuncRef = yield {
       _type: "import_func",
-      module: mod,
+      module: moduleName,
       name,
       params,
       results,
     };
-    return r;
+    return callableFunc(r._idx);
   })();
 }
 
@@ -146,10 +178,10 @@ export function import_(
  */
 export function func(
   body: FuncBody<WasmVal | void>,
-): ModuleGen<FuncRef> {
+): ModuleGen<CallableFunc> {
   return (function* () {
     const r: FuncRef = yield { _type: "func", body };
-    return r;
+    return callableFunc(r._idx);
   })();
 }
 
@@ -458,6 +490,11 @@ export function block_(body: FuncBody<void>): FuncGen<void> {
 
 // --- Namespace objects ---
 
+/** Module-level declarations: functions, exports, imports, memory. */
+export const mod = {
+  func, export: export_, import: import_, memory,
+};
+
 /** Arithmetic, comparison, and bitwise operations. */
 export const op = {
   add, sub, mul, div, rem,
@@ -473,11 +510,10 @@ export const mem = {
   i64: (v: number): ChainableExpr => new ChainableExpr(i64(v)),
 };
 
-/** Control flow: branching, loops, blocks, calls. */
+/** Control flow: branching, loops, blocks. */
 export const ctrl = {
   if: if_, loop: loop_, block: block_,
   br, br_if,
-  call, call_,
   nop: nop_, effect,
 } as const;
 

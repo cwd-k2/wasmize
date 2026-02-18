@@ -1,23 +1,13 @@
-import {
-  compile,
-  func,
-  export_,
-  memory,
-  param,
-  local,
-  mem,
-  ctrl,
-  loc,
-} from "../dsl/compiler";
+import { compile, param, local, mod, mem, ctrl, loc } from "../dsl/compiler";
 
 export function problem4_coin_change(): Uint8Array {
   const COIN_BASE = 2048;
   const INF = 0x7fffffff;
 
   return compile(function* () {
-    yield* memory(2);
+    yield* mod.memory(2);
 
-    const coin_change = yield* func(function* () {
+    const coin_change = yield* mod.func(function* () {
       const amount = yield* param("i32");
       const num_coins = yield* param("i32");
       const i = yield* local("i32");
@@ -80,6 +70,6 @@ export function problem4_coin_change(): Uint8Array {
         });
     });
 
-    yield* export_("coin_change", coin_change);
+    yield* mod.export("coin_change", coin_change);
   });
 }
