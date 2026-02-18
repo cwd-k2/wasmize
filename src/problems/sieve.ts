@@ -9,10 +9,12 @@ export function problem7_sieve() {
       const j = yield* local(Type.i32);
       const count = yield* local(Type.i32, 0);
 
-      // Initialize: mark all 2..n as prime candidate
-      yield* Ctrl.for(i, 2, i.le(n), i.add(1), () => [
-        Mem.store8(i, 1),
+      // Bulk init: write 0x01010101 in i32 chunks (4x fewer iterations)
+      yield* Ctrl.for(i, 0, i.le(n.div(4)), i.add(1), () => [
+        Mem.store(i.mul(4), 0x01010101),
       ]);
+      yield* Mem.store8(0, 0);
+      yield* Mem.store8(1, 0);
 
       // Sieve: for p from 2 while p*p <= n
       yield* Ctrl.for(i, 2, i.mul(i).le(n), i.add(1), () => [

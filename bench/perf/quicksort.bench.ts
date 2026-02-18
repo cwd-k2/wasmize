@@ -18,8 +18,7 @@ describe("quicksort 10k elements", () => {
   });
 
   bench("Wasm", () => {
-    const arr = makeRandom(LEN);
-    arr.forEach((v, i) => { mem![i] = v; });
+    mem!.set(makeRandom(LEN));
     quicksort(0, LEN - 1);
   });
 });

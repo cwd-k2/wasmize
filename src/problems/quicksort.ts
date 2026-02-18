@@ -1,7 +1,7 @@
 import { compile, local, Type, Mod, Mem, Ctrl, Loc } from "../dsl/compiler";
 
 export function problem11_quicksort() {
-  return compile<{ quicksort: (lo: number, hi: number) => number }>(function* () {
+  return compile<{ quicksort: (lo: number, hi: number) => void }>(function* () {
     yield* Mod.memory(1);
     const arr = Mem.i32Array();
 
@@ -24,39 +24,22 @@ export function problem11_quicksort() {
           ]),
         ]);
 
-        // swap arr[i] and arr[hi]
         yield* arr.swap(i, hi, tmp);
-
         return yield* Loc.get(i);
       },
     );
 
-    // quicksort(lo, hi) -> partition count
+    // quicksort(lo, hi) — void, no partition count overhead
     const quicksort = yield* Mod.recursive(
       { lo: Type.i32, hi: Type.i32 },
       function* (self, lo, hi) {
         const p = yield* local(Type.i32);
-        const left = yield* local(Type.i32);
-        const right = yield* local(Type.i32);
 
-        return yield* Ctrl.if(lo.lt(hi))
-          .then(function* () {
-            yield* p.set(partition(lo, hi));
-            yield* left.set(
-              Ctrl.if(lo.lt(p.sub(1)))
-                .then(function* () { return yield* self(lo, p.sub(1)); })
-                .else(function* () { return yield* Mem.i32(0); }),
-            );
-            yield* right.set(
-              Ctrl.if(p.add(1).lt(hi))
-                .then(function* () { return yield* self(p.add(1), hi); })
-                .else(function* () { return yield* Mem.i32(0); }),
-            );
-            return yield* left.add(right).add(1);
-          })
-          .else(function* () {
-            return yield* Mem.i32(0);
-          });
+        yield* Ctrl.when(lo.lt(hi), function* () {
+          yield* p.set(partition(lo, hi));
+          yield* self.void(lo, p.sub(1));
+          yield* self.void(p.add(1), hi);
+        });
       },
     );
 

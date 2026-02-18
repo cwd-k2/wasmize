@@ -14,30 +14,47 @@ export function problem9_lcs() {
       const i = yield* local(Type.i32);
       const j = yield* local(Type.i32);
       const cols = yield* local(Type.i32, len_b.add(1));
-      const dp = Mem.i32Array2D(DP_BASE, cols);
+      const cols4 = yield* local(Type.i32);
+      const prevRow = yield* local(Type.i32);
+      const currRow = yield* local(Type.i32);
 
-      // Initialize DP[0][j] = 0 and DP[i][0] = 0
-      yield* Ctrl.for(i, 0, i.le(len_a), i.add(1), () => [
-        dp.store(i, 0, 0),
-      ]);
+      yield* cols4.set(cols.mul(4));
+
+      // Initialize DP[0][j] = 0 (first row)
       yield* Ctrl.for(j, 0, j.le(len_b), j.add(1), () => [
-        dp.store(0, j, 0),
+        Mem.store(Mem.i32(DP_BASE).add(j.mul(4)), 0),
+      ]);
+      // Initialize DP[i][0] = 0 (first column)
+      yield* Ctrl.for(i, 0, i.le(len_a), i.add(1), () => [
+        Mem.store(Mem.i32(DP_BASE).add(i.mul(cols4)), 0),
       ]);
 
-      // Fill DP table
-      yield* Ctrl.for(i, 1, i.le(len_a), i.add(1), () => [
-        Ctrl.for(j, 1, j.le(len_b), j.add(1), function* () {
+      // Fill DP table — pre-computed row offsets eliminate row*cols mul
+      yield* Ctrl.for(i, 1, i.le(len_a), i.add(1), function* () {
+        yield* prevRow.set(i.sub(1).mul(cols4).add(DP_BASE));
+        yield* currRow.set(i.mul(cols4).add(DP_BASE));
+
+        yield* Ctrl.for(j, 1, j.le(len_b), j.add(1), function* () {
           yield* Ctrl.if(a.load(i.sub(1)).eq(b.load(j.sub(1))))
             .then(function* () {
-              yield* dp.store(i, j, dp.load(i.sub(1), j.sub(1)).add(1));
+              yield* Mem.store(
+                currRow.add(j.mul(4)),
+                Mem.load(prevRow.add(j.sub(1).mul(4))).add(1),
+              );
             })
             .else(function* () {
-              yield* dp.store(i, j, Op.max(dp.load(i.sub(1), j), dp.load(i, j.sub(1))));
+              yield* Mem.store(
+                currRow.add(j.mul(4)),
+                Op.max(
+                  Mem.load(prevRow.add(j.mul(4))),
+                  Mem.load(currRow.add(j.sub(1).mul(4))),
+                ),
+              );
             });
-        }),
-      ]);
+        });
+      });
 
-      return yield* dp.load(len_a, len_b);
+      return yield* Mem.load(len_a.mul(cols4).add(len_b.mul(4)).add(DP_BASE));
     });
   });
 }

@@ -26,24 +26,13 @@ export function problem15_union_find() {
       yield* Mem.store(COUNT_ADDR, n);
     });
 
-    // uf_find(x) -> root, with path compression
+    // uf_find(x) -> root, with path halving (single-pass)
     const uf_find = yield* Mod.func({ x: Type.i32 }, function* (x) {
-      const root = yield* local(Type.i32);
-      const next = yield* local(Type.i32);
-
-      yield* root.set(x);
-      // Find root
-      yield* Ctrl.while(root.ne(parent.load(root)), () => [
-        root.set(parent.load(root)),
-      ]);
-      // Path compression
-      yield* Ctrl.while(x.ne(root), () => [
-        next.set(parent.load(x)),
-        parent.store(x, root),
-        x.set(next),
-      ]);
-
-      return yield* Loc.get(root);
+      yield* Ctrl.while(x.ne(parent.load(x)), function* () {
+        yield* parent.store(x, parent.load(parent.load(x)));
+        yield* x.set(parent.load(x));
+      });
+      return yield* Loc.get(x);
     });
 
     // uf_union(u, v): union by rank
