@@ -509,12 +509,23 @@ UTF-8 文字列操作。`Str.from()` は data segment に埋め込み、`Str.len
 
 | Example | DSL 特徴 | ファイル |
 |---------|----------|---------|
-| **Grayscale** | `Mem.load8/store8` バイト操作, `Op.max/min` ブランチレスクランプ | `grayscale.ts` |
+| **Grayscale** | `Mem.load8/store8` バイト操作, `Op.max/min` ブランチレスクランプ, チャンネルループ | `grayscale.ts` |
 | **CRC32** | `Mod.data()` ルックアップテーブル, `Op.shr_u` 符号なしシフト | `crc32.ts` |
-| **Game of Life** | ネスト `Ctrl.for`, ダブルバッファリング, ブランチレス alive 判定 | `game-of-life.ts` |
-| **Particles** | `Struct` + `BumpAllocator`, f64 フィールド, `Op.f64.neg` | `particles.ts` |
+| **Game of Life** | JS 側 8 近傍展開, ダブルバッファリング, ブランチレス alive 判定 | `game-of-life.ts` |
+| **Particles** | `Struct` + `BumpAllocator`, f64 フィールド, 軸ループによる壁反射 | `particles.ts` |
 
 各 example は `async function` を export し、`{ exports, setXxx, getXxx, binary }` のパターンで JS ラッパを返す。`src/realworld-runner.ts` がこれらを統合し、`src/ui/realworld.ts` が Canvas ベースのインタラクティブデモをレンダリングする。
+
+### JS メタプログラミング
+
+Generator DSL は JS ランタイム上で実行されるため、**JS/TS がチューリング完全なプリプロセッサ** として機能する。JS の `for` ループ内で `yield*` した命令はコンパイル時に展開され、実行時の Wasm バイナリにはループのオーバーヘッドが存在しない。
+
+主要パターン:
+- **Config 配列 + for...of**: flood-fill の 4 方向、Game of Life の 8 近傍
+- **ファクトリ関数**: array-stats の sum/max/min を 1 つの `reduceFunc` で統一
+- **文字列キー軸抽象化**: particles の x/y 壁反射を 1 ループに圧縮
+
+詳細は [docs/metaprogramming.md](metaprogramming.md) を参照。
 
 ### Marshal レイヤー
 

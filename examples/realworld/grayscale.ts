@@ -35,10 +35,10 @@ function grayscaleWasm() {
               .shr(8),
           );
 
-          yield* Mem.store8(offset, gray);
-          yield* Mem.store8(offset.add(1), gray);
-          yield* Mem.store8(offset.add(2), gray);
-          // alpha (offset+3) は変更しない
+          // RGB channels (alpha unchanged)
+          for (const c of [0, 1, 2]) {
+            yield* Mem.store8(offset.add(c), gray);
+          }
 
           yield* i.incrBy(1);
         });
@@ -57,21 +57,11 @@ function grayscaleWasm() {
         yield* Ctrl.while(i.lt(len), function* () {
           yield* offset.set(i.mul(4));
 
-          // R
-          yield* ch.set(Op.min(Op.max(Mem.load8(offset).add(delta), 0), 255));
-          yield* Mem.store8(offset, ch);
-
-          // G
-          yield* ch.set(
-            Op.min(Op.max(Mem.load8(offset.add(1)).add(delta), 0), 255),
-          );
-          yield* Mem.store8(offset.add(1), ch);
-
-          // B
-          yield* ch.set(
-            Op.min(Op.max(Mem.load8(offset.add(2)).add(delta), 0), 255),
-          );
-          yield* Mem.store8(offset.add(2), ch);
+          // RGB channels: clamp(channel + delta, 0, 255)
+          for (const c of [0, 1, 2]) {
+            yield* ch.set(Op.min(Op.max(Mem.load8(offset.add(c)).add(delta), 0), 255));
+            yield* Mem.store8(offset.add(c), ch);
+          }
 
           yield* i.incrBy(1);
         });

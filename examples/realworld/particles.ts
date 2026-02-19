@@ -1,4 +1,4 @@
-import { compile, local, Type, Mod, Ctrl, Op } from "@/dsl/compiler";
+import { compile, local, Type, Mod, Ctrl } from "@/dsl/compiler";
 import { Struct, BumpAllocator } from "@/dsl/primitives";
 import { f64 } from "@/dsl/primitives";
 import { instantiate } from "@/test-helpers";
@@ -64,38 +64,29 @@ function particlesWasm() {
 
         yield* Ctrl.range(i, n, function* () {
           const p = particles.at(i);
-          yield* x.set(p.x);
-          yield* y.set(p.y);
 
-          // Left wall: x < 0
-          yield* Ctrl.when(x.lt(f64(0)), function* () {
-            yield* p.x.set(Op.f64.neg(x));
-            yield* p.vx.set(Op.f64.neg(p.vx));
-          });
+          const axes = [
+            { pos: "x", vel: "vx", coord: x, bound: w },
+            { pos: "y", vel: "vy", coord: y, bound: h },
+          ] as const;
 
-          // Reload x after potential modification
-          yield* x.set(p.x);
+          for (const { pos, vel, coord, bound } of axes) {
+            yield* coord.set(p[pos]);
 
-          // Right wall: x > w
-          yield* Ctrl.when(x.gt(w), function* () {
-            yield* p.x.set(Op.f64.sub(w.mul(f64(2)), x));
-            yield* p.vx.set(Op.f64.neg(p.vx));
-          });
+            // min wall: coord < 0
+            yield* Ctrl.when(coord.lt(f64(0)), function* () {
+              yield* p[pos].set(coord.neg());
+              yield* p[vel].set(p[vel].neg());
+            });
 
-          // Top wall: y < 0
-          yield* Ctrl.when(y.lt(f64(0)), function* () {
-            yield* p.y.set(Op.f64.neg(y));
-            yield* p.vy.set(Op.f64.neg(p.vy));
-          });
+            yield* coord.set(p[pos]); // reload after potential modification
 
-          // Reload y after potential modification
-          yield* y.set(p.y);
-
-          // Bottom wall: y > h
-          yield* Ctrl.when(y.gt(h), function* () {
-            yield* p.y.set(Op.f64.sub(h.mul(f64(2)), y));
-            yield* p.vy.set(Op.f64.neg(p.vy));
-          });
+            // max wall: coord > bound
+            yield* Ctrl.when(coord.gt(bound), function* () {
+              yield* p[pos].set(bound.mul(f64(2)).sub(coord));
+              yield* p[vel].set(p[vel].neg());
+            });
+          }
         });
       },
     );

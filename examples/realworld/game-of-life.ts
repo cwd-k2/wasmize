@@ -25,8 +25,6 @@ function gameOfLifeWasm() {
         const gridSize = yield* local(Type.i32);
         const nx = yield* local(Type.i32);
         const ny = yield* local(Type.i32);
-        const dx = yield* local(Type.i32);
-        const dy = yield* local(Type.i32);
 
         yield* gridSize.set(w.mul(h));
 
@@ -36,24 +34,16 @@ function gameOfLifeWasm() {
             yield* count.set(0);
             yield* cell.set(Mem.load8(y.mul(w).add(x)));
 
-            // Count 8 neighbors with boundary check
-            yield* Ctrl.for(dy, -1, dy.le(1), dy.add(1), function* () {
-              yield* Ctrl.for(dx, -1, dx.le(1), dx.add(1), function* () {
-                yield* Ctrl.when(
-                  dx.ne(0).or(dy.ne(0)),
-                  function* () {
-                    yield* ny.set(y.add(dy));
-                    yield* nx.set(x.add(dx));
-                    yield* Ctrl.when(
-                      ny.ge(0).and(ny.lt(h)).and(nx.ge(0)).and(nx.lt(w)),
-                      function* () {
-                        yield* count.incrBy(Mem.load8(ny.mul(w).add(nx)));
-                      },
-                    );
-                  },
-                );
-              });
-            });
+            // Count 8 neighbors — JS-unrolled (no Wasm loop/skip overhead)
+            const neighbors = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+            for (const [ddx, ddy] of neighbors) {
+              yield* ny.set(y.add(ddy));
+              yield* nx.set(x.add(ddx));
+              yield* Ctrl.when(
+                ny.ge(0).and(ny.lt(h)).and(nx.ge(0)).and(nx.lt(w)),
+                () => [count.incrBy(Mem.load8(ny.mul(w).add(nx)))],
+              );
+            }
 
             // TODO: ユーザー実装 — alive 判定ロジック
             // count (近傍の生存セル数) と cell (現在の状態 0/1) から

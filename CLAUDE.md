@@ -90,6 +90,16 @@ docs/                   # 技術ドキュメント
 - `inferType(node, ctx)` が IR ノードから結果型を推定（関数戻り値型・if ブロック型に使用）
 - 多態型システム: `WasmRef<T>` は `_valType` でランタイム型を保持し、`.add()` 等がディスパッチ。`ChainableExpr<T>` がチェイン全体で型を伝搬。`this: WasmRef<IntType>` で float への bitwise/rem を禁止。`CallableFunc<Params>` と `ModNamespace` オーバーロードでアリティ推論
 
+### JS メタプログラミング
+
+Generator DSL は JS ランタイム上で実行されるため、JS/TS はチューリング完全なプリプロセッサとして機能する。JS の `for` ループ内で `yield*` した命令はコンパイル時に展開され、実行時の Wasm には現れない。
+
+- Config 配列 + `for...of`: 同一パターンの N 方向展開（flood-fill 4 方向、Game of Life 8 近傍）
+- ファクトリ関数: 共通 body を関数化し、差分をコールバックで注入（array-stats の reduceFunc）
+- 文字列キー軸抽象化: Struct フィールドを `p[fieldName]` で動的アクセス（particles 壁反射）
+- チャンネルループ: `for (const c of [0, 1, 2])` で RGB 3 チャンネルを処理（grayscale）
+- **注意:** `FieldAccessor` / `ChainableExpr` は内部 Generator が single-use。キャッシュせず毎回 Proxy 経由で取得する。詳細は [docs/metaprogramming.md](docs/metaprogramming.md)
+
 ### Known TS Limitations (polymorphic type system)
 
 1. **`& ExprInput[]` intersection** (`expr.ts` CallableFunc): mapped type `{ [K in keyof Params]: ExprInput }` は TS が配列と証明できないため rest parameter に使えない。`& ExprInput[]` で回避するが、Params が **invariant** になる副作用がある
@@ -108,6 +118,7 @@ import { instantiate } from "@/test-helpers";
 ## Docs
 
 - [Architecture](docs/architecture.md) — コンパイルパイプライン詳細
+- [Metaprogramming](docs/metaprogramming.md) — JS メタプログラミングパターン
 - [Problems](docs/problems.md) — 15 問題のカタログ
 - [Testing](docs/testing.md) — テスト戦略・追加手順
 - [Workflow](docs/workflow.md) — コマンドの使い分け・開発フロー

@@ -36,18 +36,23 @@ export function problem12_flood_fill() {
             yield* Mem.store(sy.mul(W).add(sx).mul(4), fill);
             yield* count.set(1);
 
-            // BFS loop — 4 directions unrolled (eliminates for+switch overhead)
-            yield* Ctrl.while(head.lt(tail), () => [
-              cx.set(Mem.load(head.mul(4).add(qbase))),
-              cy.set(Mem.load(head.add(1).mul(4).add(qbase))),
-              head.incrBy(2),
+            // BFS loop — 4 directions via JS metaprogramming
+            yield* Ctrl.while(head.lt(tail), function* () {
+              yield* cx.set(Mem.load(head.mul(4).add(qbase)));
+              yield* cy.set(Mem.load(head.add(1).mul(4).add(qbase)));
+              yield* head.incrBy(2);
 
-              // Right: (cx+1, cy)
-              nx.set(cx.add(1)),
-              ny.set(cy),
-              Ctrl.when(
-                nx.lt(W),
-                () => [
+              const dirs = [
+                { dx: 1, dy: 0, check: () => nx.lt(W) },     // Right
+                { dx: -1, dy: 0, check: () => nx.ge(0) },    // Left
+                { dx: 0, dy: 1, check: () => ny.lt(H) },     // Down
+                { dx: 0, dy: -1, check: () => ny.ge(0) },    // Up
+              ];
+
+              for (const { dx, dy, check } of dirs) {
+                yield* nx.set(cx.add(dx));
+                yield* ny.set(cy.add(dy));
+                yield* Ctrl.when(check(), () => [
                   addr.set(ny.mul(W).add(nx).mul(4)),
                   Ctrl.when(Mem.load(addr).eq(target), () => [
                     Mem.store(addr, fill),
@@ -56,60 +61,9 @@ export function problem12_flood_fill() {
                     tail.incrBy(2),
                     count.incrBy(1),
                   ]),
-                ],
-              ),
-
-              // Left: (cx-1, cy)
-              nx.set(cx.sub(1)),
-              ny.set(cy),
-              Ctrl.when(
-                nx.ge(0),
-                () => [
-                  addr.set(ny.mul(W).add(nx).mul(4)),
-                  Ctrl.when(Mem.load(addr).eq(target), () => [
-                    Mem.store(addr, fill),
-                    Mem.store(tail.mul(4).add(qbase), nx),
-                    Mem.store(tail.add(1).mul(4).add(qbase), ny),
-                    tail.incrBy(2),
-                    count.incrBy(1),
-                  ]),
-                ],
-              ),
-
-              // Down: (cx, cy+1)
-              nx.set(cx),
-              ny.set(cy.add(1)),
-              Ctrl.when(
-                ny.lt(H),
-                () => [
-                  addr.set(ny.mul(W).add(nx).mul(4)),
-                  Ctrl.when(Mem.load(addr).eq(target), () => [
-                    Mem.store(addr, fill),
-                    Mem.store(tail.mul(4).add(qbase), nx),
-                    Mem.store(tail.add(1).mul(4).add(qbase), ny),
-                    tail.incrBy(2),
-                    count.incrBy(1),
-                  ]),
-                ],
-              ),
-
-              // Up: (cx, cy-1)
-              nx.set(cx),
-              ny.set(cy.sub(1)),
-              Ctrl.when(
-                ny.ge(0),
-                () => [
-                  addr.set(ny.mul(W).add(nx).mul(4)),
-                  Ctrl.when(Mem.load(addr).eq(target), () => [
-                    Mem.store(addr, fill),
-                    Mem.store(tail.mul(4).add(qbase), nx),
-                    Mem.store(tail.add(1).mul(4).add(qbase), ny),
-                    tail.incrBy(2),
-                    count.incrBy(1),
-                  ]),
-                ],
-              ),
-            ]);
+                ]);
+              }
+            });
 
             return count;
           });

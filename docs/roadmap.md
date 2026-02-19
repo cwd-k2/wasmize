@@ -559,10 +559,24 @@ coverage を上げるために問題を追加するのではなく、「この�
 
 | Example | 活用する DSL 機能 |
 |---------|------------------|
-| **Grayscale** | `Mem.load8/store8`, `Op.max/min`（ブランチレスクランプ）, 複数関数 export |
+| **Grayscale** | `Mem.load8/store8`, `Op.max/min`（ブランチレスクランプ）, JS チャンネルループ |
 | **CRC32** | `Mod.data()`（ルックアップテーブル埋め込み）, `Op.shr_u`, XOR チェイン |
-| **Game of Life** | ネスト `Ctrl.for`, ダブルバッファリング, `.eq()` / `.and()` / `.or()` でブランチレス判定 |
-| **Particles** | `Struct` + `BumpAllocator`, f64 全フィールド, `Op.f64.neg`, `Ctrl.when` で壁反射 |
+| **Game of Life** | JS 8 近傍展開, ダブルバッファリング, `.eq()` / `.and()` / `.or()` でブランチレス判定 |
+| **Particles** | `Struct` + `BumpAllocator`, f64 フィールド, JS 軸ループによる壁反射 |
+
+### JS メタプログラミングによるコード簡素化（実施済）
+
+JS/TS をプリプロセッサとして活用し、手動展開された繰り返しコードを簡素化。5 ファイルで **91 行削減**（179 → 88）。
+
+| ファイル | 手法 | 削減 |
+|---------|------|------|
+| `flood-fill.ts` | 4 方向 → config 配列 + `for...of` | -44 行 |
+| `game-of-life.ts` | 8 近傍 → JS 展開（Wasm ループ除去） | -12 行 |
+| `particles.ts` | x/y 壁反射 → 文字列キー軸ループ | -22 行 |
+| `grayscale.ts` | RGB チャンネル → `[0,1,2]` ループ | -10 行 |
+| `array-stats.ts` | sum/max/min → `reduceFunc` ファクトリ | -3 行 |
+
+詳細は [docs/metaprogramming.md](metaprogramming.md) を参照。
 
 ---
 
