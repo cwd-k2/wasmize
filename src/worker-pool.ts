@@ -7,6 +7,13 @@ interface WorkerTask {
   reject: (reason: any) => void;
 }
 
+/** Encapsulates a Worker and its associated state (pending tasks, id counter). */
+interface WorkerState {
+  worker: Worker;
+  pending: Map<number, WorkerTask>;
+  nextId: number;
+}
+
 /**
  * WorkerPool runs Wasm functions in parallel using Node.js worker_threads.
  *
@@ -24,14 +31,16 @@ interface WorkerTask {
  * ```
  */
 export class WorkerPool<T = Record<string, unknown>> {
-  private workers: Worker[] = [];
-  private idle: Worker[] = [];
+  private states: WorkerState[] = [];
+  private idle: WorkerState[] = [];
   private queue: Array<{ name: string; args: any[]; task: WorkerTask }> = [];
+  private inflight: Map<string, Promise<any>> | null;
 
   constructor(
     binary: WasmBinary<T>,
-    options: { workers: number },
+    options: { workers: number; dedup?: boolean },
   ) {
+    this.inflight = options.dedup ? new Map() : null;
     const wasmBytes = Array.from(binary);
 
     for (let i = 0; i < options.workers; i++) {
@@ -67,48 +76,66 @@ export class WorkerPool<T = Record<string, unknown>> {
         },
       );
 
-      const pending = new Map<number, WorkerTask>();
-      let taskId = 0;
+      const state: WorkerState = {
+        worker,
+        pending: new Map(),
+        nextId: 0,
+      };
 
       worker.on("message", (msg: any) => {
         if (msg.type === "ready") {
-          this.idle.push(worker);
+          this.idle.push(state);
           this.dispatch();
         } else if (msg.type === "result") {
-          const task = pending.get(msg.id);
+          const task = state.pending.get(msg.id);
           if (task) {
-            pending.delete(msg.id);
+            state.pending.delete(msg.id);
             task.resolve(msg.result);
-            this.idle.push(worker);
+            this.idle.push(state);
             this.dispatch();
           }
         } else if (msg.type === "error") {
-          const task = pending.get(msg.id);
+          const task = state.pending.get(msg.id);
           if (task) {
-            pending.delete(msg.id);
+            state.pending.delete(msg.id);
             task.reject(new Error(msg.error));
-            this.idle.push(worker);
+            this.idle.push(state);
             this.dispatch();
           }
         }
       });
 
-      // Attach pending map and id counter to worker
-      (worker as any).__pending = pending;
-      (worker as any).__nextId = () => taskId++;
-
-      this.workers.push(worker);
+      this.states.push(state);
     }
   }
 
   /**
    * Runs a Wasm export on an available worker.
    * Queues the task if all workers are busy.
+   *
+   * When `dedup: true`, identical calls (same name + args) that are already
+   * in-flight will return the existing Promise instead of dispatching again.
    */
-  async run<K extends string & keyof T>(
+  run<K extends string & keyof T>(
     name: K,
     ...args: any[]
   ): Promise<any> {
+    if (this.inflight) {
+      const key = `${name}:${JSON.stringify(args)}`;
+      const existing = this.inflight.get(key);
+      if (existing) return existing;
+
+      const promise = this.enqueue(name, args).finally(() => {
+        this.inflight!.delete(key);
+      });
+      this.inflight.set(key, promise);
+      return promise;
+    }
+
+    return this.enqueue(name, args);
+  }
+
+  private enqueue(name: string, args: any[]): Promise<any> {
     return new Promise((resolve, reject) => {
       this.queue.push({ name, args, task: { resolve, reject } });
       this.dispatch();
@@ -117,21 +144,20 @@ export class WorkerPool<T = Record<string, unknown>> {
 
   private dispatch() {
     while (this.idle.length > 0 && this.queue.length > 0) {
-      const worker = this.idle.pop()!;
+      const state = this.idle.pop()!;
       const { name, args, task } = this.queue.shift()!;
-      const pending = (worker as any).__pending as Map<number, WorkerTask>;
-      const id = (worker as any).__nextId() as number;
-      pending.set(id, task);
-      worker.postMessage({ type: "run", name, args, id });
+      const id = state.nextId++;
+      state.pending.set(id, task);
+      state.worker.postMessage({ type: "run", name, args, id });
     }
   }
 
   /** Terminates all workers. */
   terminate(): void {
-    for (const worker of this.workers) {
+    for (const { worker } of this.states) {
       worker.terminate();
     }
-    this.workers = [];
+    this.states = [];
     this.idle = [];
   }
 }
