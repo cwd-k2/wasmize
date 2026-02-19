@@ -207,6 +207,96 @@ JS の制御構造 → コンパイル時展開（zero overhead）、DSL の制�
 
 ---
 
+## Meta namespace — ライブラリ提供のマクロヘルパ
+
+上記の手動パターンを宣言的に記述する `Meta` namespace。全て zero-overhead（コンパイル時展開）。
+`() => [...]` array body 内で使える点が手書き `for...of` との最大の違い。
+
+### ステートメント展開
+
+```typescript
+import { Meta } from "@/dsl/compiler";
+
+// Meta.each: 配列の各要素に対してステートメント展開
+yield* Meta.each([0, 1, 2], (c) => [
+  Mem.store8(offset.add(c), gray),
+]);
+
+// Meta.times: N 回展開
+yield* Meta.times(4, (i) => [
+  Mem.store(i * 4, value),
+]);
+
+// Meta.when: JS 条件が falsy なら命令を一切生成しない
+yield* Meta.when(USE_ALPHA, () => [
+  Mem.store8(offset.add(3), alpha),
+]);
+```
+
+### 式の畳み込み
+
+```typescript
+// Meta.sum: N 個の式を加算
+Meta.sum([r.mul(77), g.mul(150), b.mul(29)]).shr(8)
+
+// Meta.weightedSum: 重み付き加算（weight=0 スキップ、weight=1 乗算省略）
+Meta.weightedSum([
+  { weight: 77, expr: Mem.load8(offset) },
+  { weight: 150, expr: Mem.load8(offset.add(1)) },
+  { weight: 29, expr: Mem.load8(offset.add(2)) },
+]).shr(8)
+
+// Meta.product: N 個の式を乗算
+Meta.product([a, b, c])
+```
+
+### 近傍定数
+
+```typescript
+// 4 近傍: Right, Left, Down, Up
+for (const { dx, dy } of Meta.neighbors4) { ... }
+
+// 8 近傍: Game of Life 等
+for (const { dx, dy } of Meta.neighbors8) { ... }
+```
+
+### 組み合わせ例: 3x3 畳み込みカーネル
+
+```typescript
+// Meta.each × Meta.weightedSum で 2D カーネル展開
+yield* Meta.each([0, 1, 2], (c) => [
+  ch.set(
+    Meta.weightedSum(
+      kernel.map((weight, ki) => ({
+        weight,
+        expr: Mem.load8(neighborAddr(ki, c)),
+      })),
+    ).div(divisor).clamp(0, 255),
+  ),
+  Mem.store8(dstAddr.add(c), ch),
+]);
+```
+
+### 組み合わせ例: Sepia 行列変換
+
+```typescript
+// Meta.each で出力チャンネル、Meta.weightedSum で行列行 × ベクトル
+const rgb = [r, g, b]; // 先に読み出して WAR hazard 回避
+yield* Meta.each([0, 1, 2], (outCh) => [
+  ch.set(
+    Meta.weightedSum(
+      SEPIA_MATRIX[outCh]!.map((w, inCh) => ({
+        weight: w,
+        expr: rgb[inCh]!,
+      })),
+    ).shr(8).clamp(0, 255),
+  ),
+  Mem.store8(offset.add(outCh), ch),
+]);
+```
+
+---
+
 ## 設計指針
 
 **使うべき場面:**

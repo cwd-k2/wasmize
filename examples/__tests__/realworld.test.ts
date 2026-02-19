@@ -3,6 +3,9 @@ import { grayscale } from "../realworld/grayscale";
 import { crc32 } from "../realworld/crc32";
 import { gameOfLife } from "../realworld/game-of-life";
 import { particles } from "../realworld/particles";
+import { convolution } from "../realworld/convolution";
+import { sepia } from "../realworld/sepia";
+import { histogram } from "../realworld/histogram";
 
 describe("Realworld examples", () => {
   describe("Grayscale", () => {
@@ -155,6 +158,152 @@ describe("Realworld examples", () => {
       expect(g.getCell(1, 0, 2)).toBe(0);
       expect(g.getCell(0, 1, 2)).toBe(0);
       expect(g.getCell(1, 1, 2)).toBe(1);
+    });
+  });
+
+  describe("Convolution", () => {
+    test("identity kernel (center=1, rest=0) preserves interior pixel", async () => {
+      const c = await convolution("blur");
+      // We use a custom kernel test via blur with divisor
+      // 3x3 image: all channels = 100, alpha = 255
+      const w = 3, h = 3;
+      const pixels = new Uint8Array(w * h * 4);
+      for (let i = 0; i < w * h; i++) {
+        pixels[i * 4] = 100;
+        pixels[i * 4 + 1] = 100;
+        pixels[i * 4 + 2] = 100;
+        pixels[i * 4 + 3] = 255;
+      }
+      c.setPixels(pixels);
+      c.convolve(w, h, 9); // blur kernel [1,1,1,...]/9
+      const out = c.getOutput(w, h);
+      // Center pixel (1,1) is average of all 9 neighbors, all 100 → 100
+      const idx = (1 * w + 1) * 4;
+      expect(out[idx]).toBe(100);
+      expect(out[idx + 1]).toBe(100);
+      expect(out[idx + 2]).toBe(100);
+      expect(out[idx + 3]).toBe(255); // alpha preserved
+    });
+
+    test("blur averages surrounding pixels", async () => {
+      const c = await convolution("blur");
+      // 3x3: center pixel bright, rest dark
+      const w = 3, h = 3;
+      const pixels = new Uint8Array(w * h * 4);
+      for (let i = 0; i < w * h; i++) {
+        pixels[i * 4 + 3] = 255;
+      }
+      pixels[(1 * w + 1) * 4] = 255; // center R = 255
+      c.setPixels(pixels);
+      c.convolve(w, h, 9);
+      const out = c.getOutput(w, h);
+      // center = (0*8 + 255*1) / 9 = 28
+      expect(out[(1 * w + 1) * 4]).toBe(28);
+    });
+
+    test("sharpen amplifies center", async () => {
+      const c = await convolution("sharpen");
+      const w = 3, h = 3;
+      const pixels = new Uint8Array(w * h * 4);
+      for (let i = 0; i < w * h; i++) {
+        pixels[i * 4] = 100;
+        pixels[i * 4 + 1] = 100;
+        pixels[i * 4 + 2] = 100;
+        pixels[i * 4 + 3] = 255;
+      }
+      c.setPixels(pixels);
+      c.convolve(w, h, 1);
+      const out = c.getOutput(w, h);
+      // Uniform input: sharpen kernel sums to 1, so output = input
+      const idx = (1 * w + 1) * 4;
+      expect(out[idx]).toBe(100);
+    });
+  });
+
+  describe("Sepia", () => {
+    test("black pixel stays black", async () => {
+      const s = await sepia();
+      s.setPixels(new Uint8Array([0, 0, 0, 255]));
+      s.sepia(1);
+      const px = s.getPixels(1);
+      expect(px[0]).toBe(0);
+      expect(px[1]).toBe(0);
+      expect(px[2]).toBe(0);
+      expect(px[3]).toBe(255);
+    });
+
+    test("white pixel → sepia tone", async () => {
+      const s = await sepia();
+      s.setPixels(new Uint8Array([255, 255, 255, 255]));
+      s.sepia(1);
+      const px = s.getPixels(1);
+      // R = (101+197+48)*255/256 = 346*255/256 ≈ 344 → clamp 255
+      expect(px[0]).toBe(255);
+      // G = (89+176+43)*255/256 = 308*255/256 ≈ 306 → clamp 255
+      expect(px[1]).toBe(255);
+      // B = (70+137+34)*255/256 = 241*255>>8 = 61455>>8 = 240
+      expect(px[2]).toBe(240);
+    });
+
+    test("pure red → sepia values", async () => {
+      const s = await sepia();
+      s.setPixels(new Uint8Array([255, 0, 0, 255]));
+      s.sepia(1);
+      const px = s.getPixels(1);
+      // R = 101*255 >> 8 = 25755 >> 8 = 100
+      expect(px[0]).toBe(100);
+      // G = 89*255 >> 8 = 22695 >> 8 = 88
+      expect(px[1]).toBe(88);
+      // B = 70*255 >> 8 = 17850 >> 8 = 69
+      expect(px[2]).toBe(69);
+    });
+
+    test("alpha unchanged", async () => {
+      const s = await sepia();
+      s.setPixels(new Uint8Array([100, 150, 200, 128]));
+      s.sepia(1);
+      const px = s.getPixels(1);
+      expect(px[3]).toBe(128);
+    });
+  });
+
+  describe("Histogram", () => {
+    test("single value histogram", async () => {
+      const h = await histogram();
+      h.setGrayscaleData(new Uint8Array([42, 42, 42, 42, 42]));
+      h.histogram(5);
+      expect(h.getBucket(42)).toBe(5);
+      expect(h.getBucket(0)).toBe(0);
+      expect(h.getBucket(255)).toBe(0);
+    });
+
+    test("distributed values", async () => {
+      const h = await histogram();
+      h.setGrayscaleData(new Uint8Array([0, 0, 1, 1, 1, 255]));
+      h.histogram(6);
+      expect(h.getBucket(0)).toBe(2);
+      expect(h.getBucket(1)).toBe(3);
+      expect(h.getBucket(255)).toBe(1);
+      expect(h.getBucket(128)).toBe(0);
+    });
+
+    test("CDF is monotonically increasing prefix sum", async () => {
+      const h = await histogram();
+      h.setGrayscaleData(new Uint8Array([0, 1, 1, 2, 2, 2]));
+      h.histogram(6);
+      h.cdf();
+      expect(h.getCdf(0)).toBe(1);    // 1
+      expect(h.getCdf(1)).toBe(3);    // 1 + 2
+      expect(h.getCdf(2)).toBe(6);    // 1 + 2 + 3
+      expect(h.getCdf(255)).toBe(6);  // total
+    });
+
+    test("RGBA histogram uses BT.601 grayscale", async () => {
+      const h = await histogram();
+      // Pure red pixel: (77*255 + 150*0 + 29*0) >> 8 = 76
+      h.setRgbaData(new Uint8Array([255, 0, 0, 255]));
+      h.histogramRgba(1);
+      expect(h.getBucket(76)).toBe(1);
     });
   });
 

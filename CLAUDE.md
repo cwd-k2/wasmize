@@ -24,6 +24,7 @@ src/                    # ライブラリ（@ エイリアスで import 可能�
     allocator.ts        # BumpAllocator（コンパイル時メモリ管理）
     struct.ts           # Struct 型（フィールドオフセット自動計算）
     string.ts           # 文字列プリミティブ（Str.from, Str.len, Str.eq）
+    meta.ts             # Meta namespace（コンパイル時マクロヘルパ）
   wasm/                 # IR 定義・Codegen・Module Builder・Encoder・Opcodes
   stdlib/               # 再利用可能 Wasm 関数ライブラリ
     mem.ts              # memcpy, memset, memcmp
@@ -46,7 +47,7 @@ examples/               # 実例・アルゴリズム実装
   layer3/               # Layer 3: wasmFunc() による単一関数 Wasm 化
   layer2/               # Layer 2: wasmize() による宣言的モジュール
   advanced/             # 高度機能（Struct, stdlib sort, bench）
-  realworld/            # 実用ユースケース（画像処理, Game of Life, CRC32, 粒子シミュレーション）
+  realworld/            # 実用ユースケース（画像処理, Game of Life, CRC32, 粒子シミュレーション, 畳み込み, セピア, ヒストグラム）
 e2e/                    # Playwright E2E テスト
 bench/                  # パフォーマンスベンチマーク
 docs/                   # 技術ドキュメント
@@ -99,6 +100,19 @@ Generator DSL は JS ランタイム上で実行されるため、JS/TS はチ�
 - 文字列キー軸抽象化: Struct フィールドを `p[fieldName]` で動的アクセス（particles 壁反射）
 - チャンネルループ: `for (const c of [0, 1, 2])` で RGB 3 チャンネルを処理（grayscale）
 - **注意:** `FieldAccessor` / `ChainableExpr` は内部 Generator が single-use。キャッシュせず毎回 Proxy 経由で取得する。詳細は [docs/metaprogramming.md](docs/metaprogramming.md)
+
+#### Meta namespace（コンパイル時マクロヘルパ）
+
+`Meta` namespace は `() => [...]` array body 内でも使えるコンパイル時展開ヘルパを提供。全て zero-overhead（生成 Wasm に痕跡なし）。
+
+- `Meta.each(items, (item, i) => [...])`: 配列の各要素に対してステートメント展開。`for...of` の `() => [...]` body 互換版
+- `Meta.times(n, (i) => [...])`: N 回展開
+- `Meta.when(condition, () => [...])`: JS 条件が falsy なら命令を一切生成しない
+- `Meta.sum(exprs)`: N 個の式を加算チェイン。`ChainableExpr` を返す
+- `Meta.product(exprs)`: N 個の式を乗算チェイン
+- `Meta.weightedSum([{weight, expr}, ...])`: 重み付き加算。weight=0 はスキップ、weight=1 は乗算省略
+- `Meta.neighbors4`: 4 近傍オフセット `[{dx,dy}, ...]`（Right, Left, Down, Up）
+- `Meta.neighbors8`: 8 近傍オフセット（center 除く）
 
 ### Known TS Limitations (polymorphic type system)
 

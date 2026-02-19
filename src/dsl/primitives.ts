@@ -14,6 +14,7 @@ export { Mod, Op, Mem, Ctrl, Loc, SwitchCaseBuilder, SwitchDefaultBuilder } from
 export { BumpAllocator } from "./allocator";
 export { Struct, FieldAccessor, type FieldType, type FieldResultType } from "./struct";
 export { Str } from "./string";
+export { Meta } from "./meta";
 
 // Top-level constant helpers (chainable, shorter than Mem.i32/f64/i64)
 export { i32, i64, f64 } from "./namespaces";

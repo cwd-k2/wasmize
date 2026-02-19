@@ -47,6 +47,8 @@ export {
   i32,
   i64,
   f64,
+  // Compile-time macro helpers
+  Meta,
 } from "./primitives";
 export {
   WasmRef,

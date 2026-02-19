@@ -1,4 +1,4 @@
-import { compile, local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { compile, local, Type, Mod, Mem, Ctrl, Meta } from "@/dsl/compiler";
 import type { WasmRef } from "@/dsl/types";
 import { instantiate } from "@/test-helpers";
 
@@ -34,11 +34,10 @@ function gameOfLifeWasm() {
             yield* count.set(0);
             yield* cell.set(Mem.load8(y.mul(w).add(x)));
 
-            // Count 8 neighbors — JS-unrolled (no Wasm loop/skip overhead)
-            const neighbors = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
-            for (const [ddx, ddy] of neighbors) {
-              yield* ny.set(y.add(ddy));
-              yield* nx.set(x.add(ddx));
+            // Count 8 neighbors — compile-time unrolled via Meta.neighbors8
+            for (const { dx, dy } of Meta.neighbors8) {
+              yield* ny.set(y.add(dy));
+              yield* nx.set(x.add(dx));
               yield* Ctrl.when(
                 ny.ge(0).and(ny.lt(h)).and(nx.ge(0)).and(nx.lt(w)),
                 () => [count.incrBy(Mem.load8(ny.mul(w).add(nx)))],
