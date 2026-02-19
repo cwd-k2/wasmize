@@ -4,6 +4,7 @@ import type { WasmValType } from "../wasm/opcodes";
 import type { FuncDef, ImportDef, ExportDef, GlobalDef, DataSegment, TableDef, ElementDef } from "../wasm/module";
 import { buildModule } from "../wasm/module";
 import { optimizeFunc, type OptimizerConfig } from "../wasm/optimize";
+import { validateFeatures, type FeatureSet } from "../wasm/capabilities";
 import type { WasmBinary } from "./types";
 import {
   ref,
@@ -308,13 +309,23 @@ function collectAndInterpret(
 
 export function compile<T = Record<string, unknown>>(
   program: WasmProgram,
-  options?: { optimize?: boolean; optimizerConfig?: OptimizerConfig },
+  options?: { optimize?: boolean; optimizerConfig?: OptimizerConfig; target?: FeatureSet },
 ): WasmBinary<T> {
   const { funcs, moduleOptions } = collectAndInterpret(
     program,
     options?.optimize !== false,
     options?.optimizerConfig,
   );
+
+  if (options?.target) {
+    const result = validateFeatures(funcs, options.target);
+    if (!result.valid) {
+      throw new Error(
+        `Target does not support required features: ${result.missing.join(", ")}`,
+      );
+    }
+  }
+
   return buildModule(funcs, moduleOptions) as WasmBinary<T>;
 }
 
