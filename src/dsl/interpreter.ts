@@ -3,7 +3,7 @@ import { IR } from "../wasm/ir";
 import type { WasmValType } from "../wasm/opcodes";
 import type { FuncDef, ImportDef, ExportDef, GlobalDef, DataSegment, TableDef, ElementDef } from "../wasm/module";
 import { buildModule } from "../wasm/module";
-import { optimizeFunc } from "../wasm/optimize";
+import { optimizeFunc, type OptimizerConfig } from "../wasm/optimize";
 import type { WasmBinary } from "./types";
 import {
   ref,
@@ -194,6 +194,7 @@ function interpretSubBody(
 function collectAndInterpret(
   program: WasmProgram,
   shouldOptimize: boolean,
+  optimizerConfig?: OptimizerConfig,
 ) {
   const gen = program();
   const imports: ImportDef[] = [];
@@ -288,7 +289,7 @@ function collectAndInterpret(
   // Phase 2.5: optimize IR
   if (shouldOptimize) {
     for (const f of funcs) {
-      f.body = optimizeFunc(f.body);
+      f.body = optimizeFunc(f.body, optimizerConfig);
     }
   }
 
@@ -307,9 +308,13 @@ function collectAndInterpret(
 
 export function compile<T = Record<string, unknown>>(
   program: WasmProgram,
-  options?: { optimize?: boolean },
+  options?: { optimize?: boolean; optimizerConfig?: OptimizerConfig },
 ): WasmBinary<T> {
-  const { funcs, moduleOptions } = collectAndInterpret(program, options?.optimize !== false);
+  const { funcs, moduleOptions } = collectAndInterpret(
+    program,
+    options?.optimize !== false,
+    options?.optimizerConfig,
+  );
   return buildModule(funcs, moduleOptions) as WasmBinary<T>;
 }
 
@@ -319,7 +324,11 @@ export function compile<T = Record<string, unknown>>(
  */
 export function compileToIR(
   program: WasmProgram,
-  options?: { optimize?: boolean },
+  options?: { optimize?: boolean; optimizerConfig?: OptimizerConfig },
 ) {
-  return collectAndInterpret(program, options?.optimize !== false);
+  return collectAndInterpret(
+    program,
+    options?.optimize !== false,
+    options?.optimizerConfig,
+  );
 }
