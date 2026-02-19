@@ -546,14 +546,23 @@ compile<{ fib: (n: number) => number }>(...)
 
 coverage を上げるために問題を追加するのではなく、「この問題を解くにはこの命令が要る」という動機で拡張する。
 
-| 問題案 | 必要な命令 |
-|--------|-----------|
-| SHA-256 / CRC32 | `i32.rotr`, `i32.xor`, `i32.shr_u` |
-| Newton 法 (sqrt) | `f64.mul`, `f64.div`, `f64.sub` |
-| 文字列マッチング | `i32.load8_s`, `i32.load16_u` |
-| 動的配列 (vector) | `memory.size`, `memory.grow` |
+| 問題案 | 必要な命令 | 状態 |
+|--------|-----------|------|
+| SHA-256 / CRC32 | `i32.rotr`, `i32.xor`, `i32.shr_u` | ✅ CRC32 実装済（`examples/realworld/crc32.ts`） |
+| Newton 法 (sqrt) | `f64.mul`, `f64.div`, `f64.sub` | |
+| 文字列マッチング | `i32.load8_s`, `i32.load16_u` | |
+| 動的配列 (vector) | `memory.size`, `memory.grow` | |
 
-※ これらの命令は opcodes.ts に登録済みで codegen にも接続済み（100% カバレッジ）。問題実装で実用例を追加できる。
+※ これらの命令は opcodes.ts に登録済みで codegen にも接続済み（100% カバレッジ）。
+
+### Realworld Examples（実装済）
+
+| Example | 活用する DSL 機能 |
+|---------|------------------|
+| **Grayscale** | `Mem.load8/store8`, `Op.max/min`（ブランチレスクランプ）, 複数関数 export |
+| **CRC32** | `Mod.data()`（ルックアップテーブル埋め込み）, `Op.shr_u`, XOR チェイン |
+| **Game of Life** | ネスト `Ctrl.for`, ダブルバッファリング, `.eq()` / `.and()` / `.or()` でブランチレス判定 |
+| **Particles** | `Struct` + `BumpAllocator`, f64 全フィールド, `Op.f64.neg`, `Ctrl.when` で壁反射 |
 
 ---
 

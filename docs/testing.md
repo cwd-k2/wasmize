@@ -101,6 +101,7 @@ const { exports: { hanoi } } = await instantiate(problem1_hanoi(), {
 | `examples/__tests__/layer3.test.ts` | Layer 3 使用例（fibonacci, gcd） |
 | `examples/__tests__/layer2.test.ts` | Layer 2 使用例（kadane, binary-search, array-stats） |
 | `examples/__tests__/advanced.test.ts` | 高度機能使用例（struct, stdlib sort, bench） |
+| `examples/__tests__/realworld.test.ts` | Realworld 使用例（grayscale, CRC32, Game of Life, particles） |
 
 ---
 
@@ -121,9 +122,9 @@ npm run test:e2e   # Playwright E2E テスト
 ### テスト内容
 
 `e2e/app.test.ts`:
-1. `/` にアクセス
-2. `.status-pass` 要素が 5 つ表示されるまで待機（timeout: 10s）
-3. `.summary-title` に "All Problems Passed" が含まれることを検証
+1. 全 15 問題が PASS する — `.status-pass` 要素が 15 個表示されるまで待機
+2. Realworld Demos セクションが表示される — `.demo-card` が 4 つ、各タイトルを検証
+3. CRC32 デモがリアルタイム計算する — 入力値変更で結果が更新されることを検証
 
 ---
 

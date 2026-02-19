@@ -1,6 +1,6 @@
 # Problems
 
-15 のアルゴリズム問題のカタログ。各問題は `examples/problems/` に実装され、`compile()` で Wasm バイナリに変換されます。
+15 のアルゴリズム問題 + 4 つの Realworld Example のカタログ。各問題は `examples/problems/` に、Realworld 例は `examples/realworld/` に実装され、`compile()` で Wasm バイナリに変換されます。
 
 ---
 
@@ -521,3 +521,108 @@ Memory pages: 2。
 - `Ctrl.while` で find の path compression ループ
 - `Mem.i32Array()` / `Mem.i32Array(RANK_BASE)` で parent と rank を分離
 - `Ctrl.when` で rank 比較条件
+
+---
+
+# Realworld Examples
+
+`examples/realworld/` に配置された実用ユースケース。ブラウザ UI でインタラクティブデモとして動作する。
+
+---
+
+## R1. Image Grayscale + Brightness
+
+**ファイル:** `examples/realworld/grayscale.ts`
+
+### 機能
+
+- `grayscale(len)`: RGBA ピクセルを in-place でグレースケール変換。ITU-R BT.601 整数近似 `gray = (77*R + 150*G + 29*B) >> 8`
+- `brightness(len, delta)`: 各 RGB チャンネルに delta を加算、`Op.max/Op.min` で 0-255 にクランプ
+
+### メモリレイアウト
+
+| アドレス | 内容 | バイト幅 |
+|---------|------|---------|
+| `i * 4` | pixel[i] (RGBA) | 4 bytes |
+
+Memory pages: 1 (16384 pixels)。
+
+### DSL の見どころ
+
+- `Mem.load8` / `Mem.store8` — バイト単位の RGBA チャンネル操作
+- `Op.max(Op.min(val, 255), 0)` — ブランチレスクランプ
+- 2 つの export 関数を 1 モジュールで提供
+
+---
+
+## R2. CRC32 Checksum
+
+**ファイル:** `examples/realworld/crc32.ts`
+
+### 機能
+
+- `crc32(dataOffset, len)`: IEEE 802.3 CRC32 チェックサム計算
+
+### メモリレイアウト
+
+| 領域 | アドレス | 内容 |
+|------|---------|------|
+| テーブル | `0 - 1023` | CRC32 lookup table (256 x 4B) |
+| データ | `1024+` | 入力データ |
+
+Memory pages: 1。
+
+### DSL の見どころ
+
+- `Mod.data(0, tableBytes)` — JS 側で生成した 1024 バイトのルックアップテーブルを data segment に埋め込み
+- `Op.shr_u(crc, 8)` — 符号なし右シフト（`>>>` 相当）
+- `crc.xor(-1)` — i32 の -1 は 0xFFFFFFFF
+
+---
+
+## R3. Conway's Game of Life
+
+**ファイル:** `examples/realworld/game-of-life.ts`
+
+### 機能
+
+- `step(w, h)`: 1 世代進める（ダブルバッファリング）
+- `getCell(x, y, w)`: セル状態を読み取り
+
+### メモリレイアウト
+
+| 領域 | アドレス | 内容 |
+|------|---------|------|
+| Grid A | `0 - w*h-1` | 現在の世代 (1 byte/cell) |
+| Grid B | `w*h - 2*w*h-1` | 次世代バッファ |
+
+Memory pages: 2。
+
+### DSL の見どころ
+
+- 4 重ネスト `Ctrl.for`（y, x, dy, dx）で 8 方向近傍カウント
+- `count.eq(3).or(cell.and(count.eq(2)))` — ブランチレスな alive 判定（Conway のルールを 1 式で表現）
+- ダブルバッファ: gridB に書き込み → gridA にコピーで世代更新
+
+---
+
+## R4. 2D Particle Simulation
+
+**ファイル:** `examples/realworld/particles.ts`
+
+### 機能
+
+- `step(n, dt)`: 位置更新 `x += vx*dt, y += vy*dt`
+- `applyGravity(n, gx, gy)`: 重力加速 `vx += gx, vy += gy`
+- `bounce(n, w, h)`: 壁反射（完全弾性、速度反転 + 位置クランプ）
+
+### メモリレイアウト
+
+`Particle = Struct({ x: "f64", y: "f64", vx: "f64", vy: "f64" })` — 32 bytes/particle。`BumpAllocator` で最大 1000 粒子分を割り当て。
+
+### DSL の見どころ
+
+- `Struct` + `BumpAllocator` で構造化メモリレイアウトを型安全に管理
+- `f64` 全フィールド + `Op.f64.neg` で速度反転
+- `Ctrl.when` で 4 壁の条件分岐（左・右・上・下）
+- JS 側は `Float64Array` ビューで直接読み書き

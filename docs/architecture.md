@@ -444,6 +444,21 @@ points.set(i, "y", val);  // FuncGen<void>
 
 UTF-8 文字列操作。`Str.from()` は data segment に埋め込み、`Str.len()` / `Str.eq()` は Wasm 関数として実装。
 
+### Realworld Examples
+
+**ファイル:** `examples/realworld/`
+
+実用的なユースケースを示す 4 つの例。ブラウザ UI でインタラクティブに動作するデモ付き。
+
+| Example | DSL 特徴 | ファイル |
+|---------|----------|---------|
+| **Grayscale** | `Mem.load8/store8` バイト操作, `Op.max/min` ブランチレスクランプ | `grayscale.ts` |
+| **CRC32** | `Mod.data()` ルックアップテーブル, `Op.shr_u` 符号なしシフト | `crc32.ts` |
+| **Game of Life** | ネスト `Ctrl.for`, ダブルバッファリング, ブランチレス alive 判定 | `game-of-life.ts` |
+| **Particles** | `Struct` + `BumpAllocator`, f64 フィールド, `Op.f64.neg` | `particles.ts` |
+
+各 example は `async function` を export し、`{ exports, setXxx, getXxx, binary }` のパターンで JS ラッパを返す。`src/realworld-runner.ts` がこれらを統合し、`src/ui/realworld.ts` が Canvas ベースのインタラクティブデモをレンダリングする。
+
 ### Marshal レイヤー
 
 **ファイル:** `src/marshal.ts`
