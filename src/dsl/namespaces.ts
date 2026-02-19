@@ -94,7 +94,16 @@ function buildBody(
   };
 }
 
-/** Type-level interface for Mod with overloaded signatures for arity inference. */
+/**
+ * Type-level interface for Mod with overloaded signatures for arity inference.
+ *
+ * The implementation object is cast via `as unknown as ModNamespace` because
+ * its methods return `CallableFunc` (default `WasmValType[]`) while the
+ * interface promises narrower types like `CallableFunc<[]>` or
+ * `CallableFunc<["i32","i32"]>`. A direct `as ModNamespace` fails because
+ * the `& ExprInput[]` intersection in CallableFunc makes it invariant in
+ * Params, so `CallableFunc` (wide) is not assignable to `CallableFunc<[]>`.
+ */
 interface ModNamespace {
   func(body: FuncBody<FuncReturn>): ModuleGen<CallableFunc<[]>>;
   func<A extends WasmRef<any>[]>(
@@ -120,6 +129,15 @@ interface ModNamespace {
     body: (...refs: A) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc<{ [K in keyof A]: WasmValType }>>;
 
+  /**
+   * `self` is typed as wide `CallableFunc` (no arity check) because:
+   * 1. Giving `self` a mapped type `CallableFunc<{[K in keyof A]: WasmValType}>`
+   *    creates a circular inference dependency — TS needs A to type self, but
+   *    needs self's contextual type to infer A from the callback signature.
+   * 2. Even if inference succeeded, CallableFunc invariance (from `& ExprInput[]`)
+   *    would prevent `CallableFunc<["i32"]>` from being assignable to the
+   *    contextually-expected `CallableFunc<WasmValType[]>`.
+   */
   recursive(
     body: (self: CallableFunc) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc>;

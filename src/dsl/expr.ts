@@ -24,6 +24,15 @@ export type ExprInput = Expr | ChainableExpr<WasmValType> | ThenBuilder;
  * A callable function reference. Invoke directly for value-returning calls,
  * or use `.void()` for statement (void) calls.
  *
+ * **Known TS limitation — `& ExprInput[]` intersection:**
+ * `{ [K in keyof Params]: ExprInput }` is a deferred mapped type that TS
+ * cannot prove is an array, so rest parameters reject it alone. The
+ * `& ExprInput[]` intersection satisfies the rest-param constraint but
+ * makes the overall type **invariant** in `Params`: a concrete
+ * `CallableFunc<["i32","i32"]>` is NOT assignable to `CallableFunc<WasmValType[]>`.
+ * Conditional types (`Params extends ... ? ... : never`) were evaluated but
+ * TS defers them, making the call signature opaque (`never` effectively).
+ *
  * @example
  * ```ts
  * yield* Loc.set(result, myFunc(a, b));     // value call
