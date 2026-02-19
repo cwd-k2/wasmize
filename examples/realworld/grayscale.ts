@@ -1,4 +1,4 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Op } from "@/dsl/compiler";
+import { compile, local, Type, Mod, Ctrl, Op, Meta, RGBA } from "@/dsl/compiler";
 import { instantiate } from "@/test-helpers";
 
 // RGBA pixel processing: grayscale conversion + brightness adjustment
@@ -25,19 +25,18 @@ function grayscaleWasm() {
 
         yield* Ctrl.while(i.lt(len), function* () {
           yield* offset.set(i.mul(4));
+          const px = RGBA.at(offset);
 
-          // gray = (77*R + 150*G + 29*B) >> 8
           yield* gray.set(
-            Mem.load8(offset)
-              .mul(77)
-              .add(Mem.load8(offset.add(1)).mul(150))
-              .add(Mem.load8(offset.add(2)).mul(29))
-              .shr(8),
+            Meta.weightedSum([
+              { weight: 77, expr: px.r },
+              { weight: 150, expr: px.g },
+              { weight: 29, expr: px.b },
+            ]).shr(8),
           );
 
-          // RGB channels (alpha unchanged)
-          for (const c of [0, 1, 2]) {
-            yield* Mem.store8(offset.add(c), gray);
+          for (const ch of ["r", "g", "b"] as const) {
+            yield* px[ch].set(gray);
           }
 
           yield* i.incrBy(1);
@@ -56,11 +55,11 @@ function grayscaleWasm() {
 
         yield* Ctrl.while(i.lt(len), function* () {
           yield* offset.set(i.mul(4));
+          const px = RGBA.at(offset);
 
-          // RGB channels: clamp(channel + delta, 0, 255)
-          for (const c of [0, 1, 2]) {
-            yield* ch.set(Op.min(Op.max(Mem.load8(offset.add(c)).add(delta), 0), 255));
-            yield* Mem.store8(offset.add(c), ch);
+          for (const c of ["r", "g", "b"] as const) {
+            yield* ch.set(Op.min(Op.max(px[c].add(delta), 0), 255));
+            yield* px[c].set(ch);
           }
 
           yield* i.incrBy(1);

@@ -1,4 +1,4 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Meta } from "@/dsl/compiler";
+import { compile, local, Type, Mod, Mem, Ctrl, Meta, RGBA } from "@/dsl/compiler";
 import { instantiate } from "@/test-helpers";
 
 // 3x3 Image Convolution: blur, sharpen, edge detection
@@ -39,6 +39,7 @@ function convolutionWasm(kernel: number[]) {
         const y = yield* local(Type.i32);
         const inputSize = yield* local(Type.i32);
         const dstAddr = yield* local(Type.i32);
+        const srcAddr = yield* local(Type.i32);
         const ch = yield* local(Type.i32);
 
         yield* inputSize.set(w.mul(h).mul(4));
@@ -47,9 +48,13 @@ function convolutionWasm(kernel: number[]) {
         yield* Ctrl.range(y, 1, h.sub(1), function* () {
           yield* Ctrl.range(x, 1, w.sub(1), function* () {
             yield* dstAddr.set(inputSize.add(y.mul(w).add(x).mul(4)));
+            yield* srcAddr.set(y.mul(w).add(x).mul(4));
+            const dstPx = RGBA.at(dstAddr);
+            const srcPx = RGBA.at(srcAddr);
 
             // Convolve each RGB channel independently
-            yield* Meta.each([0, 1, 2], (c) => [
+            const channels = ["r", "g", "b"] as const;
+            yield* Meta.each(channels, (c, ci) => [
               ch.set(
                 Meta.weightedSum(
                   kernel.map((weight, ki) => ({
@@ -59,19 +64,16 @@ function convolutionWasm(kernel: number[]) {
                         .mul(w)
                         .add(x.add(KERNEL_OFFSETS[ki]!.dx))
                         .mul(4)
-                        .add(c),
+                        .add(ci),
                     ),
                   })),
                 ).div(divisor).clamp(0, 255),
               ),
-              Mem.store8(dstAddr.add(c), ch),
+              dstPx[c].set(ch),
             ]);
 
             // Copy alpha unchanged
-            yield* Mem.store8(
-              dstAddr.add(3),
-              Mem.load8(y.mul(w).add(x).mul(4).add(3)),
-            );
+            yield* dstPx.a.set(srcPx.a);
           });
         });
       },

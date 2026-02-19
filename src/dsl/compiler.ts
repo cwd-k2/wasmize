@@ -49,6 +49,10 @@ export {
   f64,
   // Compile-time macro helpers
   Meta,
+  // Struct presets
+  RGBA,
+  // Data structure helpers
+  Queue,
 } from "./primitives";
 export {
   WasmRef,

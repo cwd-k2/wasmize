@@ -25,6 +25,7 @@ src/                    # ライブラリ（@ エイリアスで import 可能�
     struct.ts           # Struct 型（フィールドオフセット自動計算）
     string.ts           # 文字列プリミティブ（Str.from, Str.len, Str.eq）
     meta.ts             # Meta namespace（コンパイル時マクロヘルパ）
+    queue.ts            # Queue Generator ファクトリ（BFS キュー）
   wasm/                 # IR 定義・Codegen・Module Builder・Encoder・Opcodes
   stdlib/               # 再利用可能 Wasm 関数ライブラリ
     mem.ts              # memcpy, memset, memcmp
@@ -43,11 +44,11 @@ src/                    # ライブラリ（@ エイリアスで import 可能�
   realworld-runner.ts   # Realworld デモの実行・UI データ生成
   main.ts               # エントリーポイント
 examples/               # 実例・アルゴリズム実装
-  problems/             # Layer 1: 15 のアルゴリズム（低レベル DSL）
+  problems/             # Layer 1: 16 のアルゴリズム（低レベル DSL）
   layer3/               # Layer 3: wasmFunc() による単一関数 Wasm 化
   layer2/               # Layer 2: wasmize() による宣言的モジュール
   advanced/             # 高度機能（Struct, stdlib sort, bench）
-  realworld/            # 実用ユースケース（画像処理, Game of Life, CRC32, 粒子シミュレーション, 畳み込み, セピア, ヒストグラム）
+  realworld/            # 実用ユースケース（画像処理, Game of Life, CRC32, 粒子シミュレーション, 畳み込み, セピア, ヒストグラム, Erode/Dilate, Maze BFS, ヒストグラム均等化）
 e2e/                    # Playwright E2E テスト
 bench/                  # パフォーマンスベンチマーク
 docs/                   # 技術ドキュメント
@@ -70,7 +71,10 @@ docs/                   # 技術ドキュメント
 - 多方向分岐: `Ctrl.switch(expr).case(v, body).default(body)` — ビルダパターン、dense 時 br_table / sparse 時 if/else チェイン
 - 値選択: `Op.select(cond, a, b)` は Wasm `select` 命令、`Op.max(a, b)` / `Op.min(a, b)` は select ベース
 - 配列ヘルパ: `Mem.i32Array(base)` で `.mul(4)` を隠蔽、`.at(i)` で `FieldAccessor` 取得、`.swap(i, j, tmp)` で要素交換、`.fill(start, end, value)` で一括初期化。`base` はランタイム `ExprInput` も可
-- 2D配列: `Mem.i32Array2D(base, cols)` で `.load(row, col)` / `.store(row, col, val)`
+- 2D配列: `Mem.i32Array2D(base, cols)` で `.load(row, col)` / `.store(row, col, val)` / `.at(row, col)` で `FieldAccessor` 取得。`base` は `ExprInput`（ランタイム式可）
+- バイトグリッド: `Mem.byteGrid(base, cols)` で `.load(row, col)` / `.store(row, col, val)` / `.at(row, col)`。`Mem.load8`/`Mem.store8` ベース、byte-per-cell グリッドに最適
+- RGBA プリセット: `RGBA = Struct({ r: "u8", g: "u8", b: "u8", a: "u8" })`。`RGBA.at(offset)` でピクセル読み書き。**注意:** `offset` は `WasmRef`（ローカル変数）を使うこと（`ChainableExpr` は single-use）
+- Queue ヘルパ: `const q = yield* Queue(base)` で BFS キュー生成。`q.enqueue(v)`, `q.dequeue(dst)`, `q.notEmpty`（条件式）, `q.reset()` を提供。内部で `head`/`tail` ローカル変数を確保
 - 一括 export: `Mod.exportAll({ name: funcRef, ... })`
 - i32 unsigned ops: `Op.div_u`, `Op.rem_u`, `Op.shr_u`, `Op.lt_u`, `Op.gt_u`, `Op.le_u`, `Op.ge_u`
 - i64 演算: `Op.i64.add/sub/mul/div`, `Op.i64.eqz`
@@ -93,13 +97,22 @@ docs/                   # 技術ドキュメント
 
 ### JS メタプログラミング
 
-Generator DSL は JS ランタイム上で実行されるため、JS/TS はチューリング完全なプリプロセッサとして機能する。JS の `for` ループ内で `yield*` した命令はコンパイル時に展開され、実行時の Wasm には現れない。
+Generator DSL は JS ランタイム上で実行されるため、JS/TS はチューリング完全なプリプロセッサとして機能する。JS の制御構造やオブジェクト指向機能はコンパイル時に展開され、実行時の Wasm には現れない。
 
+**コンパイル時展開パターン:**
 - Config 配列 + `for...of`: 同一パターンの N 方向展開（flood-fill 4 方向、Game of Life 8 近傍）
 - ファクトリ関数: 共通 body を関数化し、差分をコールバックで注入（array-stats の reduceFunc）
 - 文字列キー軸抽象化: Struct フィールドを `p[fieldName]` で動的アクセス（particles 壁反射）
-- チャンネルループ: `for (const c of [0, 1, 2])` で RGB 3 チャンネルを処理（grayscale）
-- **注意:** `FieldAccessor` / `ChainableExpr` は内部 Generator が single-use。キャッシュせず毎回 Proxy 経由で取得する。詳細は [docs/metaprogramming.md](docs/metaprogramming.md)
+- チャンネルループ: `for (const ch of ["r", "g", "b"] as const)` で RGB 3 チャンネルを処理（grayscale, sepia）
+
+**OOP-style コンパイル時ヘルパ（メモリ抽象の 3 層構造）:**
+- **Layer 1 (Raw)**: `Mem.load/store` — 手動アドレス計算
+- **Layer 2 (構造化)**: `Mem.byteGrid(base, cols)`, `Mem.i32Array2D(base, cols)` — ストライド計算隠蔽
+- **Layer 3 (ドメイン特化)**: `RGBA.at(offset)` — ピクセル操作、`Queue(base)` — BFS キュー
+
+**Generator ファクトリパターン:** `yield*` でローカル変数を内部に確保し、操作メソッドを持つオブジェクトを返す。`Queue` がこのパターンの代表例。カプセル化された状態（head/tail 等）は呼び出し側から不可視
+
+**注意（single-use 制約）:** `FieldAccessor` / `ChainableExpr` は内部 Generator が single-use。キャッシュせず毎回 Proxy 経由で取得する。**特に `Struct.at(expr)` の `expr` にはローカル変数（`WasmRef`）を使うこと。** `ChainableExpr`（例: `i.mul(4)`）を直接渡すと 2 番目以降のフィールドアクセスで壊れる。詳細は [docs/metaprogramming.md](docs/metaprogramming.md)
 
 #### Meta namespace（コンパイル時マクロヘルパ）
 

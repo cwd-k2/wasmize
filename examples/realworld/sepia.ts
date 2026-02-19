@@ -1,4 +1,4 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Meta } from "@/dsl/compiler";
+import { compile, local, Type, Mod, Ctrl, Meta, RGBA } from "@/dsl/compiler";
 import { instantiate } from "@/test-helpers";
 
 // Sepia tone color matrix transformation
@@ -42,11 +42,12 @@ function sepiaWasm() {
 
         yield* Ctrl.while(i.lt(len), function* () {
           yield* offset.set(i.mul(4));
+          const px = RGBA.at(offset);
 
           // Read input RGB before overwriting
-          yield* r.set(Mem.load8(offset));
-          yield* g.set(Mem.load8(offset.add(1)));
-          yield* b.set(Mem.load8(offset.add(2)));
+          yield* r.set(px.r);
+          yield* g.set(px.g);
+          yield* b.set(px.b);
 
           // Apply sepia matrix: each output channel is a weighted sum of input RGB
           const rgb = [r, g, b];
@@ -59,7 +60,7 @@ function sepiaWasm() {
                 })),
               ).shr(8).clamp(0, 255),
             ),
-            Mem.store8(offset.add(outCh), ch),
+            px[["r", "g", "b"][outCh] as "r" | "g" | "b"].set(ch),
           ]);
 
           yield* i.incrBy(1);

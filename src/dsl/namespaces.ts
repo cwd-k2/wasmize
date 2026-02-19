@@ -914,25 +914,53 @@ export const Mem = {
   /**
    * Creates a 2D i32 array helper. Computes `(row * cols + col) * 4 + base`.
    *
-   * @param base - Base byte offset (default 0)
+   * @param base - Base byte offset (default 0, can be a runtime expression)
    * @param cols - Number of columns (can be a runtime expression)
-   * @returns Object with `load(row, col)`, `store(row, col, val)`
+   * @returns Object with `load(row, col)`, `store(row, col, val)`, `at(row, col)`
    */
-  i32Array2D(base: number = 0, cols: ExprInput): {
+  i32Array2D(base: ExprInput = 0, cols: ExprInput): {
     load(row: ExprInput, col: ExprInput): ChainableExpr;
     store(row: ExprInput, col: ExprInput, value: ExprInput): FuncGen<void>;
+    at(row: ExprInput, col: ExprInput): FieldAccessor<"i32">;
   } {
     const flatIdx = (row: ExprInput, col: ExprInput): ChainableExpr =>
       new ChainableExpr(add(mul(row, cols), col));
     const addrOf = (row: ExprInput, col: ExprInput): ChainableExpr => {
       const scaled = new ChainableExpr(mul(flatIdx(row, col), 4));
-      return base === 0 ? scaled : scaled.add(base);
+      return (typeof base === "number" && base === 0) ? scaled : scaled.add(base);
     };
     return {
       load: (row: ExprInput, col: ExprInput): ChainableExpr =>
         Mem.load(addrOf(row, col)),
       store: (row: ExprInput, col: ExprInput, value: ExprInput): FuncGen<void> =>
         Mem.store(addrOf(row, col), value),
+      at: (row: ExprInput, col: ExprInput): FieldAccessor<"i32"> =>
+        new FieldAccessor(addrOf(row, col), "i32"),
+    };
+  },
+  /**
+   * Creates a 2D byte grid helper. Computes `row * cols + col + base`.
+   *
+   * @param base - Base byte offset (default 0, can be a runtime expression)
+   * @param cols - Number of columns (can be a runtime expression)
+   * @returns Object with `load(row, col)`, `store(row, col, val)`, `at(row, col)`
+   */
+  byteGrid(base: ExprInput = 0, cols: ExprInput): {
+    load(row: ExprInput, col: ExprInput): ChainableExpr;
+    store(row: ExprInput, col: ExprInput, value: ExprInput): FuncGen<void>;
+    at(row: ExprInput, col: ExprInput): FieldAccessor<"i32">;
+  } {
+    const addrOf = (row: ExprInput, col: ExprInput): ChainableExpr => {
+      const flat = new ChainableExpr(add(mul(row, cols), col));
+      return (typeof base === "number" && base === 0) ? flat : flat.add(base);
+    };
+    return {
+      load: (row: ExprInput, col: ExprInput): ChainableExpr =>
+        Mem.load8(addrOf(row, col)),
+      store: (row: ExprInput, col: ExprInput, value: ExprInput): FuncGen<void> =>
+        Mem.store8(addrOf(row, col), value),
+      at: (row: ExprInput, col: ExprInput): FieldAccessor<"i32"> =>
+        new FieldAccessor(addrOf(row, col), "u8"),
     };
   },
 };

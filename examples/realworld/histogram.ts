@@ -1,4 +1,4 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Meta } from "@/dsl/compiler";
+import { compile, local, Type, Mod, Mem, Ctrl, Meta, RGBA } from "@/dsl/compiler";
 import { instantiate } from "@/test-helpers";
 
 // 256-bucket grayscale histogram + cumulative distribution function (CDF)
@@ -64,12 +64,13 @@ function histogramWasm() {
         yield* i.set(0);
         yield* Ctrl.while(i.lt(len), function* () {
           yield* offset.set(i.mul(4));
+          const px = RGBA.at(offset);
 
           yield* gray.set(
             Meta.weightedSum([
-              { weight: 77, expr: Mem.load8(offset) },
-              { weight: 150, expr: Mem.load8(offset.add(1)) },
-              { weight: 29, expr: Mem.load8(offset.add(2)) },
+              { weight: 77, expr: px.r },
+              { weight: 150, expr: px.g },
+              { weight: 29, expr: px.b },
             ]).shr(8),
           );
 

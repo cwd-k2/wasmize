@@ -6,6 +6,9 @@ import { particles } from "../realworld/particles";
 import { convolution } from "../realworld/convolution";
 import { sepia } from "../realworld/sepia";
 import { histogram } from "../realworld/histogram";
+import { erodeDilate } from "../realworld/erode-dilate";
+import { mazeBfs } from "../realworld/maze-bfs";
+import { histogramEqualization } from "../realworld/histogram-equalization";
 
 describe("Realworld examples", () => {
   describe("Grayscale", () => {
@@ -355,6 +358,192 @@ describe("Realworld examples", () => {
       expect(p0.y).toBeCloseTo(10);
       expect(p1.x).toBeCloseTo(50);
       expect(p1.y).toBeCloseTo(51);
+    });
+  });
+
+  describe("Erode/Dilate", () => {
+    test("erode: isolated pixel removed", async () => {
+      const ed = await erodeDilate();
+      // 5x5 grid with single pixel at center
+      // prettier-ignore
+      ed.setGrid([
+        0,0,0,0,0,
+        0,0,0,0,0,
+        0,0,1,0,0,
+        0,0,0,0,0,
+        0,0,0,0,0,
+      ]);
+      ed.erode(5, 5);
+      const out = ed.getOutput(5, 5);
+      // Center should be 0 (not all neighbors are 1)
+      expect(out[2 * 5 + 2]).toBe(0);
+    });
+
+    test("erode: solid 3x3 block preserves center", async () => {
+      const ed = await erodeDilate();
+      // 5x5 grid with 3x3 block
+      // prettier-ignore
+      ed.setGrid([
+        0,0,0,0,0,
+        0,1,1,1,0,
+        0,1,1,1,0,
+        0,1,1,1,0,
+        0,0,0,0,0,
+      ]);
+      ed.erode(5, 5);
+      const out = ed.getOutput(5, 5);
+      // Center of 3x3 block should survive (all 9 neighbors are 1)
+      expect(out[2 * 5 + 2]).toBe(1);
+      // Edges of block should be eroded
+      expect(out[1 * 5 + 1]).toBe(0);
+    });
+
+    test("dilate: isolated pixel expands", async () => {
+      const ed = await erodeDilate();
+      // 5x5 grid with single pixel
+      // prettier-ignore
+      ed.setGrid([
+        0,0,0,0,0,
+        0,0,0,0,0,
+        0,0,1,0,0,
+        0,0,0,0,0,
+        0,0,0,0,0,
+      ]);
+      ed.dilate(5, 5);
+      const out = ed.getOutput(5, 5);
+      // All 3x3 neighbors of center should become 1
+      expect(out[1 * 5 + 1]).toBe(1);
+      expect(out[1 * 5 + 2]).toBe(1);
+      expect(out[1 * 5 + 3]).toBe(1);
+      expect(out[2 * 5 + 1]).toBe(1);
+      expect(out[2 * 5 + 2]).toBe(1);
+      expect(out[2 * 5 + 3]).toBe(1);
+      expect(out[3 * 5 + 1]).toBe(1);
+      expect(out[3 * 5 + 2]).toBe(1);
+      expect(out[3 * 5 + 3]).toBe(1);
+      // Corners should remain 0 (border)
+      expect(out[0]).toBe(0);
+    });
+
+    test("dilate: all zeros stays zero", async () => {
+      const ed = await erodeDilate();
+      ed.setGrid(new Array(25).fill(0));
+      ed.dilate(5, 5);
+      const out = ed.getOutput(5, 5);
+      expect(out.every((v) => v === 0)).toBe(true);
+    });
+  });
+
+  describe("Maze BFS", () => {
+    test("straight path", async () => {
+      const m = await mazeBfs();
+      // 3x3 open grid, start (0,0) → goal (2,2)
+      // prettier-ignore
+      m.setMaze([
+        0,0,0,
+        0,0,0,
+        0,0,0,
+      ]);
+      expect(m.solve(3, 3, 0, 0, 2, 2)).toBe(4); // Manhattan distance
+    });
+
+    test("start equals goal", async () => {
+      const m = await mazeBfs();
+      m.setMaze([0, 0, 0, 0]);
+      expect(m.solve(2, 2, 0, 0, 0, 0)).toBe(0);
+    });
+
+    test("wall blocks path → -1", async () => {
+      const m = await mazeBfs();
+      // 3x3 with wall blocking all paths
+      // prettier-ignore
+      m.setMaze([
+        0,1,0,
+        0,1,0,
+        0,1,0,
+      ]);
+      expect(m.solve(3, 3, 0, 0, 2, 0)).toBe(-1);
+    });
+
+    test("maze with detour", async () => {
+      const m = await mazeBfs();
+      // 5x5 maze: wall forces a detour
+      // prettier-ignore
+      m.setMaze([
+        0,0,0,0,0,
+        1,1,1,1,0,
+        0,0,0,0,0,
+        0,1,1,1,1,
+        0,0,0,0,0,
+      ]);
+      // Start (0,0) → Goal (4,4): path goes right, down, left, down, right
+      expect(m.solve(5, 5, 0, 0, 4, 4)).toBe(16);
+    });
+  });
+
+  describe("Histogram Equalization", () => {
+    test("uniform image stays roughly the same", async () => {
+      const he = await histogramEqualization();
+      // 4 pixels, all same color → equalization should output near-uniform
+      const data = new Uint8Array([
+        100, 100, 100, 255,
+        100, 100, 100, 255,
+        100, 100, 100, 255,
+        100, 100, 100, 255,
+      ]);
+      he.setPixels(data);
+      he.equalize(4);
+      const px = he.getPixels(4);
+      // All pixels had same gray; CDF has single step, so remap = 0 (or close)
+      // With only one bucket value, (cdf - cdfMin) / (total - cdfMin) = 0/0 → clamped
+      // All pixels get the same value
+      expect(px[0]).toBe(px[4]);
+      expect(px[0]).toBe(px[8]);
+      expect(px[3]).toBe(255); // alpha unchanged
+    });
+
+    test("low-contrast pixels get spread out", async () => {
+      const he = await histogramEqualization();
+      // 3 distinct gray levels: dark, medium, bright
+      const data = new Uint8Array([
+        50, 50, 50, 255,    // dark gray
+        128, 128, 128, 255,  // medium gray
+        200, 200, 200, 255,  // bright gray
+      ]);
+      he.setPixels(data);
+      he.equalize(3);
+      const px = he.getPixels(3);
+      // After equalization, the values should be more spread out
+      // Darkest pixel should map lower, brightest higher
+      expect(px[0]).toBeLessThan(px[4]);
+      expect(px[4]).toBeLessThan(px[8]);
+    });
+
+    test("alpha channel preserved", async () => {
+      const he = await histogramEqualization();
+      const data = new Uint8Array([
+        100, 50, 200, 128,
+        50, 150, 100, 64,
+      ]);
+      he.setPixels(data);
+      he.equalize(2);
+      const px = he.getPixels(2);
+      expect(px[3]).toBe(128);
+      expect(px[7]).toBe(64);
+    });
+
+    test("black and white image", async () => {
+      const he = await histogramEqualization();
+      const data = new Uint8Array([
+        0, 0, 0, 255,       // black
+        255, 255, 255, 255,  // white
+      ]);
+      he.setPixels(data);
+      he.equalize(2);
+      const px = he.getPixels(2);
+      // Black should stay 0, white should stay 255
+      expect(px[0]).toBe(0);
+      expect(px[4]).toBe(255);
     });
   });
 });

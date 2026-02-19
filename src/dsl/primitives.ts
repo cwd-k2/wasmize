@@ -15,6 +15,11 @@ export { BumpAllocator } from "./allocator";
 export { Struct, FieldAccessor, type FieldType, type FieldResultType } from "./struct";
 export { Str } from "./string";
 export { Meta } from "./meta";
+export { Queue, type QueueHandle } from "./queue";
+
+/** RGBA pixel Struct preset (4 packed u8 fields). `RGBA.at(offset)` returns a proxy with `.r`, `.g`, `.b`, `.a` FieldAccessors. */
+import { Struct as _Struct } from "./struct";
+export const RGBA = _Struct({ r: "u8", g: "u8", b: "u8", a: "u8" });
 
 // Top-level constant helpers (chainable, shorter than Mem.i32/f64/i64)
 export { i32, i64, f64 } from "./namespaces";
