@@ -7,6 +7,7 @@ export interface GrayscaleDemo {
   kind: "grayscale";
   title: string;
   wasmSize: number;
+  wat: string;
   grayscale: (len: number) => void;
   brightness: (len: number, delta: number) => void;
   setPixels: (data: Uint8Array) => void;
@@ -17,6 +18,7 @@ export interface GameOfLifeDemo {
   kind: "game-of-life";
   title: string;
   wasmSize: number;
+  wat: string;
   step: (w: number, h: number) => void;
   getCell: (x: number, y: number, w: number) => number;
   setGrid: (cells: number[]) => void;
@@ -27,6 +29,7 @@ export interface CRC32Demo {
   kind: "crc32";
   title: string;
   wasmSize: number;
+  wat: string;
   compute: (data: Uint8Array) => number;
 }
 
@@ -34,6 +37,7 @@ export interface ParticlesDemo {
   kind: "particles";
   title: string;
   wasmSize: number;
+  wat: string;
   step: (n: number, dt: number) => void;
   applyGravity: (n: number, gx: number, gy: number) => void;
   bounce: (n: number, w: number, h: number) => void;
@@ -68,6 +72,7 @@ export async function runRealworldDemos(): Promise<RealworldDemo[]> {
       kind: "grayscale",
       title: "Image Grayscale + Brightness",
       wasmSize: g.binary.length,
+      wat: g.binary.wat,
       grayscale: g.grayscale,
       brightness: g.brightness,
       setPixels: g.setPixels,
@@ -77,6 +82,7 @@ export async function runRealworldDemos(): Promise<RealworldDemo[]> {
       kind: "game-of-life",
       title: "Conway's Game of Life",
       wasmSize: gol.binary.length,
+      wat: gol.binary.wat,
       step: gol.step,
       getCell: gol.getCell,
       setGrid: gol.setGrid,
@@ -86,12 +92,14 @@ export async function runRealworldDemos(): Promise<RealworldDemo[]> {
       kind: "crc32",
       title: "CRC32 Checksum",
       wasmSize: c.binary.length,
+      wat: c.binary.wat,
       compute: c.compute,
     },
     {
       kind: "particles",
       title: "2D Particle Simulation",
       wasmSize: p.binary.length,
+      wat: p.binary.wat,
       step: p.step,
       applyGravity: p.applyGravity,
       bounce: p.bounce,

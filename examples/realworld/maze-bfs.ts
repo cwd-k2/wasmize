@@ -1,4 +1,5 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Loc, Meta, Queue } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl, Loc, Meta, Queue } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 import { instantiate } from "@/test-helpers";
 
 // Grid maze shortest path via BFS
@@ -14,7 +15,7 @@ type Exports = {
 };
 
 function mazeBfsWasm() {
-  return compile<Exports>(function* () {
+  return compileWithWat<Exports>(function* () {
     yield* Mod.memory(10);
 
     yield* Mod.exportFunc(

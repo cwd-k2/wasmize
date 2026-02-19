@@ -4,7 +4,7 @@ import {
   type GameOfLifeDemo,
   type CRC32Demo,
   type ParticlesDemo,
-} from "../realworld-runner";
+} from "../src/realworld-runner";
 
 export async function renderRealworld(): Promise<void> {
   const demos = await runRealworldDemos();
@@ -18,9 +18,22 @@ export async function renderRealworld(): Promise<void> {
     header.className = "demo-header";
     header.innerHTML = `
       <span class="demo-title">${demo.title}</span>
-      <span class="demo-size">${demo.wasmSize} bytes</span>
+      <span class="demo-header-right">
+        <button class="wat-toggle">WAT</button>
+        <span class="demo-size">${demo.wasmSize} bytes</span>
+      </span>
     `;
     card.appendChild(header);
+
+    const watSection = document.createElement("div");
+    watSection.className = "wat-section";
+    watSection.innerHTML = `<pre class="wat-code">${demo.wat}</pre>`;
+    card.appendChild(watSection);
+
+    header.querySelector(".wat-toggle")!.addEventListener("click", (e) => {
+      e.stopPropagation();
+      watSection.classList.toggle("open");
+    });
 
     const body = document.createElement("div");
     body.className = "demo-body";

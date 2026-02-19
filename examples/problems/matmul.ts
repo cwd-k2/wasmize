@@ -1,7 +1,8 @@
-import { compile, local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem8_matmul() {
-  return compile<{ matmul: (n: number) => number }>(function* () {
+  return compileWithWat<{ matmul: (n: number) => number }>(function* () {
     yield* Mod.memory(2);
 
     yield* Mod.exportFunc("matmul", { n: Type.i32 }, function* (n) {

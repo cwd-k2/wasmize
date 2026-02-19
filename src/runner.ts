@@ -31,6 +31,7 @@ export interface ProblemResult {
   effects?: string;
   detail: string;
   wasmSize: number;
+  wat: string;
   tests: TestCase[];
 }
 
@@ -50,6 +51,7 @@ export async function runTests(): Promise<ProblemResult[]> {
       output: `hanoi(4) = ${count} moves`,
       detail: `Expected 2^4-1=15 moves. Got ${count}.`,
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: [{ input: "hanoi(4, 1, 3, 2)", expected: 15, got: count }],
     });
   }
@@ -76,6 +78,7 @@ export async function runTests(): Promise<ProblemResult[]> {
       output: cases.map(([n], i) => `fib(${n}) = ${got[i]}`).join("\n"),
       detail: pass ? "All test cases passed." : "Some test cases failed.",
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: cases.map(([n, expected], i) => ({
         input: `fib(${n})`,
         expected,
@@ -114,6 +117,7 @@ export async function runTests(): Promise<ProblemResult[]> {
         .join("\n"),
       detail: pass ? "All test cases passed." : "Some cases failed.",
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: testCases.map((tc, i) => ({
         input: `kadane([${tc.arr}])`,
         expected: tc.expected,
@@ -157,6 +161,7 @@ export async function runTests(): Promise<ProblemResult[]> {
         .join("\n"),
       detail: pass ? "All test cases passed." : "Some cases failed.",
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: testCases.map((tc, i) => ({
         input: `coin_change(${tc.amount}, [${tc.coins}])`,
         expected: tc.expected,
@@ -201,6 +206,7 @@ export async function runTests(): Promise<ProblemResult[]> {
           .join("\n"),
       detail: pass ? "All test cases passed." : "Some cases failed.",
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: testCases.map((tc, i) => ({
         input: `binary_search(${tc.target})`,
         expected: tc.expected,
@@ -234,6 +240,7 @@ export async function runTests(): Promise<ProblemResult[]> {
       output: testCases.map((tc, i) => `gcd([${tc.arr}]) = ${got[i]}`).join("\n"),
       detail: pass ? "All test cases passed." : "Some cases failed.",
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: testCases.map((tc, i) => ({
         input: `array_gcd([${tc.arr}])`,
         expected: tc.expected,
@@ -256,6 +263,7 @@ export async function runTests(): Promise<ProblemResult[]> {
       output: cases.map(([n], i) => `sieve(${n}) = ${got[i]} primes`).join("\n"),
       detail: pass ? "All test cases passed." : "Some cases failed.",
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: cases.map(([n, expected], i) => ({
         input: `sieve(${n})`,
         expected,
@@ -283,6 +291,7 @@ export async function runTests(): Promise<ProblemResult[]> {
       output: `matmul(3): C[0][0] = ${c00}`,
       detail: pass ? "C[0][0] = 30 as expected." : `Expected 30, got ${c00}.`,
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: [{ input: "matmul(3)", expected: 30, got: c00 }],
     });
   }
@@ -311,6 +320,7 @@ export async function runTests(): Promise<ProblemResult[]> {
       output: testCases.map((tc, i) => `lcs([${tc.a}], [${tc.b}]) = ${got[i]}`).join("\n"),
       detail: pass ? "All test cases passed." : "Some cases failed.",
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: testCases.map((tc, i) => ({
         input: `lcs([${tc.a}], [${tc.b}])`,
         expected: tc.expected,
@@ -338,6 +348,7 @@ export async function runTests(): Promise<ProblemResult[]> {
       output: `knapsack(4 items, cap=5) = ${got}`,
       detail: pass ? "Max value 7 as expected." : `Expected 7, got ${got}.`,
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: [{ input: "knapsack(4, 5)", expected: 7, got }],
     });
   }
@@ -359,6 +370,7 @@ export async function runTests(): Promise<ProblemResult[]> {
       output: `quicksort([${arr}]) = [${sorted}]`,
       detail: pass ? "Correctly sorted." : "Sort result incorrect.",
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: [{ input: `quicksort([${arr}])`, expected: 12345678, got: Number(sorted.join("")) }],
     });
   }
@@ -379,6 +391,7 @@ export async function runTests(): Promise<ProblemResult[]> {
       output: `flood_fill(3×3, all 1s) = ${got} cells`,
       detail: pass ? "All 9 cells filled." : `Expected 9, got ${got}.`,
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: [{ input: "flood_fill(3,3,1,1,1,2)", expected: 9, got }],
     });
   }
@@ -406,6 +419,7 @@ export async function runTests(): Promise<ProblemResult[]> {
       output: testCases.map((tc, i) => `lis([${tc.arr}]) = ${got[i]}`).join("\n"),
       detail: pass ? "All test cases passed." : "Some cases failed.",
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: testCases.map((tc, i) => ({
         input: `lis([${tc.arr}])`,
         expected: tc.expected,
@@ -428,6 +442,7 @@ export async function runTests(): Promise<ProblemResult[]> {
       output: cases.map(([n], i) => `nqueens(${n}) = ${got[i]}`).join("\n"),
       detail: pass ? "All test cases passed." : "Some cases failed.",
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: cases.map(([n, expected], i) => ({
         input: `nqueens(${n})`,
         expected,
@@ -456,6 +471,7 @@ export async function runTests(): Promise<ProblemResult[]> {
       output: `init(5), union(0,1), union(2,3), union(0,2) → count=${count}`,
       detail: pass ? "Count=2, find(0)==find(3) as expected." : "Union-Find check failed.",
       wasmSize: wasm.length,
+      wat: wasm.wat,
       tests: [{ input: "uf_count() after 3 unions on 5 elements", expected: 2, got: count }],
     });
   }

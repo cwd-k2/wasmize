@@ -268,3 +268,46 @@ pre {
   color: var(--accent);
   font-weight: 700;
 }
+
+/* WAT display */
+
+.wat-code {
+  color: var(--dim);
+  font-size: 0.7rem;
+  max-height: 300px;
+  overflow-y: auto;
+  white-space: pre;
+  word-break: normal;
+}
+
+.wat-toggle {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  padding: 0.15rem 0.5rem;
+  background: var(--bg);
+  color: var(--accent3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.wat-toggle:hover {
+  border-color: var(--accent3);
+}
+
+.demo-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.wat-section {
+  display: none;
+  padding: 0 1rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.wat-section.open {
+  display: block;
+}

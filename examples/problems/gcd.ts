@@ -1,7 +1,8 @@
-import { compile, local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem6_gcd_array() {
-  return compile<{ array_gcd: (len: number) => number }>(function* () {
+  return compileWithWat<{ array_gcd: (len: number) => number }>(function* () {
     yield* Mod.memory(1);
     const arr = Mem.i32Array();
 

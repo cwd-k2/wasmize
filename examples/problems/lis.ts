@@ -1,9 +1,10 @@
-import { compile, local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem13_lis() {
   const TAILS_BASE = 65536;
 
-  return compile<{ lis: (len: number) => number }>(function* () {
+  return compileWithWat<{ lis: (len: number) => number }>(function* () {
     yield* Mod.memory(2);
     const input = Mem.i32Array();
     const tails = Mem.i32Array(TAILS_BASE);

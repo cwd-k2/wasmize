@@ -1,11 +1,12 @@
-import { compile, local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem15_union_find() {
   const PARENT_BASE = 0;
   const RANK_BASE = 32768;
   const COUNT_ADDR = 65532;
 
-  return compile<{
+  return compileWithWat<{
     uf_init: (n: number) => void;
     uf_union: (u: number, v: number) => void;
     uf_find: (x: number) => number;

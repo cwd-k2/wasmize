@@ -1,4 +1,4 @@
-import { runTests } from "../runner";
+import { runTests } from "../src/runner";
 
 export async function main(): Promise<void> {
   const results = await runTests();
@@ -29,6 +29,8 @@ export async function main(): Promise<void> {
           .join("\n")}</pre>
         <div class="section-label">Details</div>
         <pre class="comment">${r.detail}</pre>
+        <div class="section-label">Generated WAT</div>
+        <pre class="wat-code">${r.wat}</pre>
         <div class="stats">
           Wasm binary: <span>${r.wasmSize} bytes</span>
           &nbsp;|&nbsp; Tests: <span>${r.tests.filter((t) => t.got === t.expected).length}/${r.tests.length}</span>

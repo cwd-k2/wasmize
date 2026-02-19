@@ -1,7 +1,8 @@
-import { compile, local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem11_quicksort() {
-  return compile<{ quicksort: (lo: number, hi: number) => void }>(function* () {
+  return compileWithWat<{ quicksort: (lo: number, hi: number) => void }>(function* () {
     yield* Mod.memory(1);
     const arr = Mem.i32Array();
 

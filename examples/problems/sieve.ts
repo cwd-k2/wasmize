@@ -1,7 +1,8 @@
-import { compile, local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem7_sieve() {
-  return compile<{ sieve: (n: number) => number }>(function* () {
+  return compileWithWat<{ sieve: (n: number) => number }>(function* () {
     yield* Mod.memory(2);
 
     yield* Mod.exportFunc("sieve", { n: Type.i32 }, function* (n) {

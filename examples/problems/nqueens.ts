@@ -1,7 +1,8 @@
-import { compile, local, i32, Type, Mod, Ctrl } from "@/dsl/compiler";
+import { local, i32, Type, Mod, Ctrl } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem14_nqueens() {
-  return compile<{ nqueens: (n: number) => number }>(function* () {
+  return compileWithWat<{ nqueens: (n: number) => number }>(function* () {
     yield* Mod.memory(1);
 
     // solve(n, row, cols, diag1, diag2) -> count of solutions

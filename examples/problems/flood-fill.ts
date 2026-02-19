@@ -1,7 +1,8 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Queue } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl, Queue } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem12_flood_fill() {
-  return compile<{
+  return compileWithWat<{
     flood_fill: (W: number, H: number, sx: number, sy: number, target: number, fill: number) => number;
   }>(function* () {
     yield* Mod.memory(4);

@@ -1,10 +1,11 @@
-import { compile, local, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
+import { local, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem4_coin_change() {
   const COIN_BASE = 2048;
   const INF = 0x7fffffff;
 
-  return compile<{ coin_change: (amount: number, numCoins: number) => number }>(function* () {
+  return compileWithWat<{ coin_change: (amount: number, numCoins: number) => number }>(function* () {
     yield* Mod.memory(2);
     const dp = Mem.i32Array();
     const coins = Mem.i32Array(COIN_BASE);

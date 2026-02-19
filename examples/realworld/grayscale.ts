@@ -1,4 +1,5 @@
-import { compile, local, Type, Mod, Ctrl, Op, Meta, RGBA } from "@/dsl/compiler";
+import { local, Type, Mod, Ctrl, Op, Meta, RGBA } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 import { instantiate } from "@/test-helpers";
 
 // RGBA pixel processing: grayscale conversion + brightness adjustment
@@ -11,7 +12,7 @@ type Exports = {
 };
 
 function grayscaleWasm() {
-  return compile<Exports>(function* () {
+  return compileWithWat<Exports>(function* () {
     yield* Mod.memory(1);
 
     // grayscale: ITU-R BT.601 整数近似 gray = (77*R + 150*G + 29*B) >> 8

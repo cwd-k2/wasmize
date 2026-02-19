@@ -1,4 +1,5 @@
-import { compile, local, Type, Mod, Ctrl } from "@/dsl/compiler";
+import { local, Type, Mod, Ctrl } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 import { Struct, BumpAllocator } from "@/dsl/primitives";
 import { f64 } from "@/dsl/primitives";
 import { instantiate } from "@/test-helpers";
@@ -20,7 +21,7 @@ function particlesWasm() {
   const alloc = new BumpAllocator();
   const particles = Particle.array(alloc, MAX_PARTICLES);
 
-  const binary = compile<Exports>(function* () {
+  const binary = compileWithWat<Exports>(function* () {
     yield* Mod.memory(Math.max(alloc.requiredPages, 1));
 
     // step: x += vx*dt, y += vy*dt

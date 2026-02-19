@@ -1,4 +1,5 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Meta } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl, Meta } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 import type { WasmRef } from "@/dsl/types";
 import { instantiate } from "@/test-helpers";
 
@@ -11,7 +12,7 @@ type Exports = {
 };
 
 function gameOfLifeWasm() {
-  return compile<Exports>(function* () {
+  return compileWithWat<Exports>(function* () {
     yield* Mod.memory(2);
 
     yield* Mod.exportFunc(

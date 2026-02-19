@@ -1,4 +1,5 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Op, Meta, RGBA } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl, Op, Meta, RGBA } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 import { instantiate } from "@/test-helpers";
 
 // Histogram equalization for RGBA images
@@ -24,7 +25,7 @@ type Exports = {
 };
 
 function histogramEqualizationWasm() {
-  return compile<Exports>(function* () {
+  return compileWithWat<Exports>(function* () {
     yield* Mod.memory(4);
 
     const hist = Mem.i32Array(HIST_BASE);

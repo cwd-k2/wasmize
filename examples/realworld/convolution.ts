@@ -1,4 +1,5 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Meta, RGBA } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl, Meta, RGBA } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 import { instantiate } from "@/test-helpers";
 
 // 3x3 Image Convolution: blur, sharpen, edge detection
@@ -28,7 +29,7 @@ const KERNEL_OFFSETS = [
 ];
 
 function convolutionWasm(kernel: number[]) {
-  return compile<Exports>(function* () {
+  return compileWithWat<Exports>(function* () {
     yield* Mod.memory(4); // 2 pages input + 2 pages output
 
     yield* Mod.exportFunc(

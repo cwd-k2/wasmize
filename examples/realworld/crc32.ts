@@ -1,4 +1,5 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Op } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl, Op } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 import { instantiate } from "@/test-helpers";
 
 // CRC32 checksum using lookup table embedded via Mod.data()
@@ -27,7 +28,7 @@ function generateCRC32Table(): Uint8Array {
 function crc32Wasm() {
   const tableBytes = generateCRC32Table();
 
-  return compile<Exports>(function* () {
+  return compileWithWat<Exports>(function* () {
     yield* Mod.memory(1);
     yield* Mod.data(TABLE_OFFSET, tableBytes);
 

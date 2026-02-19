@@ -1,11 +1,12 @@
-import { compile, local, Type, Mod, Op, Ctrl, Mem } from "@/dsl/compiler";
+import { local, Type, Mod, Op, Ctrl, Mem } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem9_lcs() {
   const A_BASE = 0;
   const B_BASE = 1024;
   const DP_BASE = 2048;
 
-  return compile<{ lcs: (la: number, lb: number) => number }>(function* () {
+  return compileWithWat<{ lcs: (la: number, lb: number) => number }>(function* () {
     yield* Mod.memory(5);
     const a = Mem.i32Array(A_BASE);
     const b = Mem.i32Array(B_BASE);

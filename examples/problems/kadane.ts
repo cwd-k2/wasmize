@@ -1,8 +1,9 @@
-import { compile, local, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
+import { local, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem3_kadane() {
   const BASE = 1024;
-  return compile<{ kadane: (len: number) => number }>(function* () {
+  return compileWithWat<{ kadane: (len: number) => number }>(function* () {
     yield* Mod.memory(2);
     const arr = Mem.i32Array(BASE);
 

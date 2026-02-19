@@ -1,7 +1,8 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Loc } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl, Loc } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem5_binary_search() {
-  return compile<{
+  return compileWithWat<{
     binary_search: (len: number, target: number) => number;
     search_batch: (len: number, tbase: number, tcount: number) => number;
   }>(function* () {

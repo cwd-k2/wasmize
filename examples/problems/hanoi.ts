@@ -1,7 +1,8 @@
-import { compile, local, Type, Mod, Ctrl } from "@/dsl/compiler";
+import { local, Type, Mod, Ctrl } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem1_hanoi() {
-  return compile<{ hanoi: (n: number, from: number, to: number, aux: number) => number }>(function* () {
+  return compileWithWat<{ hanoi: (n: number, from: number, to: number, aux: number) => number }>(function* () {
     const hanoi = yield* Mod.recursive(
       { n: Type.i32, from: Type.i32, to: Type.i32, aux: Type.i32 },
       function* (self, n, from, to, aux) {

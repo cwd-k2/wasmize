@@ -1,4 +1,5 @@
-import { compile, local, Type, Mod, Ctrl, Meta, RGBA } from "@/dsl/compiler";
+import { local, Type, Mod, Ctrl, Meta, RGBA } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 import { instantiate } from "@/test-helpers";
 
 // Sepia tone color matrix transformation
@@ -25,7 +26,7 @@ const SEPIA_MATRIX = [
 ];
 
 function sepiaWasm() {
-  return compile<Exports>(function* () {
+  return compileWithWat<Exports>(function* () {
     yield* Mod.memory(1);
 
     yield* Mod.exportFunc(

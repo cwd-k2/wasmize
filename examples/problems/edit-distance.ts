@@ -1,4 +1,5 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Op } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl, Op } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 // Levenshtein edit distance via 2D DP table
 // Memory layout: A at offset 0 (i32 array), B at offset 4096, DP at offset 8192
@@ -9,7 +10,7 @@ const B_BASE = 4096;
 const DP_BASE = 8192;
 
 export function problem16_edit_distance() {
-  return compile<{ editDistance: (la: number, lb: number) => number }>(function* () {
+  return compileWithWat<{ editDistance: (la: number, lb: number) => number }>(function* () {
     yield* Mod.memory(10);
     const a = Mem.i32Array(A_BASE);
     const b = Mem.i32Array(B_BASE);

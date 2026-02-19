@@ -1,7 +1,8 @@
-import { compile, local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem2_fib_dp() {
-  return compile<{ fib: (n: number) => number }>(function* () {
+  return compileWithWat<{ fib: (n: number) => number }>(function* () {
     const arr = Mem.i32Array();
 
     yield* Mod.exportFunc("fib", { n: Type.i32 }, function* (n) {

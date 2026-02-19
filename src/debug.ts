@@ -56,6 +56,19 @@ export function inspectIR(
 }
 
 /**
+ * Compiles a program and returns binary with WAT attached.
+ */
+export function compileWithWat<T>(
+  program: WasmProgram,
+  options?: { optimize?: boolean },
+): WasmBinary<T> & { wat: string } {
+  const binary = compile<T>(program, options);
+  const { funcs, moduleOptions } = compileToIR(program, options);
+  const wat = moduleToWAT(funcs, moduleOptions);
+  return Object.assign(binary, { wat }) as WasmBinary<T> & { wat: string };
+}
+
+/**
  * Compiles a program and returns binary, IR, and WAT together.
  */
 export function compileWithMetadata(

@@ -1,4 +1,5 @@
-import { compile, local, Type, Mod, Mem, Ctrl, Meta, RGBA } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl, Meta, RGBA } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 import { instantiate } from "@/test-helpers";
 
 // 256-bucket grayscale histogram + cumulative distribution function (CDF)
@@ -21,7 +22,7 @@ type Exports = {
 };
 
 function histogramWasm() {
-  return compile<Exports>(function* () {
+  return compileWithWat<Exports>(function* () {
     yield* Mod.memory(2);
 
     const hist = Mem.i32Array(HIST_OFFSET);

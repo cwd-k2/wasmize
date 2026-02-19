@@ -1,11 +1,12 @@
-import { compile, local, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
+import { local, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 
 export function problem10_knapsack() {
   const W_BASE = 0;
   const V_BASE = 4096;
   const DP_BASE = 8192;
 
-  return compile<{ knapsack: (n: number, W: number) => number }>(function* () {
+  return compileWithWat<{ knapsack: (n: number, W: number) => number }>(function* () {
     yield* Mod.memory(4);
     const weights = Mem.i32Array(W_BASE);
     const values = Mem.i32Array(V_BASE);

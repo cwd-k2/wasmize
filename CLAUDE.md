@@ -37,8 +37,7 @@ src/                    # ライブラリ（@ エイリアスで import 可能�
   worker-pool.ts        # WorkerPool（並列 Wasm 実行）
   bench.ts              # ベンチマークハーネス
   marshal.ts            # JS ↔ Wasm メモリ転送
-  debug.ts              # IR 可視化・メタデータ
-  ui/                   # ブラウザ UI（renderer + styles + realworld デモ）
+  debug.ts              # IR 可視化・メタデータ・compileWithWat
   test-helpers.ts       # instantiate() ヘルパ（WasmBinary<T> → typed exports）
   runner.ts             # 全問題の実行・検証
   realworld-runner.ts   # Realworld デモの実行・UI データ生成
@@ -49,6 +48,7 @@ examples/               # 実例・アルゴリズム実装
   layer2/               # Layer 2: wasmize() による宣言的モジュール
   advanced/             # 高度機能（Struct, stdlib sort, bench）
   realworld/            # 実用ユースケース（画像処理, Game of Life, CRC32, 粒子シミュレーション, 畳み込み, セピア, ヒストグラム, Erode/Dilate, Maze BFS, ヒストグラム均等化）
+ui/                     # ブラウザ UI（renderer + styles + realworld デモ）
 e2e/                    # Playwright E2E テスト
 bench/                  # パフォーマンスベンチマーク
 docs/                   # 技術ドキュメント

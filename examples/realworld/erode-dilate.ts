@@ -1,4 +1,5 @@
-import { compile, local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { compileWithWat } from "@/debug";
 import { instantiate } from "@/test-helpers";
 
 // Binary morphology: erode and dilate on byte grids (0/1 values)
@@ -22,7 +23,7 @@ const KERNEL_3X3 = [
 ];
 
 function erodeDilateWasm() {
-  return compile<Exports>(function* () {
+  return compileWithWat<Exports>(function* () {
     yield* Mod.memory(4);
 
     // Erode: all 9 cells in 3x3 must be 1
