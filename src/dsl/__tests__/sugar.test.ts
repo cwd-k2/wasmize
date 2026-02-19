@@ -120,18 +120,17 @@ describe("Mem.i32Array2D", () => {
 });
 
 describe("Ctrl.switch", () => {
-  test("dispatches to correct case", async () => {
+  test("dispatches to correct case (dense br_table)", async () => {
     const binary = compile(function* () {
       yield* Mod.memory(1);
       const fn = yield* Mod.func(function* () {
         const dir = yield* param(Type.i32);
         const result = yield* local(Type.i32, 0);
-        yield* Ctrl.switch(dir, [
-          [0, function* () { yield* result.set(10); }],
-          [1, function* () { yield* result.set(20); }],
-          [2, function* () { yield* result.set(30); }],
-          [3, function* () { yield* result.set(40); }],
-        ]);
+        yield* Ctrl.switch(dir)
+          .case(0, function* () { yield* result.set(10); })
+          .case(1, function* () { yield* result.set(20); })
+          .case(2, function* () { yield* result.set(30); })
+          .case(3, function* () { yield* result.set(40); });
         return yield* Loc.get(result);
       });
       yield* Mod.export("dispatch", fn);
@@ -144,20 +143,16 @@ describe("Ctrl.switch", () => {
     expect(d(3)).toBe(40);
   });
 
-  test("br_table: dense cases with default", async () => {
+  test("dense cases with default", async () => {
     const binary = compile(function* () {
       const fn = yield* Mod.func(function* () {
         const x = yield* param(Type.i32);
         const result = yield* local(Type.i32, 0);
-        yield* Ctrl.switch(
-          x,
-          [
-            [10, function* () { yield* result.set(100); }],
-            [11, function* () { yield* result.set(110); }],
-            [12, function* () { yield* result.set(120); }],
-          ],
-          function* () { yield* result.set(-1); },
-        );
+        yield* Ctrl.switch(x)
+          .case(10, function* () { yield* result.set(100); })
+          .case(11, function* () { yield* result.set(110); })
+          .case(12, function* () { yield* result.set(120); })
+          .default(function* () { yield* result.set(-1); });
         return yield* Loc.get(result);
       });
       yield* Mod.export("sw", fn);
@@ -171,16 +166,15 @@ describe("Ctrl.switch", () => {
     expect(f(13)).toBe(-1);
   });
 
-  test("br_table: dense non-zero-based without default", async () => {
+  test("dense non-zero-based without default", async () => {
     const binary = compile(function* () {
       const fn = yield* Mod.func(function* () {
         const x = yield* param(Type.i32);
         const result = yield* local(Type.i32, 0);
-        yield* Ctrl.switch(x, [
-          [5, function* () { yield* result.set(50); }],
-          [6, function* () { yield* result.set(60); }],
-          [7, function* () { yield* result.set(70); }],
-        ]);
+        yield* Ctrl.switch(x)
+          .case(5, function* () { yield* result.set(50); })
+          .case(6, function* () { yield* result.set(60); })
+          .case(7, function* () { yield* result.set(70); });
         return yield* Loc.get(result);
       });
       yield* Mod.export("sw", fn);
@@ -193,19 +187,15 @@ describe("Ctrl.switch", () => {
     expect(f(4)).toBe(0); // no default, result stays 0
   });
 
-  test("falls through to default", async () => {
+  test("sparse cases fall through to default", async () => {
     const binary = compile(function* () {
       const fn = yield* Mod.func(function* () {
         const x = yield* param(Type.i32);
         const result = yield* local(Type.i32, -1);
-        yield* Ctrl.switch(
-          x,
-          [
-            [1, function* () { yield* result.set(100); }],
-            [2, function* () { yield* result.set(200); }],
-          ],
-          function* () { yield* result.set(999); },
-        );
+        yield* Ctrl.switch(x)
+          .case(1, function* () { yield* result.set(100); })
+          .case(2, function* () { yield* result.set(200); })
+          .default(function* () { yield* result.set(999); });
         return yield* Loc.get(result);
       });
       yield* Mod.export("sw", fn);
@@ -326,10 +316,10 @@ describe("array notation", () => {
       const fn = yield* Mod.func(function* () {
         const dir = yield* param(Type.i32);
         const result = yield* local(Type.i32, 0);
-        yield* Ctrl.switch(dir, [
-          [0, () => [result.set(10)]],
-          [1, () => [result.set(20)]],
-        ], () => [result.set(99)]);
+        yield* Ctrl.switch(dir)
+          .case(0, () => [result.set(10)])
+          .case(1, () => [result.set(20)])
+          .default(() => [result.set(99)]);
         return yield* Loc.get(result);
       });
       yield* Mod.export("run", fn);

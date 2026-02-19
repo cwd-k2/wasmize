@@ -44,7 +44,7 @@ docs/         # 技術ドキュメント
 - `compile<T>()` の型パラメータで export 関数のシグネチャを宣言。戻り値 `WasmBinary<T>` はファントム型
 - `instantiate()` ヘルパでインスタンス化。`const { exports: { fn }, mem } = await instantiate(problem())` パターン
 - ループ糖衣: `Ctrl.for(var, start, cond, step, body)`, `Ctrl.while(cond, body)`, `Ctrl.when(cond, body)`
-- 多方向分岐: `Ctrl.switch(expr, cases, default?)` — nested if/else に展開
+- 多方向分岐: `Ctrl.switch(expr).case(v, body).default(body)` — ビルダパターン、dense 時 br_table / sparse 時 if/else チェイン
 - 値選択: `Op.select(cond, a, b)` は Wasm `select` 命令、`Op.max(a, b)` / `Op.min(a, b)` は select ベース
 - 配列ヘルパ: `Mem.i32Array(base)` で `.mul(4)` を隠蔽、`.swap(i, j, tmp)` で要素交換、`.fill(start, end, value)` で一括初期化
 - 2D配列: `Mem.i32Array2D(base, cols)` で `.load(row, col)` / `.store(row, col, val)`

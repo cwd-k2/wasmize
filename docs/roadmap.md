@@ -428,7 +428,7 @@ export function problem7_sieve() {
 | **P4** | `Ctrl.when(cond, body)` | 20 箇所 | ~40 行 | 低 | DSL (namespaces) | ✅ 実装済 |
 | **P5** | `Op.select` / `Op.max` / `Op.min` | ~8 箇所 | ~30 行 | 低 | IR + codegen + DSL | ✅ 実装済 |
 | **P6** | `Mem.i32Array2D(base, cols)` | ~17 箇所 | ~20 行 | 低 | DSL (namespaces) | ✅ 実装済 |
-| **P7** | `Ctrl.switch(expr, cases)` | 2 箇所 | ~14 行 | 中 | DSL (namespaces) | ✅ 実装済 |
+| **P7** | `Ctrl.switch(expr).case().default()` | 2 箇所 | ~14 行 | 中 | DSL (namespaces) | ✅ 実装済 |
 | **P8** | `i32Array.swap(i, j, tmp)` | 2 箇所 | ~4 行 | 低 | DSL (namespaces) | ✅ 実装済 |
 | **P9** | `Mod.exportAll({...})` | 1 箇所 | ~3 行 | 低 | DSL (namespaces) | ✅ 実装済 |
 | **P10** | `Mod.recursive(self => body)` | 4 箇所 | ~8 行 | 中 | DSL (interpreter) | ✅ 実装済 |
@@ -472,9 +472,9 @@ Wasm の `select` 命令（branchless 三項選択）を IR → codegen → DSL 
 - **ファイル:** `src/dsl/namespaces.ts` に追加
 - **適用:** lcs（dpArr → dp 2D）, matmul（A 行列）
 
-### P7: `Ctrl.switch(expr, cases, default?)`
+### P7: `Ctrl.switch(expr).case(v, body).default(body)`
 
-多方向分岐を宣言的に記述。内部では nested if/else に展開（`br_table` は将来の最適化）。
+多方向分岐をビルダパターンで宣言的に記述。`SwitchBuilder` → `SwitchCaseBuilder` → `SwitchDefaultBuilder` の 3 クラス構成で、最低 1 つの `.case()` を型レベルで強制。Dense contiguous cases は `br_table` に最適化、sparse は if/else チェインにフォールバック。
 
 - **ファイル:** `src/dsl/namespaces.ts` に追加
 - **適用:** flood-fill（4方向分岐 22行 → 6行）

@@ -72,7 +72,7 @@ const { exports: { hanoi } } = await instantiate(problem1_hanoi(), {
 - `Op.select` — branchless 三項選択
 - `Op.max` / `Op.min` — 値の大小比較
 - `Mem.i32Array2D` — 2D 配列の load/store（base=0, base≠0）
-- `Ctrl.switch` — 多方向分岐 + default ケース
+- `Ctrl.switch` — 多方向分岐ビルダ（dense br_table / sparse if-else、default あり・なし）
 - `i32Array.swap` — 要素交換
 - `Mod.exportAll` — 一括 export
 

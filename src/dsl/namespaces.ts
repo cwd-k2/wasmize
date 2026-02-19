@@ -822,6 +822,127 @@ export const Mem = {
   },
 };
 
+// --- Switch builder ---
+
+/** Internal implementation: emits switch IR from pre-collected cases. */
+function switchImpl(
+  expr: ExprInput,
+  cases: { value: number; body: FuncBody<void> }[],
+  normalizedDefault?: FuncBody<void>,
+): FuncGen<void> {
+  // Dense check: at least 3 cases with contiguous integer values
+  if (cases.length >= 3) {
+    const vals = cases.map((c) => c.value);
+    const minVal = Math.min(...vals);
+    const maxVal = Math.max(...vals);
+    const isDense = maxVal - minVal + 1 === cases.length && new Set(vals).size === cases.length;
+
+    if (isDense) {
+      const sorted = [...cases].sort((a, b) => a.value - b.value);
+      const n = sorted.length;
+      const hasDefault = normalizedDefault != null;
+
+      return (function* () {
+        yield {
+          _type: "block" as const,
+          body: function* () {
+            const emitCases = function* (): Generator<FuncInstruction, void, any> {
+              const buildBlocks = (depth: number): FuncBody<void> => {
+                if (depth === n) {
+                  return function* () {
+                    const ve = yield* resolve(expr);
+                    const adjusted = minVal === 0 ? ve : yield* resolve(sub(ve, minVal));
+                    const labels = sorted.map((_, i) => n - 1 - i);
+                    yield {
+                      _type: "stmt" as const,
+                      node: IR.br_table(labels, n, adjusted._node),
+                    };
+                  };
+                }
+                const inner = buildBlocks(depth + 1);
+                return function* () {
+                  yield { _type: "block" as const, body: inner };
+                  yield* sorted[depth]!.body();
+                  yield { _type: "stmt" as const, node: IR.br(depth + (hasDefault ? 1 : 0)) };
+                };
+              };
+              yield* buildBlocks(0)();
+            };
+
+            if (hasDefault) {
+              yield {
+                _type: "block" as const,
+                body: function* () { yield* emitCases(); },
+              };
+              yield* normalizedDefault!();
+            } else {
+              yield* emitCases();
+            }
+          },
+        };
+      })();
+    }
+  }
+
+  // Sparse: fallback to if/else chain
+  return (function* () {
+    const buildChain = (i: number): FuncBody<void> | undefined => {
+      if (i >= cases.length) return normalizedDefault;
+      const c = cases[i]!;
+      const rest = buildChain(i + 1);
+      return function* () {
+        const ve = yield* resolve(expr);
+        const vc = yield* resolve(eq(ve, c.value));
+        yield {
+          _type: "if" as const,
+          cond: vc._node,
+          then_: c.body,
+          else_: rest,
+        };
+      };
+    };
+    const chain = buildChain(0);
+    if (chain) yield* chain();
+  })();
+}
+
+/** Initial switch builder. Requires at least one `.case()` call before execution. */
+export class SwitchBuilder {
+  constructor(private readonly _expr: ExprInput) {}
+  case(value: number, body: VoidBody): SwitchCaseBuilder {
+    return new SwitchCaseBuilder(this._expr, [{ value, body: toBody(body) }]);
+  }
+}
+
+/** Switch builder with one or more cases. Can add more `.case()` calls, chain `.default()`, or execute directly via `yield*`. */
+export class SwitchCaseBuilder {
+  constructor(
+    private readonly _expr: ExprInput,
+    private readonly _cases: { value: number; body: FuncBody<void> }[],
+  ) {}
+  case(value: number, body: VoidBody): SwitchCaseBuilder {
+    return new SwitchCaseBuilder(this._expr, [...this._cases, { value, body: toBody(body) }]);
+  }
+  default(body: VoidBody): SwitchDefaultBuilder {
+    return new SwitchDefaultBuilder(this._expr, this._cases, toBody(body));
+  }
+  [Symbol.iterator](): Generator<FuncInstruction, void, any> {
+    return switchImpl(this._expr, this._cases);
+  }
+}
+
+/** Terminal switch builder with a default case. Execute via `yield*`. */
+export class SwitchDefaultBuilder {
+  constructor(
+    private readonly _expr: ExprInput,
+    private readonly _cases: { value: number; body: FuncBody<void> }[],
+    private readonly _default: FuncBody<void>,
+  ) {}
+  [Symbol.iterator](): Generator<FuncInstruction, void, any> {
+    return switchImpl(this._expr, this._cases, this._default);
+  }
+}
+
 /** Control flow: branching, loops, blocks, and structured sugar. */
 export const Ctrl = {
   /** Starts a conditional branch. Chain with `.then()` and optionally `.else()`. */
@@ -927,118 +1048,9 @@ export const Ctrl = {
       };
     })();
   },
-  /**
-   * Multi-way switch. Dense contiguous cases use `br_table`; sparse cases fall back to if/else chain.
-   *
-   * @param expr - Value to match against
-   * @param cases - `[value, body]` pairs
-   * @param default_ - Optional default case body
-   */
-  switch(
-    expr: ExprInput,
-    cases: [number, VoidBody][],
-    default_?: VoidBody,
-  ): FuncGen<void> {
-    const normalizedDefault = default_ ? toBody(default_) : undefined;
-
-    // Dense check: at least 3 cases with contiguous integer values
-    if (cases.length >= 3) {
-      const vals = cases.map(([v]) => v);
-      const minVal = Math.min(...vals);
-      const maxVal = Math.max(...vals);
-      const isDense = maxVal - minVal + 1 === cases.length && new Set(vals).size === cases.length;
-
-      if (isDense) {
-        const sorted = cases
-          .map(([v, b]) => ({ v, b: toBody(b) }))
-          .sort((a, b) => a.v - b.v);
-        const n = sorted.length;
-        const hasDefault = normalizedDefault != null;
-
-        // Structure (outside-in):
-        //   block $exit
-        //     [block $default]        // only if hasDefault
-        //       block B0 (outermost case block)
-        //         block B1
-        //           ...
-        //             block B_{n-1} (innermost)
-        //               br_table
-        //             end             // sorted[n-1] body here
-        //             br $exit
-        //           end               // sorted[n-2] body here
-        //           br $exit
-        //         ...
-        //       end                   // sorted[0] body here
-        //       br $exit
-        //     [end]                   // default body here
-        //   end
-        //
-        // From br_table: depth 0 = B_{n-1}, depth k = B_{n-1-k}
-        // To reach sorted[v] body: br to B_{n-1-v} → depth = n-1-v
-
-        return (function* () {
-          yield {
-            _type: "block" as const,
-            body: function* () {
-              const emitCases = function* (): Generator<FuncInstruction, void, any> {
-                const buildBlocks = (depth: number): FuncBody<void> => {
-                  if (depth === n) {
-                    return function* () {
-                      const ve = yield* resolve(expr);
-                      const adjusted = minVal === 0 ? ve : yield* resolve(sub(ve, minVal));
-                      const labels = sorted.map((_, i) => n - 1 - i);
-                      yield {
-                        _type: "stmt" as const,
-                        node: IR.br_table(labels, n, adjusted._node),
-                      };
-                    };
-                  }
-                  const inner = buildBlocks(depth + 1);
-                  return function* () {
-                    yield { _type: "block" as const, body: inner };
-                    yield* sorted[depth]!.b();
-                    yield { _type: "stmt" as const, node: IR.br(depth + (hasDefault ? 1 : 0)) };
-                  };
-                };
-                yield* buildBlocks(0)();
-              };
-
-              if (hasDefault) {
-                yield {
-                  _type: "block" as const,
-                  body: function* () { yield* emitCases(); },
-                };
-                yield* normalizedDefault!();
-              } else {
-                yield* emitCases();
-              }
-            },
-          };
-        })();
-      }
-    }
-
-    // Sparse: fallback to if/else chain
-    return (function* () {
-      const buildChain = (i: number): FuncBody<void> | undefined => {
-        if (i >= cases.length) return normalizedDefault;
-        const [value, body] = cases[i]!;
-        const nb = toBody(body);
-        const rest = buildChain(i + 1);
-        return function* () {
-          const ve = yield* resolve(expr);
-          const vc = yield* resolve(eq(ve, value));
-          yield {
-            _type: "if" as const,
-            cond: vc._node,
-            then_: nb,
-            else_: rest,
-          };
-        };
-      };
-      const chain = buildChain(0);
-      if (chain) yield* chain();
-    })();
+  /** Multi-way switch builder. Chain with `.case()` and optionally `.default()`. */
+  switch(expr: ExprInput): SwitchBuilder {
+    return new SwitchBuilder(expr);
   },
   /** No-op instruction. */
   nop(): FuncGen<void> {

@@ -50,7 +50,7 @@ type WasmBinary<T> = Uint8Array & { readonly __exports?: T }
 |------|-----------|-----------|-----|
 | 式（pure） | No | `Op`, `Mem` | `Op.add()`, `Op.select()`, `Op.max()`, `Op.min()`, `Op.i64.add()`, `Op.f64.mul()`, `Op.wrap()`, `Op.toF64()`, `Mem.load()`, `Mem.i32()`, `Mem.i64()`, `Mem.f64()`, `Mem.loadI64()`, `Mem.loadF64()`, `Mem.size()`, `Mem.i32Array()`, `Mem.i32Array2D()` |
 | 文（statement） | Yes (`StmtInstruction`) | `Loc`, `Mem`, `Mod` | `Loc.set()`, `Mem.store()`, `Mem.storeI64()`, `Mem.storeF64()`, `Ctrl.br()`, `Mod.exportAll()` |
-| 制御フロー | Yes (compound) | `Ctrl` | `Ctrl.if()`, `Ctrl.loop()`, `Ctrl.block()`, `Ctrl.for()`, `Ctrl.while()`, `Ctrl.when()`, `Ctrl.switch()`, `Ctrl.unreachable()` |
+| 制御フロー | Yes (compound) | `Ctrl` | `Ctrl.if().then().else()`, `Ctrl.loop()`, `Ctrl.block()`, `Ctrl.for()`, `Ctrl.while()`, `Ctrl.when()`, `Ctrl.switch().case().default()`, `Ctrl.unreachable()` |
 
 ### 使用例
 

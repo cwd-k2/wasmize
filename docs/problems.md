@@ -400,7 +400,7 @@ Memory pages: 4。
 
 ### DSL の見どころ
 
-- `Ctrl.switch(d, [[0, ...], [1, ...], ...])` — 4方向分岐を宣言的に（nested if/else 22行 → 6行）
+- `Ctrl.switch(d).case(0, ...).case(1, ...)...` — 4方向分岐をビルダパターンで宣言的に（nested if/else 22行 → 6行）
 - `Ctrl.while(head.lt(tail), ...)` で BFS メインループ
 - `Ctrl.for` で 4 方向展開ループ
 - `Ctrl.when` で境界チェック + 塗りつぶし条件
