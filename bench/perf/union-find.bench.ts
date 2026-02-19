@@ -1,6 +1,6 @@
 import { bench, describe } from "vitest";
-import { problem15_union_find } from "../../src/problems/union-find";
-import { instantiate } from "../../src/test-helpers";
+import { problem15_union_find } from "../../examples/problems/union-find";
+import { instantiate } from "@/test-helpers";
 import { JsUnionFind } from "../js-impls";
 
 const N = 5_000;

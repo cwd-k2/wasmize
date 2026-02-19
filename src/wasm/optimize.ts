@@ -360,6 +360,9 @@ function optimizeNode(node: IRNode): IRNode {
     case "effect":
       return IR.effect(node.tag, optimizeNode(node.payload));
 
+    case "call_indirect":
+      return IR.call_indirect(node.typeIdx, node.tableIdx, node.args.map(optimizeNode), optimizeNode(node.indexExpr));
+
     // Leaf nodes — no children to optimize
     case "const_i32":
     case "const_i64":

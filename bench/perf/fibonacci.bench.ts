@@ -1,6 +1,6 @@
 import { bench, describe } from "vitest";
-import { problem2_fib_dp } from "../../src/problems/fibonacci";
-import { instantiate } from "../../src/test-helpers";
+import { problem2_fib_dp } from "../../examples/problems/fibonacci";
+import { instantiate } from "@/test-helpers";
 import { jsFib } from "../js-impls";
 
 const N = 35;

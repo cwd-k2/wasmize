@@ -2,7 +2,7 @@
 
 ## ユニットテスト（vitest）
 
-**設定:** `vite.config.ts` — `test.include: ["src/**/__tests__/**/*.test.ts"]`
+**設定:** `vite.config.ts` — `test.include: ["src/**/__tests__/**/*.test.ts", "bench/**/*.test.ts", "examples/**/__tests__/**/*.test.ts"]`
 
 ```bash
 npm run test       # 全テスト実行（vitest run）
@@ -10,12 +10,12 @@ npm run test       # 全テスト実行（vitest run）
 
 ### テストパターン
 
-各問題のテストは `src/problems/__tests__/` に配置され、共通のパターンに従います:
+各問題のテストは `examples/problems/__tests__/` に配置され、共通のパターンに従います:
 
 ```typescript
 import { describe, test, expect } from "vitest";
 import { problemN_xxx } from "../xxx";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "@/test-helpers";
 
 describe("Problem Name", () => {
   test.each([
@@ -76,6 +76,32 @@ const { exports: { hanoi } } = await instantiate(problem1_hanoi(), {
 - `i32Array.swap` — 要素交換
 - `Mod.exportAll` — 一括 export
 
+### 追加テストカテゴリ
+
+| テストファイル | 内容 |
+|---------------|------|
+| `src/dsl/__tests__/allocator.test.ts` | BumpAllocator のオフセット・アラインメント・ページ計算 |
+| `src/dsl/__tests__/struct.test.ts` | Struct フィールドレイアウト・load/store・StructArray |
+| `src/dsl/__tests__/string.test.ts` | 文字列埋め込み・strlen・比較 |
+| `src/dsl/__tests__/data-segment.test.ts` | Data Segment 初期化・読み出し |
+| `src/dsl/__tests__/call-indirect.test.ts` | 関数テーブル・間接呼び出し |
+| `src/dsl/__tests__/bounds.test.ts` | デバッグモード境界チェック |
+| `src/dsl/__tests__/import-group.test.ts` | `Mod.importGroup()` 一括インポート |
+| `src/wasm/__tests__/wat.test.ts` | WAT 出力の正確性 |
+| `src/__tests__/marshal.test.ts` | JS ↔ Wasm データ転送 |
+| `src/__tests__/inline.test.ts` | wasmFunc() Layer 3 API |
+| `src/__tests__/declarative.test.ts` | wasmize() Layer 2 API |
+| `src/__tests__/debug.test.ts` | IR 可視化・メタデータ |
+| `src/__tests__/async-bridge.test.ts` | Effect → Async 変換 |
+| `src/__tests__/worker-pool.test.ts` | 並列 Wasm 実行 |
+| `src/__tests__/bench.test.ts` | ベンチマークハーネス |
+| `src/stdlib/__tests__/mem.test.ts` | memcpy/memset/memcmp |
+| `src/stdlib/__tests__/math.test.ts` | pow/clamp/abs/lerp |
+| `src/stdlib/__tests__/sort.test.ts` | sortI32/sortWith |
+| `examples/__tests__/layer3.test.ts` | Layer 3 使用例（fibonacci, gcd） |
+| `examples/__tests__/layer2.test.ts` | Layer 2 使用例（kadane, binary-search, array-stats） |
+| `examples/__tests__/advanced.test.ts` | 高度機能使用例（struct, stdlib sort, bench） |
+
 ---
 
 ## E2E テスト（Playwright）
@@ -105,10 +131,10 @@ npm run test:e2e   # Playwright E2E テスト
 
 ### 1. 問題ファイルを作成
 
-`src/problems/new-problem.ts`:
+`examples/problems/new-problem.ts`:
 
 ```typescript
-import { compile, local, Type, Mod, Mem, Ctrl } from "../dsl/compiler";
+import { compile, local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 
 export function problem16_xxx() {
   return compile<{ func_name: (n: number) => number }>(function* () {
@@ -129,7 +155,7 @@ export function problem16_xxx() {
 
 ### 2. index.ts に追加
 
-`src/problems/index.ts`:
+`examples/problems/index.ts`:
 
 ```typescript
 export { problem16_xxx } from "./new-problem";
@@ -137,12 +163,12 @@ export { problem16_xxx } from "./new-problem";
 
 ### 3. テストを追加
 
-`src/problems/__tests__/new-problem.test.ts`:
+`examples/problems/__tests__/new-problem.test.ts`:
 
 ```typescript
 import { describe, test, expect } from "vitest";
 import { problem16_xxx } from "../new-problem";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "@/test-helpers";
 
 describe("New Problem", () => {
   test.each([

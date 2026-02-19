@@ -374,5 +374,12 @@ export function emitIR(enc: WasmEncoder, node: IRNode | undefined): void {
       enc.i32(-1);
       enc.byte(OP.return_);
       break;
+    case "call_indirect":
+      (node.args || []).forEach((a) => emitIR(enc, a));
+      emitIR(enc, node.indexExpr);
+      enc.byte(OP.call_indirect);
+      enc.u32(node.typeIdx);
+      enc.u32(node.tableIdx);
+      break;
   }
 }

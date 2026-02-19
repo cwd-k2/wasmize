@@ -1,6 +1,6 @@
 import { bench, describe } from "vitest";
-import { problem6_gcd_array } from "../../src/problems/gcd";
-import { instantiate } from "../../src/test-helpers";
+import { problem6_gcd_array } from "../../examples/problems/gcd";
+import { instantiate } from "@/test-helpers";
 import { jsGcdArray } from "../js-impls";
 
 const LEN = 10_000;

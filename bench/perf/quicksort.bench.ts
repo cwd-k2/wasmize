@@ -1,6 +1,6 @@
 import { bench, describe } from "vitest";
-import { problem11_quicksort } from "../../src/problems/quicksort";
-import { instantiate } from "../../src/test-helpers";
+import { problem11_quicksort } from "../../examples/problems/quicksort";
+import { instantiate } from "@/test-helpers";
 import { jsQuicksort } from "../js-impls";
 
 const LEN = 10_000;

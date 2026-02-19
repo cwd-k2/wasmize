@@ -1,6 +1,6 @@
 import { bench, describe } from "vitest";
-import { problem3_kadane } from "../../src/problems/kadane";
-import { instantiate } from "../../src/test-helpers";
+import { problem3_kadane } from "../../examples/problems/kadane";
+import { instantiate } from "@/test-helpers";
 import { jsKadane } from "../js-impls";
 
 const LEN = 10_000;

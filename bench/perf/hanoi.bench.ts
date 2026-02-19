@@ -1,6 +1,6 @@
 import { bench, describe } from "vitest";
-import { problem1_hanoi } from "../../src/problems/hanoi";
-import { instantiate } from "../../src/test-helpers";
+import { problem1_hanoi } from "../../examples/problems/hanoi";
+import { instantiate } from "@/test-helpers";
 import { jsHanoi } from "../js-impls";
 
 const N = 20;

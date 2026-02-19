@@ -245,6 +245,17 @@ export function globalRef(idx: number, type: WasmValType, mutable: boolean): Glo
   return { _tag: "global", _idx: idx, _type: type, _mutable: mutable };
 }
 
+// --- Data segment ---
+
+/**
+ * A data segment that initializes linear memory at module load time.
+ * `offset` is the byte address; `init` is the raw byte payload.
+ */
+export interface DataSegment {
+  readonly offset: number;
+  readonly init: Uint8Array;
+}
+
 // --- Module-level instructions ---
 
 /**
@@ -262,4 +273,6 @@ export type ModuleInstruction =
   | { _type: "func"; body: FuncBody<FuncReturn> }
   | { _type: "export"; name: string; ref: FuncRef }
   | { _type: "memory"; pages: number }
-  | { _type: "global"; valType: WasmValType; init: number; mutable: boolean };
+  | { _type: "global"; valType: WasmValType; init: number; mutable: boolean }
+  | { _type: "data"; offset: number; init: Uint8Array }
+  | { _type: "table"; funcIndices: number[] };

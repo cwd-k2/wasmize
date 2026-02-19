@@ -1,6 +1,6 @@
 import { bench, describe } from "vitest";
-import { problem12_flood_fill } from "../../src/problems/flood-fill";
-import { instantiate } from "../../src/test-helpers";
+import { problem12_flood_fill } from "../../examples/problems/flood-fill";
+import { instantiate } from "@/test-helpers";
 import { jsFloodFill } from "../js-impls";
 
 const W = 64, H = 64;

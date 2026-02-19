@@ -1,6 +1,6 @@
 import { bench, describe } from "vitest";
-import { problem8_matmul } from "../../src/problems/matmul";
-import { instantiate } from "../../src/test-helpers";
+import { problem8_matmul } from "../../examples/problems/matmul";
+import { instantiate } from "@/test-helpers";
 import { jsMatmul } from "../js-impls";
 
 const N = 64;

@@ -1,5 +1,6 @@
 import { IR } from "../wasm/ir";
-import type { ConvertKind } from "../wasm/ir";
+import type { ConvertKind, IRNode } from "../wasm/ir";
+import { BumpAllocator } from "./allocator";
 import type { WasmValType } from "../wasm/opcodes";
 import {
   val,
@@ -149,6 +150,23 @@ interface ModNamespace {
     ) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc<{ [K in keyof A]: WasmValType }>>;
 
+  data(offset: number, bytes: Uint8Array): ModuleGen<void>;
+  dataString(offset: number, str: string): ModuleGen<void>;
+
+  allocator(): BumpAllocator;
+
+  table(funcs: FuncRef[]): ModuleGen<{
+    call(index: ExprInput, ...args: ExprInput[]): FuncGen<WasmVal>;
+    callVoid(index: ExprInput, ...args: ExprInput[]): FuncGen<void>;
+  }>;
+
+  use(fn: { body: FuncBody<FuncReturn> }): ModuleGen<CallableFunc>;
+
+  importGroup<S extends Record<string, { params: WasmValType[]; results: WasmValType[] }>>(
+    moduleName: string,
+    specs: S,
+  ): ModuleGen<{ [K in keyof S]: CallableFunc }>;
+
   memory(pages: number): ModuleGen<void>;
 
   global<GT extends WasmValType = "i32">(
@@ -286,6 +304,92 @@ export const Mod = {
         },
       };
       return callableFunc(r._idx);
+    })();
+  },
+  /**
+   * Creates a function table for `call_indirect` dispatch.
+   * All functions in the table should share the same signature.
+   *
+   * @returns Object with `call(index, ...args)` and `callVoid(index, ...args)`
+   */
+  table(funcs: FuncRef[]): ModuleGen<{
+    call(index: ExprInput, ...args: ExprInput[]): FuncGen<WasmVal>;
+    callVoid(index: ExprInput, ...args: ExprInput[]): FuncGen<void>;
+  }> {
+    const funcIndices = funcs.map((f) => f._idx);
+    return (function* () {
+      const tableIdx: number = yield { _type: "table", funcIndices } as ModuleInstruction;
+      // The type index will be determined by the first function in the table.
+      // Since all functions should have the same signature, we use the first one's index.
+      const firstFuncIdx = funcIndices[0]!;
+
+      return {
+        call(index: ExprInput, ...args: ExprInput[]): FuncGen<WasmVal> {
+          return (function* () {
+            const resolvedArgs: IRNode[] = [];
+            for (const arg of args) {
+              const v = yield* resolve(arg);
+              resolvedArgs.push(v._node);
+            }
+            const vi = yield* resolve(index);
+            return val(IR.call_indirect(firstFuncIdx, tableIdx, resolvedArgs, vi._node));
+          })();
+        },
+        callVoid(index: ExprInput, ...args: ExprInput[]): FuncGen<void> {
+          return (function* () {
+            const resolvedArgs: IRNode[] = [];
+            for (const arg of args) {
+              const v = yield* resolve(arg);
+              resolvedArgs.push(v._node);
+            }
+            const vi = yield* resolve(index);
+            yield { _type: "stmt", node: IR.call_indirect(firstFuncIdx, tableIdx, resolvedArgs, vi._node) } as FuncInstruction;
+          })();
+        },
+      };
+    })();
+  },
+  /** Imports a group of functions from a single module namespace. */
+  importGroup(
+    moduleName: string,
+    specs: Record<string, { params: WasmValType[]; results: WasmValType[] }>,
+  ): ModuleGen<Record<string, CallableFunc>> {
+    return (function* () {
+      const result: Record<string, CallableFunc> = {};
+      for (const [name, spec] of Object.entries(specs)) {
+        const r: FuncRef = yield {
+          _type: "import_func",
+          module: moduleName,
+          name,
+          params: spec.params,
+          results: spec.results,
+        };
+        result[name] = callableFunc(r._idx);
+      }
+      return result;
+    })() as ModuleGen<Record<string, CallableFunc>>;
+  },
+  /** Embeds a stdlib function into the current module. */
+  use(fn: { body: FuncBody<FuncReturn> }): ModuleGen<CallableFunc> {
+    return (function* () {
+      const r: FuncRef = yield { _type: "func", body: fn.body };
+      return callableFunc(r._idx);
+    })() as ModuleGen<CallableFunc>;
+  },
+  /** Creates a compile-time bump allocator for automatic memory layout. */
+  allocator(): BumpAllocator {
+    return new BumpAllocator();
+  },
+  /** Embeds raw bytes into linear memory at the given offset via a data segment. */
+  data(offset: number, bytes: Uint8Array): ModuleGen<void> {
+    return (function* () {
+      yield { _type: "data", offset, init: bytes } as ModuleInstruction;
+    })();
+  },
+  /** Embeds a UTF-8 string into linear memory at the given offset via a data segment. */
+  dataString(offset: number, str: string): ModuleGen<void> {
+    return (function* () {
+      yield { _type: "data", offset, init: new TextEncoder().encode(str) } as ModuleInstruction;
     })();
   },
   /** Declares linear memory with the given minimum page count (1 page = 64KB). */

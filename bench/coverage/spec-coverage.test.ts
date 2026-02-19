@@ -1,5 +1,5 @@
 import { describe, test } from "vitest";
-import { OP } from "../../src/wasm/opcodes";
+import { OP } from "@/wasm/opcodes";
 import { WASM_MVP_CATALOG, type Category } from "./wasm-mvp-catalog";
 
 // ── Layer 1: opcodes in OP object ──
@@ -10,7 +10,7 @@ const opValues = new Set<number>(Object.values(OP));
 const codegenOpcodes = new Set<number>([
   // --- Control ---
   OP.unreachable, OP.nop, OP.block, OP.loop, OP.if_, OP.else_, OP.end,
-  OP.br, OP.br_if, OP.br_table, OP.return_, OP.call,
+  OP.br, OP.br_if, OP.br_table, OP.return_, OP.call, OP.call_indirect,
 
   // --- Parametric ---
   OP.drop, OP.select,

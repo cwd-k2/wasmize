@@ -1,19 +1,19 @@
 import { bench, describe } from "vitest";
-import { problem1_hanoi } from "../../src/problems/hanoi";
-import { problem2_fib_dp } from "../../src/problems/fibonacci";
-import { problem3_kadane } from "../../src/problems/kadane";
-import { problem4_coin_change } from "../../src/problems/coin-change";
-import { problem5_binary_search } from "../../src/problems/binary-search";
-import { problem6_gcd_array } from "../../src/problems/gcd";
-import { problem7_sieve } from "../../src/problems/sieve";
-import { problem8_matmul } from "../../src/problems/matmul";
-import { problem9_lcs } from "../../src/problems/lcs";
-import { problem10_knapsack } from "../../src/problems/knapsack";
-import { problem11_quicksort } from "../../src/problems/quicksort";
-import { problem12_flood_fill } from "../../src/problems/flood-fill";
-import { problem13_lis } from "../../src/problems/lis";
-import { problem14_nqueens } from "../../src/problems/nqueens";
-import { problem15_union_find } from "../../src/problems/union-find";
+import { problem1_hanoi } from "../../examples/problems/hanoi";
+import { problem2_fib_dp } from "../../examples/problems/fibonacci";
+import { problem3_kadane } from "../../examples/problems/kadane";
+import { problem4_coin_change } from "../../examples/problems/coin-change";
+import { problem5_binary_search } from "../../examples/problems/binary-search";
+import { problem6_gcd_array } from "../../examples/problems/gcd";
+import { problem7_sieve } from "../../examples/problems/sieve";
+import { problem8_matmul } from "../../examples/problems/matmul";
+import { problem9_lcs } from "../../examples/problems/lcs";
+import { problem10_knapsack } from "../../examples/problems/knapsack";
+import { problem11_quicksort } from "../../examples/problems/quicksort";
+import { problem12_flood_fill } from "../../examples/problems/flood-fill";
+import { problem13_lis } from "../../examples/problems/lis";
+import { problem14_nqueens } from "../../examples/problems/nqueens";
+import { problem15_union_find } from "../../examples/problems/union-find";
 
 const problems = [
   { name: "hanoi", compile: problem1_hanoi, imports: { env: { effect_move: () => {} } } },

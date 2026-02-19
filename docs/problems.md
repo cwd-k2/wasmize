@@ -1,12 +1,12 @@
 # Problems
 
-15 のアルゴリズム問題のカタログ。各問題は `src/problems/` に実装され、`compile()` で Wasm バイナリに変換されます。
+15 のアルゴリズム問題のカタログ。各問題は `examples/problems/` に実装され、`compile()` で Wasm バイナリに変換されます。
 
 ---
 
 ## 1. Tower of Hanoi
 
-**ファイル:** `src/problems/hanoi.ts` | **関数:** `problem1_hanoi()`
+**ファイル:** `examples/problems/hanoi.ts` | **関数:** `problem1_hanoi()`
 
 ### アルゴリズム
 
@@ -41,7 +41,7 @@ env.effect_move(from: i32, to: i32) → void
 
 ## 2. Fibonacci DP
 
-**ファイル:** `src/problems/fibonacci.ts` | **関数:** `problem2_fib_dp()`
+**ファイル:** `examples/problems/fibonacci.ts` | **関数:** `problem2_fib_dp()`
 
 ### アルゴリズム
 
@@ -73,7 +73,7 @@ Memory pages: 1 (64KB)
 
 ## 3. Kadane's Algorithm
 
-**ファイル:** `src/problems/kadane.ts` | **関数:** `problem3_kadane()`
+**ファイル:** `examples/problems/kadane.ts` | **関数:** `problem3_kadane()`
 
 ### アルゴリズム
 
@@ -105,7 +105,7 @@ BASE = 1024。Memory pages: 2。
 
 ## 4. Coin Change
 
-**ファイル:** `src/problems/coin-change.ts` | **関数:** `problem4_coin_change()`
+**ファイル:** `examples/problems/coin-change.ts` | **関数:** `problem4_coin_change()`
 
 ### アルゴリズム
 
@@ -138,7 +138,7 @@ Memory pages: 2。
 
 ## 5. Binary Search
 
-**ファイル:** `src/problems/binary-search.ts` | **関数:** `problem5_binary_search()`
+**ファイル:** `examples/problems/binary-search.ts` | **関数:** `problem5_binary_search()`
 
 ### アルゴリズム
 
@@ -170,7 +170,7 @@ Memory pages: 1。
 
 ## 6. GCD Array
 
-**ファイル:** `src/problems/gcd.ts` | **関数:** `problem6_gcd_array()`
+**ファイル:** `examples/problems/gcd.ts` | **関数:** `problem6_gcd_array()`
 
 ### アルゴリズム
 
@@ -204,7 +204,7 @@ Memory pages: 1。
 
 ## 7. Sieve of Eratosthenes
 
-**ファイル:** `src/problems/sieve.ts` | **関数:** `problem7_sieve()`
+**ファイル:** `examples/problems/sieve.ts` | **関数:** `problem7_sieve()`
 
 ### アルゴリズム
 
@@ -238,7 +238,7 @@ Memory pages: 2（最大 ~131,000 まで対応）。
 
 ## 8. Matrix Multiply
 
-**ファイル:** `src/problems/matmul.ts` | **関数:** `problem8_matmul()`
+**ファイル:** `examples/problems/matmul.ts` | **関数:** `problem8_matmul()`
 
 ### アルゴリズム
 
@@ -272,7 +272,7 @@ Memory pages: 2（n ≤ 64）。
 
 ## 9. LCS Length
 
-**ファイル:** `src/problems/lcs.ts` | **関数:** `problem9_lcs()`
+**ファイル:** `examples/problems/lcs.ts` | **関数:** `problem9_lcs()`
 
 ### アルゴリズム
 
@@ -307,7 +307,7 @@ Memory pages: 5。
 
 ## 10. 0/1 Knapsack
 
-**ファイル:** `src/problems/knapsack.ts` | **関数:** `problem10_knapsack()`
+**ファイル:** `examples/problems/knapsack.ts` | **関数:** `problem10_knapsack()`
 
 ### アルゴリズム
 
@@ -341,7 +341,7 @@ Memory pages: 4。
 
 ## 11. Quicksort
 
-**ファイル:** `src/problems/quicksort.ts` | **関数:** `problem11_quicksort()`
+**ファイル:** `examples/problems/quicksort.ts` | **関数:** `problem11_quicksort()`
 
 ### アルゴリズム
 
@@ -375,7 +375,7 @@ Memory pages: 1。
 
 ## 12. Flood Fill
 
-**ファイル:** `src/problems/flood-fill.ts` | **関数:** `problem12_flood_fill()`
+**ファイル:** `examples/problems/flood-fill.ts` | **関数:** `problem12_flood_fill()`
 
 ### アルゴリズム
 
@@ -409,7 +409,7 @@ Memory pages: 4。
 
 ## 13. LIS (Longest Increasing Subsequence)
 
-**ファイル:** `src/problems/lis.ts` | **関数:** `problem13_lis()`
+**ファイル:** `examples/problems/lis.ts` | **関数:** `problem13_lis()`
 
 ### アルゴリズム
 
@@ -442,7 +442,7 @@ Memory pages: 1。
 
 ## 14. N-Queens Count
 
-**ファイル:** `src/problems/nqueens.ts` | **関数:** `problem14_nqueens()`
+**ファイル:** `examples/problems/nqueens.ts` | **関数:** `problem14_nqueens()`
 
 ### アルゴリズム
 
@@ -483,7 +483,7 @@ Memory pages: 1（ほぼ不使用、ローカル変数のみ）。
 
 ## 15. Union-Find
 
-**ファイル:** `src/problems/union-find.ts` | **関数:** `problem15_union_find()`
+**ファイル:** `examples/problems/union-find.ts` | **関数:** `problem15_union_find()`
 
 ### アルゴリズム
 

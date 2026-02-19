@@ -1,6 +1,6 @@
 import { bench, describe } from "vitest";
-import { problem5_binary_search } from "../../src/problems/binary-search";
-import { instantiate } from "../../src/test-helpers";
+import { problem5_binary_search } from "../../examples/problems/binary-search";
+import { instantiate } from "@/test-helpers";
 import { jsBinarySearch } from "../js-impls";
 
 const LEN = 10_000;

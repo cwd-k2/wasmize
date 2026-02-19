@@ -1,17 +1,21 @@
 # Architecture
 
-wasmize のコンパイルパイプラインは 5 つのステージで構成されます。
+wasmize のコンパイルパイプラインは 5 つのコアステージ + 最適化 + 高レベル API で構成されます。
 
 ```
-WasmProgram ─→ compile() ─→ emitIR() ─→ buildModule() ─→ WasmBinary<T> (Wasm)
-  (1. DSL)     (2. Interpreter)  (3. Codegen)  (4. Module)     (5. Encoder)
+WasmProgram ─→ compile() ─→ optimize() ─→ emitIR() ─→ buildModule() ─→ WasmBinary<T>
+  (1. DSL)   (2. Interpreter)  (3. Optimizer)  (4. Codegen)  (5. Module + Encoder)
+
+高レベル API:
+  wasmFunc()  ─→ compile + instantiate + marshal  (Layer 3: 1 関数)
+  wasmize()   ─→ compile + allocator + marshal    (Layer 2: 宣言的モジュール)
 ```
 
 ---
 
 ## 1. DSL 層
 
-**ファイル:** `src/dsl/types.ts`, `src/dsl/expr.ts`, `src/dsl/declarations.ts`, `src/dsl/namespaces.ts`, `src/dsl/augment.ts`, `src/dsl/interpreter.ts`, `src/dsl/compiler.ts`
+**ファイル:** `src/dsl/types.ts`, `src/dsl/expr.ts`, `src/dsl/declarations.ts`, `src/dsl/namespaces.ts`, `src/dsl/augment.ts`, `src/dsl/interpreter.ts`, `src/dsl/compiler.ts`, `src/dsl/allocator.ts`, `src/dsl/struct.ts`, `src/dsl/string.ts`
 
 Generator ベースの DSL。`yield*` による直感的な合成と、ローカル変数の自動管理を提供します。
 
@@ -55,7 +59,7 @@ type WasmBinary<T> = Uint8Array & { readonly __exports?: T }
 ### 使用例
 
 ```typescript
-import { compile, param, local, Type, Mod, Mem, Ctrl } from "./dsl/compiler";
+import { compile, param, local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 
 const binary = compile<{ fib: (n: number) => number }>(function* () {
   const arr = Mem.i32Array();
@@ -125,7 +129,7 @@ const binary = compile<{ fib: (n: number) => number }>(function* () {
 `i32(v)`, `i64(v)`, `f64(v)` をトップレベルで export。`Mem.i32(v)` の別名だが、定数リテラルであることが明確になる。
 
 ```typescript
-import { i32 } from "./dsl/compiler";
+import { i32 } from "@/dsl/compiler";
 i32(1).shl(col)  // ビットマスク生成
 ```
 
@@ -162,7 +166,7 @@ Mem.store(0, n.add(1)) の処理フロー:
 
 ### IRNode
 
-35 種の discriminated union（`op` フィールドで判別）。
+36 種の discriminated union（`op` フィールドで判別）。
 
 | op | フィールド | 説明 |
 |----|-----------|------|
@@ -181,6 +185,7 @@ Mem.store(0, n.add(1)) の処理フロー:
 | `block` | `body: IRNode[]` | ブロックスコープ |
 | `seq` | `stmts: IRNode[]` | 逐次実行 |
 | `call` | `idx: number`, `args: IRNode[]` | 関数呼び出し |
+| `call_indirect` | `typeIdx`, `tableIdx`, `args`, `indexExpr` | テーブル経由の間接呼び出し |
 | `drop` | `val: IRNode` | 値を破棄 |
 | `return` | `val: IRNode` | 関数から返る |
 | `store_i32` | `addr`, `val` | メモリ書き込み (i32) |
@@ -276,9 +281,12 @@ type CmpKind = "eq" | "ne" | "lt" | "gt" | "le" | "ge"
 | 1 | Type | 関数型定義（`0x60` + params + results）。重複排除あり |
 | 2 | Import | import 関数（module 名 + 関数名 + type index） |
 | 3 | Function | ローカル関数の type index 参照 |
+| 4 | Table | `funcref` テーブル宣言（`call_indirect` 用） |
 | 5 | Memory | 線形メモリ宣言（min pages のみ） |
 | 7 | Export | `memory` (kind=0x02) + 関数 export (kind=0x00) |
+| 9 | Element | テーブル初期化（関数インデックス列） |
 | 10 | Code | 関数本体（locals 宣言 + IR emit + end） |
+| 11 | Data | 静的データセグメント（文字列・初期化データの埋め込み） |
 
 ### 型の重複排除
 
@@ -331,3 +339,167 @@ Index:  0        1        ...  N-1      N        N+1     ...
 - `Mod.func(function* () { ... })` → FuncRef(1)
 - `call(hanoi, ...)` = FuncRef(1) で自分自身を再帰呼び出し
 - `call_(effect_move, ...)` = FuncRef(0) で void import を呼び出し
+
+---
+
+## 7. IR 最適化
+
+**ファイル:** `src/wasm/optimize.ts`
+
+`optimize(body)` が IR ツリーに対して以下の最適化パスを適用します。全パスはパターンマッチベースの書き換えで、意味を保存する変換のみ行います。
+
+| パス | 変換 | 例 |
+|------|------|----|
+| 定数畳み込み | `binop(const, const)` → `const` | `3 + 4` → `7` |
+| ゼロ加算/乗算 | `x + 0` → `x`, `x * 0` → `0` | identity/absorbing |
+| 恒等乗除 | `x * 1` → `x`, `x / 1` → `x` | |
+| local_set + local_get 融合 | `set(i, v); get(i)` → `tee(i, v)` | |
+| 冗長 load 除去 | `store(addr, v); load(addr)` → `store; v` | |
+| 定数比較 | `cmp(const, const)` → `const` | |
+| 否定比較合成 | `eqz(lt(a,b))` → `ge(a,b)` | |
+| Dead code 除去 | `return` / `br` / `unreachable` 後のコードを削除 | |
+| 空ブロック除去 | `block([])` / `seq([])` → `nop` | |
+
+---
+
+## 8. WAT 出力
+
+**ファイル:** `src/wasm/wat.ts`
+
+`compileToWAT(program)` が DSL プログラムから WebAssembly Text Format を生成します。バイナリと同じ `compile()` の Phase 1-2 を共有し、Phase 3 で WAT テキストを生成します。
+
+```typescript
+import { compileToWAT } from "@/wasm/wat";
+const wat = compileToWAT(myProgram);  // string
+```
+
+デバッグ・学習・他ツールとの連携に使用。
+
+---
+
+## 9. 高レベル API
+
+### Layer 3: `wasmFunc()` — インライン Wasm 関数
+
+**ファイル:** `src/inline.ts`
+
+1 関数だけを Wasm 化する最小 API。配列パラメータの自動マーシャリング、コンパイル結果のキャッシュを提供。
+
+```typescript
+import { wasmFunc } from "@/inline";
+const add = await wasmFunc({ a: "i32", b: "i32" }, "i32", function* (a, b) {
+  return a.add(b);
+});
+add(3, 4); // 7
+```
+
+### Layer 2: `wasmize()` — 宣言的モジュール
+
+**ファイル:** `src/declarative.ts`
+
+メモリレイアウト自動管理 + 複数関数の宣言的定義。`layout` で TypedArray ビューを自動割当。
+
+```typescript
+import { wasmize } from "@/declarative";
+const mod = await wasmize({
+  layout: { arr: { type: "i32", count: 256 } },
+  functions: {
+    sum: { params: { len: "i32" }, body: function* (len) { ... } },
+  },
+});
+mod.layout.arr.set([1, 2, 3]);
+mod.exports.sum(3); // 6
+```
+
+### BumpAllocator
+
+**ファイル:** `src/dsl/allocator.ts`
+
+コンパイル時のメモリ領域管理。手動オフセット計算を排除。
+
+```typescript
+const alloc = new BumpAllocator();
+const arr = alloc.i32Array(256);   // 自動的に base を割当
+const dp = alloc.i32Array2D(100, cols);
+alloc.requiredPages;  // 必要なメモリページ数
+```
+
+### Struct 型
+
+**ファイル:** `src/dsl/struct.ts`
+
+構造化データのメモリレイアウトを型安全に管理。フィールドオフセット・アラインメント・パディングをコンパイル時に計算。
+
+```typescript
+const Point = Struct({ x: "i32", y: "i32" });
+Point.size;  // 8 bytes
+const points = Point.array(alloc, 100);
+points.get(i, "x");       // ChainableExpr<"i32">
+points.set(i, "y", val);  // FuncGen<void>
+```
+
+### 文字列サポート
+
+**ファイル:** `src/dsl/string.ts`
+
+UTF-8 文字列操作。`Str.from()` は data segment に埋め込み、`Str.len()` / `Str.eq()` は Wasm 関数として実装。
+
+### Marshal レイヤー
+
+**ファイル:** `src/marshal.ts`
+
+JS 配列・文字列と Wasm 線形メモリ間の型安全なデータ転送。`writeI32Array()`, `readI32Array()`, `writeString()`, `readString()` 等。
+
+---
+
+## 10. 標準ライブラリ (stdlib)
+
+**ファイル:** `src/stdlib/mem.ts`, `src/stdlib/math.ts`, `src/stdlib/sort.ts`
+
+再利用可能な Wasm 関数を `Mod.use()` でモジュールに組み込み。
+
+| モジュール | 関数 | 説明 |
+|-----------|------|------|
+| `stdlib/mem` | `memcpy`, `memset`, `memcmp` | バイトレベルメモリ操作 |
+| `stdlib/math` | `pow`, `clamp`, `abs`, `lerp` | 整数/浮動小数点演算 |
+| `stdlib/sort` | `sortI32`, `sortWith` | i32 特化 + コンパレータ付き汎用ソート（`call_indirect`） |
+
+```typescript
+import { sortI32 } from "@/stdlib/sort";
+const sort = yield* Mod.use(sortI32);
+yield* sort(arrBase, 0, len.sub(1));
+```
+
+---
+
+## 11. ランタイムヘルパ
+
+### AsyncBridge
+
+**ファイル:** `src/async-bridge.ts`
+
+Effect → Async 変換。Wasm の effect（`mem[0]` = tag, `mem[4]` = payload, return -1）を `on(tag, handler)` で非同期ハンドラにディスパッチ。
+
+### WorkerPool
+
+**ファイル:** `src/worker-pool.ts`
+
+並列 Wasm 実行。ブラウザ（Web Worker）と Node.js（worker_threads）の両環境に対応。
+
+### ベンチマークハーネス
+
+**ファイル:** `src/bench.ts`
+
+Wasm vs JS のパフォーマンス比較。warmup, iterations, 統計（mean, median, stddev, speedup）を提供。
+
+---
+
+## 12. パスエイリアス
+
+`@` エイリアスで `src/` ディレクトリを参照可能。`tsconfig.json` の `paths` と `vite.config.ts` の `resolve.alias` で設定。
+
+```typescript
+import { compile } from "@/dsl/compiler";
+import { wasmFunc } from "@/inline";
+import { instantiate } from "@/test-helpers";
+```

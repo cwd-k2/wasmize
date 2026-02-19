@@ -1,7 +1,7 @@
 import type { IRNode } from "../wasm/ir";
 import { IR } from "../wasm/ir";
 import type { WasmValType } from "../wasm/opcodes";
-import type { FuncDef, ImportDef, ExportDef, GlobalDef } from "../wasm/module";
+import type { FuncDef, ImportDef, ExportDef, GlobalDef, DataSegment, TableDef, ElementDef } from "../wasm/module";
 import { buildModule } from "../wasm/module";
 import { optimizeFunc } from "../wasm/optimize";
 import type { WasmBinary } from "./types";
@@ -190,16 +190,19 @@ function interpretSubBody(
 
 // --- Module interpreter ---
 
-export function compile<T = Record<string, unknown>>(
+/** Internal shared implementation for both compile() and compileToIR(). */
+function collectAndInterpret(
   program: WasmProgram,
-  options?: { optimize?: boolean },
-): WasmBinary<T> {
-  const shouldOptimize = options?.optimize !== false;
+  shouldOptimize: boolean,
+) {
   const gen = program();
   const imports: ImportDef[] = [];
   const bodies: FuncBody<FuncReturn>[] = [];
   const exports_: ExportDef[] = [];
   const globals: GlobalDef[] = [];
+  const dataSegments: DataSegment[] = [];
+  const tables: TableDef[] = [];
+  const elementsArr: ElementDef[] = [];
   let memoryPages = 1;
   let funcIdx = 0;
 
@@ -243,6 +246,18 @@ export function compile<T = Record<string, unknown>>(
         next = gen.next();
         break;
       }
+      case "data": {
+        dataSegments.push({ offset: instr.offset, init: instr.init });
+        next = gen.next();
+        break;
+      }
+      case "table": {
+        const tableIdx = tables.length;
+        tables.push({ min: instr.funcIndices.length });
+        elementsArr.push({ tableIdx, offset: 0, funcIndices: instr.funcIndices });
+        next = gen.next(tableIdx);
+        break;
+      }
     }
   }
 
@@ -277,11 +292,34 @@ export function compile<T = Record<string, unknown>>(
     }
   }
 
-  // Phase 3: build binary via existing module builder
-  return buildModule(funcs, {
+  const moduleOptions = {
     imports,
     memoryPages,
     exports: exports_,
     globals,
-  }) as WasmBinary<T>;
+    dataSegments,
+    tables,
+    elements: elementsArr,
+  };
+
+  return { funcs, moduleOptions };
+}
+
+export function compile<T = Record<string, unknown>>(
+  program: WasmProgram,
+  options?: { optimize?: boolean },
+): WasmBinary<T> {
+  const { funcs, moduleOptions } = collectAndInterpret(program, options?.optimize !== false);
+  return buildModule(funcs, moduleOptions) as WasmBinary<T>;
+}
+
+/**
+ * Compiles a program to IR without emitting binary.
+ * Returns function definitions and module options for WAT generation or inspection.
+ */
+export function compileToIR(
+  program: WasmProgram,
+  options?: { optimize?: boolean },
+) {
+  return collectAndInterpret(program, options?.optimize !== false);
 }

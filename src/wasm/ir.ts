@@ -87,7 +87,8 @@ export type IRNode =
   | { op: "memory_grow"; pages: IRNode }
   | { op: "unreachable" }
   | { op: "nop" }
-  | { op: "effect"; tag: number; payload: IRNode };
+  | { op: "effect"; tag: number; payload: IRNode }
+  | { op: "call_indirect"; typeIdx: number; tableIdx: number; args: IRNode[]; indexExpr: IRNode };
 
 export const IR = {
   const_i32: (v: number): IRNode => ({ op: "const_i32", v }),
@@ -188,5 +189,12 @@ export const IR = {
     op: "effect",
     tag,
     payload,
+  }),
+  call_indirect: (typeIdx: number, tableIdx: number, args: IRNode[], indexExpr: IRNode): IRNode => ({
+    op: "call_indirect",
+    typeIdx,
+    tableIdx,
+    args,
+    indexExpr,
   }),
 };

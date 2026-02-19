@@ -55,9 +55,10 @@ Vite dev server を `http://localhost:5173` で起動します。
 
 vitest をワンショット実行（`vitest run`）します。
 
-- テスト対象: `src/**/__tests__/**/*.test.ts`
-- 各問題の `.test.ts` が `compileProblem()` → `WebAssembly.instantiate()` → アサーションを実行
+- テスト対象: `src/**/__tests__/**/*.test.ts`, `bench/**/*.test.ts`, `examples/**/__tests__/**/*.test.ts`
+- 各問題の `.test.ts` が `compile()` → `instantiate()` → アサーションを実行
 - メモリを使う問題はテスト内でメモリに入力データを書き込み
+- DSL プリミティブ、stdlib、高レベル API（wasmFunc, wasmize）、使用例のテストも含む
 
 **用途:** コード変更後の動作確認。CI でも利用。
 
@@ -95,9 +96,9 @@ TypeScript コンパイル + Vite によるプロダクションビルドを実�
 ## 新しい問題を追加するときのフロー
 
 ```
-1. src/problems/new-problem.ts を作成
-2. src/problems/index.ts に re-export を追加
-3. src/problems/__tests__/new-problem.test.ts を作成
+1. examples/problems/new-problem.ts を作成
+2. examples/problems/index.ts に re-export を追加
+3. examples/problems/__tests__/new-problem.test.ts を作成
 4. npm run typecheck && npm run test    ← ここまでで基本動作を確認
 5. src/runner.ts の runTests() にセクション追加
 6. npm run dev                          ← ブラウザで表示確認

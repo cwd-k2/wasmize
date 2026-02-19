@@ -1,6 +1,6 @@
 import { bench, describe } from "vitest";
-import { problem9_lcs } from "../../src/problems/lcs";
-import { instantiate } from "../../src/test-helpers";
+import { problem9_lcs } from "../../examples/problems/lcs";
+import { instantiate } from "@/test-helpers";
 import { jsLcs } from "../js-impls";
 
 const N = 256;

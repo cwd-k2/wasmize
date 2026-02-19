@@ -1,6 +1,6 @@
 import { bench, describe } from "vitest";
-import { problem10_knapsack } from "../../src/problems/knapsack";
-import { instantiate } from "../../src/test-helpers";
+import { problem10_knapsack } from "../../examples/problems/knapsack";
+import { instantiate } from "@/test-helpers";
 import { jsKnapsack } from "../js-impls";
 
 const N = 200;

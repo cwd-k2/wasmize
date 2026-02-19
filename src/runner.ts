@@ -14,7 +14,7 @@ import {
   problem13_lis,
   problem14_nqueens,
   problem15_union_find,
-} from "./problems";
+} from "../examples/problems";
 import { instantiate } from "./test-helpers";
 
 export interface TestCase {

@@ -22,10 +22,10 @@
 | 層 | カバー | 全体 | 比率 |
 |----|--------|------|------|
 | opcodes.ts | 172 | 172 | 100% |
-| codegen | 171 | 172 | 99% |
-| DSL | 171 | 172 | 99% |
+| codegen | 172 | 172 | 100% |
+| DSL | 172 | 172 | 100% |
 
-P14 で 30 命令を配線し 40% に到達後、さらに `br_table`, `global_get/set` 等を追加して 99% まで引き上げた。未実装は `call_indirect` のみ。
+P14 で 30 命令を配線し 40% に到達後、`br_table`, `global_get/set` 等を追加して 99%、さらに `call_indirect`（Table/Element セクション含む）を実装して **100% Wasm MVP opcode カバレッジを達成**。
 
 ---
 
@@ -536,11 +536,11 @@ compile<{ fib: (n: number) => number }>(...)
 | `i32.wrap_i64`, `i64.extend_i32_s` | ✅ `Op.wrap`, `Op.extend` | 実装済 |
 | `f64.convert_i32_s`, `i32.trunc_f64_s` | ✅ `Op.toF64`, `Op.truncI32` | 実装済 |
 
-### Tier 2: 未実装 — 新規 opcode 追加が必要
+### Tier 2: 実装済み — ✅ 完了
 
-| 命令群 | 用途 | 優先度 |
-|--------|------|--------|
-| `call_indirect` | 関数ポインタ。仮想ディスパッチ | 低 |
+| 命令群 | 用途 | 状態 |
+|--------|------|------|
+| `call_indirect` | 関数ポインタ。仮想ディスパッチ、`Mod.table()` + stdlib sort で活用 | ✅ 実装済 |
 
 ### Tier 3: 新しい問題で動機づけ
 
@@ -552,6 +552,8 @@ coverage を上げるために問題を追加するのではなく、「この�
 | Newton 法 (sqrt) | `f64.mul`, `f64.div`, `f64.sub` |
 | 文字列マッチング | `i32.load8_s`, `i32.load16_u` |
 | 動的配列 (vector) | `memory.size`, `memory.grow` |
+
+※ これらの命令は opcodes.ts に登録済みで codegen にも接続済み（100% カバレッジ）。問題実装で実用例を追加できる。
 
 ---
 

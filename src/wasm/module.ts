@@ -29,16 +29,35 @@ export interface GlobalDef {
   init: number;
 }
 
+export interface DataSegment {
+  offset: number;
+  init: Uint8Array;
+}
+
+export interface TableDef {
+  min: number;
+  max?: number;
+}
+
+export interface ElementDef {
+  tableIdx: number;
+  offset: number;
+  funcIndices: number[];
+}
+
 export interface ModuleOptions {
   imports?: ImportDef[];
   memoryPages?: number;
   exports?: ExportDef[];
   globals?: GlobalDef[];
+  dataSegments?: DataSegment[];
+  tables?: TableDef[];
+  elements?: ElementDef[];
 }
 
 export function buildModule(
   funcs: FuncDef[],
-  { imports = [], memoryPages = 1, exports: moduleExports = [], globals = [] }: ModuleOptions = {},
+  { imports = [], memoryPages = 1, exports: moduleExports = [], globals = [], dataSegments = [], tables = [], elements = [] }: ModuleOptions = {},
 ): Uint8Array {
   const enc = new WasmEncoder();
   // Magic + version
@@ -95,6 +114,24 @@ export function buildModule(
     funcs.forEach((f) => s.u32(getTypeIdx(f.params, f.results)));
   });
 
+  // Table section (section 4)
+  if (tables.length) {
+    enc.section(4, (s) => {
+      s.u32(tables.length);
+      tables.forEach((t) => {
+        s.byte(0x70); // funcref
+        if (t.max != null) {
+          s.byte(0x01); // has max
+          s.u32(t.min);
+          s.u32(t.max);
+        } else {
+          s.byte(0x00); // no max
+          s.u32(t.min);
+        }
+      });
+    });
+  }
+
   // Memory section
   enc.section(5, (s) => {
     s.u32(1);
@@ -137,6 +174,23 @@ export function buildModule(
     });
   });
 
+  // Element section (section 9)
+  if (elements.length) {
+    enc.section(9, (s) => {
+      s.u32(elements.length);
+      elements.forEach((el) => {
+        s.byte(0x00); // active, table 0
+        // offset init expression
+        s.byte(OP.i32_const);
+        s.i32(el.offset);
+        s.byte(OP.end);
+        // func indices
+        s.u32(el.funcIndices.length);
+        el.funcIndices.forEach((idx) => s.u32(idx));
+      });
+    });
+  }
+
   // Code section
   enc.section(10, (s) => {
     s.u32(funcs.length);
@@ -169,6 +223,21 @@ export function buildModule(
       s.raw(bodyEnc.bytes);
     });
   });
+
+  // Data section (section 11)
+  if (dataSegments.length) {
+    enc.section(11, (s) => {
+      s.u32(dataSegments.length);
+      dataSegments.forEach((seg) => {
+        s.byte(0x00); // active segment, memory 0
+        s.byte(OP.i32_const);
+        s.i32(seg.offset);
+        s.byte(OP.end);
+        s.u32(seg.init.length);
+        s.raw([...seg.init]);
+      });
+    });
+  }
 
   return enc.toBuffer();
 }

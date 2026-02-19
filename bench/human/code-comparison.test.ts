@@ -72,21 +72,21 @@ function analyzeDsl(src: string): Metrics {
 }
 
 const problems = [
-  { name: "fibonacci", js: "jsFib", dsl: "src/problems/fibonacci.ts" },
-  { name: "hanoi", js: "jsHanoi", dsl: "src/problems/hanoi.ts" },
-  { name: "kadane", js: "jsKadane", dsl: "src/problems/kadane.ts" },
-  { name: "coin-change", js: "jsCoinChange", dsl: "src/problems/coin-change.ts" },
-  { name: "binary-search", js: "jsBinarySearch", dsl: "src/problems/binary-search.ts" },
-  { name: "gcd-array", js: "jsGcdArray", dsl: "src/problems/gcd.ts" },
-  { name: "sieve", js: "jsSieve", dsl: "src/problems/sieve.ts" },
-  { name: "matmul", js: "jsMatmul", dsl: "src/problems/matmul.ts" },
-  { name: "lcs", js: "jsLcs", dsl: "src/problems/lcs.ts" },
-  { name: "knapsack", js: "jsKnapsack", dsl: "src/problems/knapsack.ts" },
-  { name: "quicksort", js: "jsQuicksort", dsl: "src/problems/quicksort.ts" },
-  { name: "flood-fill", js: "jsFloodFill", dsl: "src/problems/flood-fill.ts" },
-  { name: "lis", js: "jsLis", dsl: "src/problems/lis.ts" },
-  { name: "nqueens", js: "jsNqueens", dsl: "src/problems/nqueens.ts" },
-  { name: "union-find", js: "JsUnionFind", dsl: "src/problems/union-find.ts" },
+  { name: "fibonacci", js: "jsFib", dsl: "examples/problems/fibonacci.ts" },
+  { name: "hanoi", js: "jsHanoi", dsl: "examples/problems/hanoi.ts" },
+  { name: "kadane", js: "jsKadane", dsl: "examples/problems/kadane.ts" },
+  { name: "coin-change", js: "jsCoinChange", dsl: "examples/problems/coin-change.ts" },
+  { name: "binary-search", js: "jsBinarySearch", dsl: "examples/problems/binary-search.ts" },
+  { name: "gcd-array", js: "jsGcdArray", dsl: "examples/problems/gcd.ts" },
+  { name: "sieve", js: "jsSieve", dsl: "examples/problems/sieve.ts" },
+  { name: "matmul", js: "jsMatmul", dsl: "examples/problems/matmul.ts" },
+  { name: "lcs", js: "jsLcs", dsl: "examples/problems/lcs.ts" },
+  { name: "knapsack", js: "jsKnapsack", dsl: "examples/problems/knapsack.ts" },
+  { name: "quicksort", js: "jsQuicksort", dsl: "examples/problems/quicksort.ts" },
+  { name: "flood-fill", js: "jsFloodFill", dsl: "examples/problems/flood-fill.ts" },
+  { name: "lis", js: "jsLis", dsl: "examples/problems/lis.ts" },
+  { name: "nqueens", js: "jsNqueens", dsl: "examples/problems/nqueens.ts" },
+  { name: "union-find", js: "JsUnionFind", dsl: "examples/problems/union-find.ts" },
 ];
 
 function extractJsFunc(fullSrc: string, funcName: string): string {

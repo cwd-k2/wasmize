@@ -1,6 +1,6 @@
 import { bench, describe } from "vitest";
-import { problem13_lis } from "../../src/problems/lis";
-import { instantiate } from "../../src/test-helpers";
+import { problem13_lis } from "../../examples/problems/lis";
+import { instantiate } from "@/test-helpers";
 import { jsLis } from "../js-impls";
 
 const LEN = 10_000;

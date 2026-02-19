@@ -15,20 +15,39 @@ Generator ベースの DSL で定義したアルゴリズムを Wasm バイナ�
 ## Directory Structure
 
 ```
-src/
-  dsl/        # Generator ベース DSL → Wasm バイナリのコンパイラ
-    types.ts       # 型定義（WasmRef, WasmVal, WasmBinary, FuncRef, Instruction 等）
-    primitives.ts  # DSL プリミティブ（i32, add, store, if_, loop_ 等）
-    interpreter.ts # compile() — 3 フェーズ Module interpreter
-    compiler.ts    # Re-export エントリポイント
-  wasm/       # IR 定義・Codegen・Module Builder・Encoder・Opcodes
-  problems/   # 15 のアルゴリズム実装（各 .ts + __tests__/）
-  ui/         # ブラウザ UI（renderer + styles）
-  test-helpers.ts  # instantiate() ヘルパ（WasmBinary<T> → typed exports）
-  runner.ts   # 全問題の実行・検証
-  main.ts     # エントリーポイント
-e2e/          # Playwright E2E テスト
-docs/         # 技術ドキュメント
+src/                    # ライブラリ（@ エイリアスで import 可能）
+  dsl/                  # Generator ベース DSL → Wasm バイナリのコンパイラ
+    types.ts            # 型定義（WasmRef, WasmVal, WasmBinary, FuncRef, Instruction 等）
+    primitives.ts       # DSL プリミティブ（i32, add, store, if_, loop_ 等）
+    interpreter.ts      # compile() — 3 フェーズ Module interpreter
+    compiler.ts         # Re-export エントリポイント
+    allocator.ts        # BumpAllocator（コンパイル時メモリ管理）
+    struct.ts           # Struct 型（フィールドオフセット自動計算）
+    string.ts           # 文字列プリミティブ（Str.from, Str.len, Str.eq）
+  wasm/                 # IR 定義・Codegen・Module Builder・Encoder・Opcodes
+  stdlib/               # 再利用可能 Wasm 関数ライブラリ
+    mem.ts              # memcpy, memset, memcmp
+    math.ts             # pow, clamp, abs, lerp
+    sort.ts             # sortI32, sortWith（call_indirect）
+  inline.ts             # wasmFunc() — Layer 3 インライン API
+  declarative.ts        # wasmize() — Layer 2 宣言的 API
+  async-bridge.ts       # AsyncBridge（Effect → Async 変換）
+  worker-pool.ts        # WorkerPool（並列 Wasm 実行）
+  bench.ts              # ベンチマークハーネス
+  marshal.ts            # JS ↔ Wasm メモリ転送
+  debug.ts              # IR 可視化・メタデータ
+  ui/                   # ブラウザ UI（renderer + styles）
+  test-helpers.ts       # instantiate() ヘルパ（WasmBinary<T> → typed exports）
+  runner.ts             # 全問題の実行・検証
+  main.ts               # エントリーポイント
+examples/               # 実例・アルゴリズム実装
+  problems/             # Layer 1: 15 のアルゴリズム（低レベル DSL）
+  layer3/               # Layer 3: wasmFunc() による単一関数 Wasm 化
+  layer2/               # Layer 2: wasmize() による宣言的モジュール
+  advanced/             # 高度機能（Struct, stdlib sort, bench）
+e2e/                    # Playwright E2E テスト
+bench/                  # パフォーマンスベンチマーク
+docs/                   # 技術ドキュメント
 ```
 
 ## Conventions
@@ -68,6 +87,15 @@ docs/         # 技術ドキュメント
 1. **`& ExprInput[]` intersection** (`expr.ts` CallableFunc): mapped type `{ [K in keyof Params]: ExprInput }` は TS が配列と証明できないため rest parameter に使えない。`& ExprInput[]` で回避するが、Params が **invariant** になる副作用がある
 2. **`as unknown as ModNamespace`** (`namespaces.ts`): 上記の invariance により、実装の `CallableFunc`（wide）がインターフェースの `CallableFunc<[]>` 等に代入不可。unsafe cast で橋渡し
 3. **`recursive` の self はアリティ未チェック** (`namespaces.ts`): self に `CallableFunc<{mapped}>` を入れると circular inference + invariance で型推論が破綻するため、`CallableFunc`（引数数制約なし）で妥協
+
+## Path Alias
+
+`@/*` → `./src/*` で src 配下を参照可能。`tsconfig.json` (paths) + `vite.config.ts` (resolve.alias) で設定。
+
+```typescript
+import { compile } from "@/dsl/compiler";
+import { instantiate } from "@/test-helpers";
+```
 
 ## Docs
 

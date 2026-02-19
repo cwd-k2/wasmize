@@ -1,6 +1,6 @@
 import { bench, describe } from "vitest";
-import { problem4_coin_change } from "../../src/problems/coin-change";
-import { instantiate } from "../../src/test-helpers";
+import { problem4_coin_change } from "../../examples/problems/coin-change";
+import { instantiate } from "@/test-helpers";
 import { jsCoinChange } from "../js-impls";
 
 const AMOUNT = 5000;
