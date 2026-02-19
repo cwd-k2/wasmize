@@ -9,9 +9,9 @@ import type { WasmValType } from "../wasm/opcodes";
  * Obtained via {@link param} or {@link local}; passed to {@link get}, {@link set}, and {@link tee}.
  * The internal index is managed by the interpreter — user code should treat this as opaque.
  */
-export class WasmRef {
+export class WasmRef<T extends WasmValType = WasmValType> {
   readonly _tag = "ref" as const;
-  constructor(readonly _idx: number) {}
+  constructor(readonly _idx: number, readonly _valType: T = "i32" as T) {}
 }
 
 /**
@@ -40,8 +40,8 @@ export interface FuncRef {
  * @param idx - The slot index
  * @returns A new opaque reference
  */
-export function ref(idx: number): WasmRef {
-  return new WasmRef(idx);
+export function ref<T extends WasmValType = WasmValType>(idx: number, valType?: T): WasmRef<T> {
+  return new WasmRef(idx, valType);
 }
 
 /**

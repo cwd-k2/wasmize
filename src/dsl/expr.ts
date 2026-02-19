@@ -18,7 +18,7 @@ import {
  * Extended expression type accepted by all DSL primitives.
  * Includes everything in {@link Expr} plus {@link ChainableExpr} and {@link ThenBuilder}.
  */
-export type ExprInput = Expr | ChainableExpr | ThenBuilder;
+export type ExprInput = Expr | ChainableExpr<WasmValType> | ThenBuilder;
 
 /**
  * A callable function reference. Invoke directly for value-returning calls,
@@ -31,9 +31,11 @@ export type ExprInput = Expr | ChainableExpr | ThenBuilder;
  * yield* Mod.export("myFunc", myFunc);       // export (FuncRef-compatible)
  * ```
  */
-export interface CallableFunc {
-  (...args: ExprInput[]): FuncGen<WasmVal>;
-  void(...args: ExprInput[]): FuncGen<void>;
+export interface CallableFunc<
+  Params extends readonly WasmValType[] = WasmValType[],
+> {
+  (...args: { [K in keyof Params]: ExprInput } & ExprInput[]): FuncGen<WasmVal>;
+  void(...args: { [K in keyof Params]: ExprInput } & ExprInput[]): FuncGen<void>;
   readonly _tag: "func";
   readonly _idx: number;
 }
@@ -50,81 +52,65 @@ export interface CallableFunc {
  * Mem.load(i.sub(1).mul(4))  // load from address (i-1)*4
  * ```
  */
-export class ChainableExpr {
-  constructor(private readonly _inner: Expr) {}
+export class ChainableExpr<T extends WasmValType = "i32"> {
+  constructor(private readonly _inner: Expr, readonly _type: T = "i32" as T) {}
 
   [Symbol.iterator](): Generator<FuncInstruction, WasmVal, any> {
     return resolve(this._inner);
   }
 
-  // --- Arithmetic ---
-  /** Returns a new expression: `this + b` (`i32.add`). */
-  add(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(add(this._inner, b));
+  // --- Arithmetic (preserve type) ---
+  add(b: ExprInput): ChainableExpr<T> {
+    return new ChainableExpr(makeBinopTyped("add", this._type)(this._inner, b), this._type);
   }
-  /** Returns a new expression: `this - b` (`i32.sub`). */
-  sub(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(sub(this._inner, b));
+  sub(b: ExprInput): ChainableExpr<T> {
+    return new ChainableExpr(makeBinopTyped("sub", this._type)(this._inner, b), this._type);
   }
-  /** Returns a new expression: `this * b` (`i32.mul`). */
-  mul(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(mul(this._inner, b));
+  mul(b: ExprInput): ChainableExpr<T> {
+    return new ChainableExpr(makeBinopTyped("mul", this._type)(this._inner, b), this._type);
   }
-  /** Returns a new expression: `this / b` (`i32.div_s`). */
-  div(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(div(this._inner, b));
+  div(b: ExprInput): ChainableExpr<T> {
+    return new ChainableExpr(makeBinopTyped("div", this._type)(this._inner, b), this._type);
   }
-  /** Returns a new expression: `this % b` (`i32.rem_s`). */
-  rem(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(rem(this._inner, b));
+  rem(b: ExprInput): ChainableExpr<T> {
+    return new ChainableExpr(makeBinopTyped("rem", this._type)(this._inner, b), this._type);
   }
 
-  // --- Comparison ---
-  /** Returns a new expression: `this == b` (`i32.eq`). */
-  eq(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(eq(this._inner, b));
+  // --- Comparison (always i32) ---
+  eq(b: ExprInput): ChainableExpr<"i32"> {
+    return new ChainableExpr(makeCmpTyped("eq", this._type)(this._inner, b), "i32");
   }
-  /** Returns a new expression: `this != b` (`i32.ne`). */
-  ne(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(ne(this._inner, b));
+  ne(b: ExprInput): ChainableExpr<"i32"> {
+    return new ChainableExpr(makeCmpTyped("ne", this._type)(this._inner, b), "i32");
   }
-  /** Returns a new expression: `this < b` (`i32.lt_s`). */
-  lt(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(lt(this._inner, b));
+  lt(b: ExprInput): ChainableExpr<"i32"> {
+    return new ChainableExpr(makeCmpTyped("lt", this._type)(this._inner, b), "i32");
   }
-  /** Returns a new expression: `this > b` (`i32.gt_s`). */
-  gt(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(gt(this._inner, b));
+  gt(b: ExprInput): ChainableExpr<"i32"> {
+    return new ChainableExpr(makeCmpTyped("gt", this._type)(this._inner, b), "i32");
   }
-  /** Returns a new expression: `this <= b` (`i32.le_s`). */
-  le(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(le(this._inner, b));
+  le(b: ExprInput): ChainableExpr<"i32"> {
+    return new ChainableExpr(makeCmpTyped("le", this._type)(this._inner, b), "i32");
   }
-  /** Returns a new expression: `this >= b` (`i32.ge_s`). */
-  ge(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(ge(this._inner, b));
+  ge(b: ExprInput): ChainableExpr<"i32"> {
+    return new ChainableExpr(makeCmpTyped("ge", this._type)(this._inner, b), "i32");
   }
 
-  // --- Bitwise ---
-  /** Returns a new expression: `this & b` (`i32.and`). */
-  and(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(and_(this._inner, b));
+  // --- Bitwise (preserve type — TS constraints enforced at WasmRef level) ---
+  and(b: ExprInput): ChainableExpr<T> {
+    return new ChainableExpr(makeBinopTyped("and", this._type)(this._inner, b), this._type);
   }
-  /** Returns a new expression: `this | b` (`i32.or`). */
-  or(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(or_(this._inner, b));
+  or(b: ExprInput): ChainableExpr<T> {
+    return new ChainableExpr(makeBinopTyped("or", this._type)(this._inner, b), this._type);
   }
-  /** Returns a new expression: `this ^ b` (`i32.xor`). */
-  xor(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(xor_(this._inner, b));
+  xor(b: ExprInput): ChainableExpr<T> {
+    return new ChainableExpr(makeBinopTyped("xor", this._type)(this._inner, b), this._type);
   }
-  /** Returns a new expression: `this << b` (`i32.shl`). */
-  shl(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(shl(this._inner, b));
+  shl(b: ExprInput): ChainableExpr<T> {
+    return new ChainableExpr(makeBinopTyped("shl", this._type)(this._inner, b), this._type);
   }
-  /** Returns a new expression: `this >> b` (`i32.shr_s`). */
-  shr(b: ExprInput): ChainableExpr {
-    return new ChainableExpr(shr(this._inner, b));
+  shr(b: ExprInput): ChainableExpr<T> {
+    return new ChainableExpr(makeBinopTyped("shr", this._type)(this._inner, b), this._type);
   }
 }
 

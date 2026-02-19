@@ -73,7 +73,7 @@ function toBody(body: VoidBody): FuncBody<void> {
 function buildBody(
   bodyOrParams: FuncBody<FuncReturn> | Record<string, WasmValType>,
   bodyWithParams?: (
-    ...refs: WasmRef[]
+    ...refs: WasmRef<any>[]
   ) => Generator<FuncInstruction, FuncReturn, any>,
 ): FuncBody<FuncReturn> {
   if (typeof bodyOrParams === "function") return bodyOrParams;
@@ -86,12 +86,61 @@ function buildBody(
     }
   }
   return function* () {
-    const refs: WasmRef[] = [];
+    const refs: WasmRef<any>[] = [];
     for (const [, type] of entries) {
       refs.push(yield* declareParam(type));
     }
     return yield* bodyWithParams!(...refs);
   };
+}
+
+/** Type-level interface for Mod with overloaded signatures for arity inference. */
+interface ModNamespace {
+  func(body: FuncBody<FuncReturn>): ModuleGen<CallableFunc<[]>>;
+  func<A extends WasmRef<any>[]>(
+    params: Record<string, WasmValType>,
+    body: (...refs: A) => Generator<FuncInstruction, FuncReturn, any>,
+  ): ModuleGen<CallableFunc<{ [K in keyof A]: WasmValType }>>;
+
+  export(name: string, funcref: FuncRef): ModuleGen<void>;
+
+  import<P extends WasmValType[]>(
+    moduleName: string,
+    name: string,
+    params: [...P],
+    results: WasmValType[],
+  ): ModuleGen<CallableFunc<P>>;
+
+  exportAll(funcs: Record<string, FuncRef>): ModuleGen<void>;
+
+  exportFunc(name: string, body: FuncBody<FuncReturn>): ModuleGen<CallableFunc<[]>>;
+  exportFunc<A extends WasmRef<any>[]>(
+    name: string,
+    params: Record<string, WasmValType>,
+    body: (...refs: A) => Generator<FuncInstruction, FuncReturn, any>,
+  ): ModuleGen<CallableFunc<{ [K in keyof A]: WasmValType }>>;
+
+  recursive(
+    body: (self: CallableFunc) => Generator<FuncInstruction, FuncReturn, any>,
+  ): ModuleGen<CallableFunc>;
+  recursive<A extends WasmRef<any>[]>(
+    params: Record<string, WasmValType>,
+    body: (
+      self: CallableFunc,
+      ...refs: A
+    ) => Generator<FuncInstruction, FuncReturn, any>,
+  ): ModuleGen<CallableFunc<{ [K in keyof A]: WasmValType }>>;
+
+  memory(pages: number): ModuleGen<void>;
+
+  global<GT extends WasmValType = "i32">(
+    type: GT,
+    init: number,
+    mutable?: boolean,
+  ): ModuleGen<{
+    get(): ChainableExpr<GT>;
+    set(value: ExprInput): FuncGen<void>;
+  }>;
 }
 
 /** Module-level declarations: functions, exports, imports, memory, globals. */
@@ -106,7 +155,7 @@ export const Mod = {
   func(
     bodyOrParams: FuncBody<FuncReturn> | Record<string, WasmValType>,
     bodyWithParams?: (
-      ...refs: WasmRef[]
+      ...refs: WasmRef<any>[]
     ) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc> {
     const body = buildBody(bodyOrParams, bodyWithParams);
@@ -161,7 +210,7 @@ export const Mod = {
     name: string,
     bodyOrParams: FuncBody<FuncReturn> | Record<string, WasmValType>,
     bodyWithParams?: (
-      ...refs: WasmRef[]
+      ...refs: WasmRef<any>[]
     ) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc> {
     const body = buildBody(bodyOrParams, bodyWithParams);
@@ -192,7 +241,7 @@ export const Mod = {
       | Record<string, WasmValType>,
     bodyWithParams?: (
       self: CallableFunc,
-      ...refs: WasmRef[]
+      ...refs: WasmRef<any>[]
     ) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc> {
     return (function* () {
@@ -211,7 +260,7 @@ export const Mod = {
               );
             }
           }
-          const refs: WasmRef[] = [];
+          const refs: WasmRef<any>[] = [];
           for (const [, type] of entries) {
             refs.push(yield* declareParam(type));
           }
@@ -232,18 +281,16 @@ export const Mod = {
     type: WasmValType,
     init: number,
     mutable: boolean = true,
-  ): ModuleGen<{
-    get(): ChainableExpr;
-    set(value: ExprInput): FuncGen<void>;
-  }> {
+  ) {
     return (function* () {
       const ref: GlobalRef = yield { _type: "global", valType: type, init, mutable } as ModuleInstruction;
       return {
-        get(): ChainableExpr {
+        get() {
           return new ChainableExpr(
             (function* () {
               return val(IR.global_get(ref._idx));
             })(),
+            type,
           );
         },
         set(value: ExprInput): FuncGen<void> {
@@ -255,7 +302,7 @@ export const Mod = {
       };
     })();
   },
-};
+} as unknown as ModNamespace;
 
 /** Arithmetic, comparison, bitwise, and conversion operations. */
 export const Op = {
@@ -484,36 +531,40 @@ export const Mem = {
     );
   },
   /** Creates a chainable i64 constant expression. */
-  i64(v: number): ChainableExpr {
+  i64(v: number): ChainableExpr<"i64"> {
     return new ChainableExpr(
       (function* () {
         return val(IR.const_i64(v));
       })(),
+      "i64",
     );
   },
   /** Creates a chainable f32 constant expression. */
-  f32(v: number): ChainableExpr {
+  f32(v: number): ChainableExpr<"f32"> {
     return new ChainableExpr(
       (function* () {
         return val(IR.const_f32(v));
       })(),
+      "f32",
     );
   },
   /** Creates a chainable f64 constant expression. */
-  f64(v: number): ChainableExpr {
+  f64(v: number): ChainableExpr<"f64"> {
     return new ChainableExpr(
       (function* () {
         return val(IR.const_f64(v));
       })(),
+      "f64",
     );
   },
   // --- i64 memory ---
-  loadI64(addr: ExprInput): ChainableExpr {
+  loadI64(addr: ExprInput): ChainableExpr<"i64"> {
     return new ChainableExpr(
       (function* () {
         const va = yield* resolve(addr);
         return val(IR.load_i64(va._node));
       })(),
+      "i64",
     );
   },
   storeI64(addr: ExprInput, value: ExprInput): FuncGen<void> {
@@ -524,12 +575,13 @@ export const Mem = {
     })();
   },
   // --- f32 memory ---
-  loadF32(addr: ExprInput): ChainableExpr {
+  loadF32(addr: ExprInput): ChainableExpr<"f32"> {
     return new ChainableExpr(
       (function* () {
         const va = yield* resolve(addr);
         return val(IR.mem_load("f32_load", va._node));
       })(),
+      "f32",
     );
   },
   storeF32(addr: ExprInput, value: ExprInput): FuncGen<void> {
@@ -540,12 +592,13 @@ export const Mem = {
     })();
   },
   // --- f64 memory ---
-  loadF64(addr: ExprInput): ChainableExpr {
+  loadF64(addr: ExprInput): ChainableExpr<"f64"> {
     return new ChainableExpr(
       (function* () {
         const va = yield* resolve(addr);
         return val(IR.load_f64(va._node));
       })(),
+      "f64",
     );
   },
   storeF64(addr: ExprInput, value: ExprInput): FuncGen<void> {
@@ -588,52 +641,58 @@ export const Mem = {
     })();
   },
   // --- Narrow i64 loads/stores ---
-  loadI64_8s(addr: ExprInput): ChainableExpr {
+  loadI64_8s(addr: ExprInput): ChainableExpr<"i64"> {
     return new ChainableExpr(
       (function* () {
         const va = yield* resolve(addr);
         return val(IR.mem_load("i64_load8_s", va._node));
       })(),
+      "i64",
     );
   },
-  loadI64_8u(addr: ExprInput): ChainableExpr {
+  loadI64_8u(addr: ExprInput): ChainableExpr<"i64"> {
     return new ChainableExpr(
       (function* () {
         const va = yield* resolve(addr);
         return val(IR.mem_load("i64_load8_u", va._node));
       })(),
+      "i64",
     );
   },
-  loadI64_16s(addr: ExprInput): ChainableExpr {
+  loadI64_16s(addr: ExprInput): ChainableExpr<"i64"> {
     return new ChainableExpr(
       (function* () {
         const va = yield* resolve(addr);
         return val(IR.mem_load("i64_load16_s", va._node));
       })(),
+      "i64",
     );
   },
-  loadI64_16u(addr: ExprInput): ChainableExpr {
+  loadI64_16u(addr: ExprInput): ChainableExpr<"i64"> {
     return new ChainableExpr(
       (function* () {
         const va = yield* resolve(addr);
         return val(IR.mem_load("i64_load16_u", va._node));
       })(),
+      "i64",
     );
   },
-  loadI64_32s(addr: ExprInput): ChainableExpr {
+  loadI64_32s(addr: ExprInput): ChainableExpr<"i64"> {
     return new ChainableExpr(
       (function* () {
         const va = yield* resolve(addr);
         return val(IR.mem_load("i64_load32_s", va._node));
       })(),
+      "i64",
     );
   },
-  loadI64_32u(addr: ExprInput): ChainableExpr {
+  loadI64_32u(addr: ExprInput): ChainableExpr<"i64"> {
     return new ChainableExpr(
       (function* () {
         const va = yield* resolve(addr);
         return val(IR.mem_load("i64_load32_u", va._node));
       })(),
+      "i64",
     );
   },
   storeI64_8(addr: ExprInput, value: ExprInput): FuncGen<void> {
@@ -679,7 +738,7 @@ export const Mem = {
   i32Array(base: number = 0): {
     load(idx: ExprInput): ChainableExpr;
     store(idx: ExprInput, value: ExprInput): FuncGen<void>;
-    swap(i: ExprInput, j: ExprInput, tmp: WasmRef): FuncGen<void>;
+    swap(i: ExprInput, j: ExprInput, tmp: WasmRef<"i32">): FuncGen<void>;
     fill(start: ExprInput, end: ExprInput, value: ExprInput): FuncGen<void>;
   } {
     const addrOf = (idx: ExprInput): ChainableExpr => {

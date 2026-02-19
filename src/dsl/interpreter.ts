@@ -130,11 +130,11 @@ function interpretSubBody(
         if (instr.kind === "param") {
           const idx = ctx.paramCount++;
           ctx.params.push(instr.valType);
-          next = gen.next(ref(idx));
+          next = gen.next(ref(idx, instr.valType));
         } else {
           const idx = ctx.paramCount + ctx.localCount++;
           ctx.locals.push(instr.valType);
-          next = gen.next(ref(idx));
+          next = gen.next(ref(idx, instr.valType));
         }
         break;
       }

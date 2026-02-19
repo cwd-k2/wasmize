@@ -5,10 +5,10 @@ import { type ExprInput, set } from "./expr";
 /**
  * Declares a function parameter of the given type.
  */
-export function param(type: WasmValType): FuncGen<WasmRef> {
+export function param<T extends WasmValType>(type: T): FuncGen<WasmRef<T>> {
   return (function* () {
-    const r: WasmRef = yield { _type: "decl", kind: "param", valType: type };
-    return r;
+    const r = yield { _type: "decl", kind: "param", valType: type } as const;
+    return r as WasmRef<T>;
   })();
 }
 
@@ -19,13 +19,14 @@ export function param(type: WasmValType): FuncGen<WasmRef> {
  * @param type - The Wasm value type
  * @param init - Optional initial value (Wasm locals default to 0)
  */
-export function local(type: WasmValType, init?: ExprInput): FuncGen<WasmRef> {
+export function local<T extends WasmValType>(type: T, init?: ExprInput): FuncGen<WasmRef<T>> {
   return (function* () {
-    const r: WasmRef = yield { _type: "decl", kind: "local", valType: type };
+    const r = yield { _type: "decl", kind: "local", valType: type } as const;
+    const ref = r as WasmRef<T>;
     if (init !== undefined) {
-      yield* set(r, init);
+      yield* set(ref, init);
     }
-    return r;
+    return ref;
   })();
 }
 
