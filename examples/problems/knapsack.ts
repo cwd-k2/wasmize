@@ -23,7 +23,7 @@ export function problem10_knapsack() {
         yield* dp.fill(0, cap, 0);
 
         // For each item i
-        yield* Ctrl.for(i, 0, i.lt(n), i.add(1), () => [
+        yield* Ctrl.range(i, n, () => [
           wi.set(weights.load(i)),
           vi.set(values.load(i)),
 

@@ -28,20 +28,12 @@ function particlesWasm() {
       "step",
       { n: Type.i32, dt: Type.f64 },
       function* (n, dt) {
-        const i = yield* local(Type.i32, 0);
+        const i = yield* local(Type.i32);
 
-        yield* Ctrl.while(i.lt(n), function* () {
-          yield* particles.set(
-            i,
-            "x",
-            particles.get(i, "x").add(particles.get(i, "vx").mul(dt)),
-          );
-          yield* particles.set(
-            i,
-            "y",
-            particles.get(i, "y").add(particles.get(i, "vy").mul(dt)),
-          );
-          yield* i.incrBy(1);
+        yield* Ctrl.range(i, n, function* () {
+          const p = particles.at(i);
+          yield* p.x.set(p.x.add(p.vx.mul(dt)));
+          yield* p.y.set(p.y.add(p.vy.mul(dt)));
         });
       },
     );
@@ -51,20 +43,12 @@ function particlesWasm() {
       "applyGravity",
       { n: Type.i32, gx: Type.f64, gy: Type.f64 },
       function* (n, gx, gy) {
-        const i = yield* local(Type.i32, 0);
+        const i = yield* local(Type.i32);
 
-        yield* Ctrl.while(i.lt(n), function* () {
-          yield* particles.set(
-            i,
-            "vx",
-            particles.get(i, "vx").add(gx),
-          );
-          yield* particles.set(
-            i,
-            "vy",
-            particles.get(i, "vy").add(gy),
-          );
-          yield* i.incrBy(1);
+        yield* Ctrl.range(i, n, function* () {
+          const p = particles.at(i);
+          yield* p.vx.set(p.vx.add(gx));
+          yield* p.vy.set(p.vy.add(gy));
         });
       },
     );
@@ -74,61 +58,44 @@ function particlesWasm() {
       "bounce",
       { n: Type.i32, w: Type.f64, h: Type.f64 },
       function* (n, w, h) {
-        const i = yield* local(Type.i32, 0);
+        const i = yield* local(Type.i32);
         const x = yield* local(Type.f64);
         const y = yield* local(Type.f64);
 
-        yield* Ctrl.while(i.lt(n), function* () {
-          yield* x.set(particles.get(i, "x"));
-          yield* y.set(particles.get(i, "y"));
+        yield* Ctrl.range(i, n, function* () {
+          const p = particles.at(i);
+          yield* x.set(p.x);
+          yield* y.set(p.y);
 
           // Left wall: x < 0
           yield* Ctrl.when(x.lt(f64(0)), function* () {
-            yield* particles.set(i, "x", Op.f64.neg(x));
-            yield* particles.set(
-              i,
-              "vx",
-              Op.f64.neg(particles.get(i, "vx")),
-            );
+            yield* p.x.set(Op.f64.neg(x));
+            yield* p.vx.set(Op.f64.neg(p.vx));
           });
 
           // Reload x after potential modification
-          yield* x.set(particles.get(i, "x"));
+          yield* x.set(p.x);
 
           // Right wall: x > w
           yield* Ctrl.when(x.gt(w), function* () {
-            yield* particles.set(i, "x", Op.f64.sub(w.mul(f64(2)), x));
-            yield* particles.set(
-              i,
-              "vx",
-              Op.f64.neg(particles.get(i, "vx")),
-            );
+            yield* p.x.set(Op.f64.sub(w.mul(f64(2)), x));
+            yield* p.vx.set(Op.f64.neg(p.vx));
           });
 
           // Top wall: y < 0
           yield* Ctrl.when(y.lt(f64(0)), function* () {
-            yield* particles.set(i, "y", Op.f64.neg(y));
-            yield* particles.set(
-              i,
-              "vy",
-              Op.f64.neg(particles.get(i, "vy")),
-            );
+            yield* p.y.set(Op.f64.neg(y));
+            yield* p.vy.set(Op.f64.neg(p.vy));
           });
 
           // Reload y after potential modification
-          yield* y.set(particles.get(i, "y"));
+          yield* y.set(p.y);
 
           // Bottom wall: y > h
           yield* Ctrl.when(y.gt(h), function* () {
-            yield* particles.set(i, "y", Op.f64.sub(h.mul(f64(2)), y));
-            yield* particles.set(
-              i,
-              "vy",
-              Op.f64.neg(particles.get(i, "vy")),
-            );
+            yield* p.y.set(Op.f64.sub(h.mul(f64(2)), y));
+            yield* p.vy.set(Op.f64.neg(p.vy));
           });
-
-          yield* i.incrBy(1);
         });
       },
     );

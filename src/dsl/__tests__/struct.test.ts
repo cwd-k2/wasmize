@@ -136,4 +136,106 @@ describe("Struct", () => {
       expect((getVal as Function)(2)).toBe(300);
     });
   });
+
+  describe("packed fields (u8/u16)", () => {
+    test("u8/u16 layout calculation", () => {
+      const s = Struct({ flags: "u8", count: "u16", value: "i32" });
+      expect(s.fields.flags).toEqual({ offset: 0, type: "u8" });
+      // u16 needs 2-byte alignment → padding after u8
+      expect(s.fields.count).toEqual({ offset: 2, type: "u16" });
+      // i32 needs 4-byte alignment
+      expect(s.fields.value).toEqual({ offset: 4, type: "i32" });
+      expect(s.size).toBe(8);
+    });
+
+    test("u8 roundtrip", async () => {
+      const Pix = Struct({ r: "u8", g: "u8", b: "u8", a: "u8" });
+
+      const binary = compile(function* () {
+        yield* Mod.memory(1);
+        yield* Mod.exportFunc("run", function* () {
+          yield* Pix.set(0, "r", 255);
+          yield* Pix.set(0, "g", 128);
+          yield* Pix.set(0, "b", 64);
+          yield* Pix.set(0, "a", 32);
+          // r + g + b + a
+          return yield* Pix.get(0, "r").add(Pix.get(0, "g")).add(Pix.get(0, "b")).add(Pix.get(0, "a"));
+        });
+      });
+      const { exports: { run } } = await instantiate(binary);
+      expect((run as Function)()).toBe(255 + 128 + 64 + 32);
+    });
+
+    test("u16 roundtrip", async () => {
+      const S = Struct({ a: "u16", b: "u16" });
+
+      const binary = compile(function* () {
+        yield* Mod.memory(1);
+        yield* Mod.exportFunc("run", function* () {
+          yield* S.set(0, "a", 1000);
+          yield* S.set(0, "b", 2000);
+          return yield* S.get(0, "a").add(S.get(0, "b"));
+        });
+      });
+      const { exports: { run } } = await instantiate(binary);
+      expect((run as Function)()).toBe(3000);
+    });
+
+    test("packed struct total size", () => {
+      const s = Struct({ a: "u8", b: "u8", c: "u8" });
+      expect(s.size).toBe(3);
+    });
+  });
+
+  describe("FieldAccessor.at() and mutations", () => {
+    test("FieldAccessor read/write via .at()", async () => {
+      const Point = Struct({ x: "i32", y: "i32" });
+
+      const binary = compile(function* () {
+        yield* Mod.memory(1);
+        yield* Mod.exportFunc("run", function* () {
+          const p = Point.at(0);
+          yield* p.x.set(10);
+          yield* p.y.set(20);
+          return yield* p.x.add(p.y);
+        });
+      });
+      const { exports: { run } } = await instantiate(binary);
+      expect((run as Function)()).toBe(30);
+    });
+
+    test("FieldAccessor.incrBy()", async () => {
+      const Counter = Struct({ value: "i32" });
+
+      const binary = compile(function* () {
+        yield* Mod.memory(1);
+        yield* Mod.exportFunc("run", function* () {
+          const c = Counter.at(0);
+          yield* c.value.set(10);
+          yield* c.value.incrBy(5);
+          yield* c.value.incrBy(3);
+          return yield* Counter.get(0, "value");
+        });
+      });
+      const { exports: { run } } = await instantiate(binary);
+      expect((run as Function)()).toBe(18);
+    });
+
+    test("FieldAccessor.decrBy() and .mulBy()", async () => {
+      const S = Struct({ v: "i32" });
+
+      const binary = compile(function* () {
+        yield* Mod.memory(1);
+        yield* Mod.exportFunc("run", function* () {
+          const s = S.at(0);
+          yield* s.v.set(100);
+          yield* s.v.decrBy(20);
+          yield* s.v.mulBy(3);
+          return yield* S.get(0, "v");
+        });
+      });
+      const { exports: { run } } = await instantiate(binary);
+      expect((run as Function)()).toBe(240); // (100 - 20) * 3
+    });
+  });
 });

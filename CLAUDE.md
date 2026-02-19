@@ -64,10 +64,11 @@ docs/                   # 技術ドキュメント
 - 型リテラルは `Type.i32` / `Type.i64` / `Type.f64` 定数を使用（typo 防止 + 補完支援）
 - `compile<T>()` の型パラメータで export 関数のシグネチャを宣言。戻り値 `WasmBinary<T>` はファントム型
 - `instantiate()` ヘルパでインスタンス化。`const { exports: { fn }, mem } = await instantiate(problem())` パターン
-- ループ糖衣: `Ctrl.for(var, start, cond, step, body)`, `Ctrl.while(cond, body)`, `Ctrl.when(cond, body)`
+- ループ糖衣: `Ctrl.for(var, start, cond, step, body)`, `Ctrl.while(cond, body)`, `Ctrl.when(cond, body)`, `Ctrl.range(i, n, body)` / `Ctrl.range(i, start, end, body)`
+- Range ループ: `Ctrl.range(i, n, body)` は `Ctrl.for(i, 0, i.lt(n), i.add(1), body)` の糖衣。4 引数形式で開始値指定可
 - 多方向分岐: `Ctrl.switch(expr).case(v, body).default(body)` — ビルダパターン、dense 時 br_table / sparse 時 if/else チェイン
 - 値選択: `Op.select(cond, a, b)` は Wasm `select` 命令、`Op.max(a, b)` / `Op.min(a, b)` は select ベース
-- 配列ヘルパ: `Mem.i32Array(base)` で `.mul(4)` を隠蔽、`.swap(i, j, tmp)` で要素交換、`.fill(start, end, value)` で一括初期化
+- 配列ヘルパ: `Mem.i32Array(base)` で `.mul(4)` を隠蔽、`.at(i)` で `FieldAccessor` 取得、`.swap(i, j, tmp)` で要素交換、`.fill(start, end, value)` で一括初期化。`base` はランタイム `ExprInput` も可
 - 2D配列: `Mem.i32Array2D(base, cols)` で `.load(row, col)` / `.store(row, col, val)`
 - 一括 export: `Mod.exportAll({ name: funcRef, ... })`
 - i32 unsigned ops: `Op.div_u`, `Op.rem_u`, `Op.shr_u`, `Op.lt_u`, `Op.gt_u`, `Op.le_u`, `Op.ge_u`
@@ -76,7 +77,12 @@ docs/                   # 技術ドキュメント
 - 型変換: `Op.wrap` (i64→i32), `Op.extend` (i32→i64), `Op.toF64` (i32→f64), `Op.truncI32` (f64→i32)
 - 定数ヘルパ: トップレベル `i32(v)`, `i64(v)`, `f64(v)` で chainable 定数生成（`i32(1).shl(col)` 等）。`Mem.i32/i64/f64` のエイリアス
 - 暗黙戻り値変換: 関数本体から `return count`（WasmRef → local_get）や `return 0`（number → i32.const）が直接可能。`FuncReturn = WasmVal | WasmRef | number | void`
-- 破壊的更新: `x.incrBy(v)`, `x.decrBy(v)`, `x.mulBy(v)`, `x.divBy(v)`, `x.remBy(v)`, `x.andBy(v)`, `x.orBy(v)`, `x.xorBy(v)`, `x.shlBy(v)`, `x.shrBy(v)`（`x.set(x.op(v))` の糖衣）
+- 破壊的更新: `x.incrBy(v)`, `x.decrBy(v)`, `x.mulBy(v)`, `x.divBy(v)`, `x.remBy(v)`, `x.andBy(v)`, `x.orBy(v)`, `x.xorBy(v)`, `x.shlBy(v)`, `x.shrBy(v)`（`WasmRef` は `x.set(x.op(v))` の糖衣、`FieldAccessor` は load-modify-store を 1 命令列に最適化）
+- Struct フィールドアクセス: `points.at(i).x` は `FieldAccessor` を返す Proxy。`.set(v)`, `.incrBy(v)` 等の mutation メソッド + `ChainableExpr` として読み取り可。動的インデックスの `at()` は single-use（キャッシュ不可）
+- Packed fields: `Struct({ r: "u8", g: "u8", b: "u8" })` — `u8`/`u16` は sub-word メモリ命令でアクセスし、Wasm スタック上は `i32`
+- 単項演算: float `.neg()/.abs()/.sqrt()/.ceil()/.floor()/.trunc()/.nearest()`、int `.clz()/.ctz()/.popcnt()`、全型 `.eqz()`（`WasmRef` + `ChainableExpr` の両方で使用可）
+- 型変換メソッド: `.toF64()`, `.toI32()`, `.toI64()`, `.toF32()` — source 型から自動ディスパッチ（`WasmRef` + `ChainableExpr`）
+- クランプ: `expr.clamp(min, max)` — float は native `min`/`max` 命令、int は `select`+`cmp`（`ChainableExpr` のみ）
 - typed メモリ: `Mem.loadI64/storeI64`, `Mem.loadF64/storeF64`
 - メモリシステム: `Mem.size()`, `Mem.grow(pages)`
 - トラップ: `Ctrl.unreachable()`

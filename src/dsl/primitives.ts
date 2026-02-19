@@ -12,7 +12,7 @@ export { param, local, Type } from "./declarations";
 
 export { Mod, Op, Mem, Ctrl, Loc, SwitchCaseBuilder, SwitchDefaultBuilder } from "./namespaces";
 export { BumpAllocator } from "./allocator";
-export { Struct } from "./struct";
+export { Struct, FieldAccessor, type FieldType, type FieldResultType } from "./struct";
 export { Str } from "./string";
 
 // Top-level constant helpers (chainable, shorter than Mem.i32/f64/i64)

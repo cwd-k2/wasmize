@@ -6,11 +6,11 @@ import { instantiate } from "@/test-helpers";
  * Struct 型で 2D 点群の Manhattan 距離を計算。
  *
  * Struct() はフィールドオフセット・アラインメントをコンパイル時に計算。
- * StructArray で配列アクセスも型安全。手動オフセット管理が不要。
+ * StructArray + .at(i) で OOP スタイルのフィールドアクセス。
  *
  * Layer 1 との比較:
  *   Layer 1: Mem.load(base + i * 8 + 4)  ← マジックナンバー
- *   Struct:  points.get(i, "y")           ← フィールド名でアクセス
+ *   Struct:  points.at(i).y              ← フィールド名でアクセス
  */
 const Point = Struct({ x: "i32", y: "i32" });
 
@@ -28,17 +28,18 @@ export async function structPoints() {
       const dx = yield* local(Type.i32);
       const dy = yield* local(Type.i32);
 
-      yield* Ctrl.while(i.lt(n), function* () {
-        // |points[i].x - points[i-1].x| + |points[i].y - points[i-1].y|
-        yield* dx.set(points.get(i, "x").sub(points.get(i.sub(1), "x")));
-        yield* dy.set(points.get(i, "y").sub(points.get(i.sub(1), "y")));
+      yield* Ctrl.range(i, 1, n, function* () {
+        const curr = points.at(i);
+        // Note: points.at(i.sub(1)) cannot be cached because ChainableExpr
+        // indices are single-use generators. Use .get() for computed indices.
+        yield* dx.set(curr.x.sub(points.get(i.sub(1), "x")));
+        yield* dy.set(curr.y.sub(points.get(i.sub(1), "y")));
 
         // abs via: (v ^ (v >> 31)) - (v >> 31)
         yield* dx.set(dx.xor(dx.shr(31)).sub(dx.shr(31)));
         yield* dy.set(dy.xor(dy.shr(31)).sub(dy.shr(31)));
 
         yield* total.incrBy(dx.add(dy));
-        yield* i.incrBy(1);
       });
 
       return total;

@@ -2,6 +2,7 @@ import { IR } from "../wasm/ir";
 import type { ConvertKind, IRNode } from "../wasm/ir";
 import { BumpAllocator } from "./allocator";
 import type { WasmValType } from "../wasm/opcodes";
+import { FieldAccessor } from "./struct";
 import {
   val,
   WasmRef,
@@ -854,23 +855,33 @@ export const Mem = {
   /**
    * Creates an i32 array helper that hides `.mul(4)` byte addressing.
    *
-   * @param base - Base byte offset (default 0)
-   * @returns Object with `load(idx)`, `store(idx, val)`, `swap(i, j, tmp)`, `fill(start, end, val)`
+   * @param base - Base byte offset (default 0, can be a runtime expression)
+   * @returns Object with `load(idx)`, `store(idx, val)`, `at(idx)`, `swap(i, j, tmp)`, `fill(start, end, val)`
    */
-  i32Array(base: number = 0): {
+  i32Array(base: ExprInput = 0): {
     load(idx: ExprInput): ChainableExpr;
     store(idx: ExprInput, value: ExprInput): FuncGen<void>;
+    at(idx: ExprInput): FieldAccessor<"i32">;
     swap(i: ExprInput, j: ExprInput, tmp: WasmRef<"i32">): FuncGen<void>;
     fill(start: ExprInput, end: ExprInput, value: ExprInput): FuncGen<void>;
   } {
     const addrOf = (idx: ExprInput): ChainableExpr => {
       const scaled = new ChainableExpr(mul(idx, 4));
-      return base === 0 ? scaled : scaled.add(base);
+      return (typeof base === "number" && base === 0) ? scaled : scaled.add(base);
     };
-    const arr = {
+    type I32Array = {
+      load(idx: ExprInput): ChainableExpr;
+      store(idx: ExprInput, value: ExprInput): FuncGen<void>;
+      at(idx: ExprInput): FieldAccessor<"i32">;
+      swap(i: ExprInput, j: ExprInput, tmp: WasmRef<"i32">): FuncGen<void>;
+      fill(start: ExprInput, end: ExprInput, value: ExprInput): FuncGen<void>;
+    };
+    const arr: I32Array = {
       load: (idx: ExprInput): ChainableExpr => Mem.load(addrOf(idx)),
       store: (idx: ExprInput, value: ExprInput): FuncGen<void> =>
         Mem.store(addrOf(idx), value),
+      at: (idx: ExprInput): FieldAccessor<"i32"> =>
+        new FieldAccessor(addrOf(idx), "i32"),
       swap: (i: ExprInput, j: ExprInput, tmp: WasmRef): FuncGen<void> =>
         (function* () {
           yield* set(tmp, arr.load(i));
@@ -1151,6 +1162,25 @@ export const Ctrl = {
         then_: toBody(body),
       };
     })();
+  },
+  /**
+   * Range-based for loop. Iterates `variable` from `start` (inclusive) to `end` (exclusive) with step +1.
+   *
+   * - 3 args: `range(i, n, body)` → `for (i = 0; i < n; i++)`
+   * - 4 args: `range(i, start, end, body)` → `for (i = start; i < end; i++)`
+   */
+  range(
+    variable: WasmRef,
+    startOrEnd: ExprInput,
+    endOrBody: ExprInput | VoidBody,
+    maybeBody?: VoidBody,
+  ): FuncGen<void> {
+    if (typeof endOrBody === "function") {
+      // 3-arg form: range(i, n, body) → for(i, 0, i.lt(n), i.add(1), body)
+      return Ctrl.for(variable, 0, variable.lt(startOrEnd), variable.add(1), endOrBody as VoidBody);
+    }
+    // 4-arg form: range(i, start, end, body)
+    return Ctrl.for(variable, startOrEnd, variable.lt(endOrBody), variable.add(1), maybeBody!);
   },
   /** Multi-way switch builder. Chain with `.case()` and optionally `.default()`. */
   switch(expr: ExprInput): SwitchBuilder {

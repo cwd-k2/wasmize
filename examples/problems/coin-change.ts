@@ -22,7 +22,7 @@ export function problem4_coin_change() {
         yield* dp.fill(1, amount, INF);
 
         // for each coin j
-        yield* Ctrl.for(j, 0, j.lt(num_coins), j.add(1), () => [
+        yield* Ctrl.range(j, num_coins, () => [
           coin.set(coins.load(j)),
           // for i = coin to amount
           Ctrl.for(i, coin, i.le(amount), i.add(1), () => [

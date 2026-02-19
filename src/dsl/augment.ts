@@ -1,14 +1,21 @@
-import { WasmRef } from "./types";
+import { IR } from "../wasm/ir";
+import type { ConvertKind } from "../wasm/ir";
+import type { WasmValType } from "../wasm/opcodes";
+import { WasmRef, val, type FuncGen, type WasmVal, type FuncInstruction } from "./types";
 import {
   type ExprInput,
   ChainableExpr,
   makeBinopTyped,
   makeCmpTyped,
+  makeUnary,
+  makeConvert,
+  resolve,
   set,
   tee,
 } from "./expr";
 
 type IntType = "i32" | "i64";
+type FloatType = "f32" | "f64";
 
 // --- WasmRef method augmentation ---
 
@@ -55,6 +62,27 @@ declare module "./types" {
     xorBy(this: WasmRef<IntType>, b: ExprInput): FuncGen<void>;
     shlBy(this: WasmRef<IntType>, b: ExprInput): FuncGen<void>;
     shrBy(this: WasmRef<IntType>, b: ExprInput): FuncGen<void>;
+
+    // --- Float unary ---
+    neg(this: WasmRef<FloatType>): ChainableExpr<T>;
+    abs(this: WasmRef<FloatType>): ChainableExpr<T>;
+    sqrt(this: WasmRef<FloatType>): ChainableExpr<T>;
+    ceil(this: WasmRef<FloatType>): ChainableExpr<T>;
+    floor(this: WasmRef<FloatType>): ChainableExpr<T>;
+    trunc(this: WasmRef<FloatType>): ChainableExpr<T>;
+    nearest(this: WasmRef<FloatType>): ChainableExpr<T>;
+
+    // --- Int unary ---
+    clz(this: WasmRef<IntType>): ChainableExpr<T>;
+    ctz(this: WasmRef<IntType>): ChainableExpr<T>;
+    popcnt(this: WasmRef<IntType>): ChainableExpr<T>;
+    eqz(): ChainableExpr<"i32">;
+
+    // --- Conversions ---
+    toF64(): ChainableExpr<"f64">;
+    toI32(): ChainableExpr<"i32">;
+    toI64(): ChainableExpr<"i64">;
+    toF32(): ChainableExpr<"f32">;
   }
 }
 
@@ -123,3 +151,58 @@ WasmRef.prototype.orBy = function (this: WasmRef, b: ExprInput) { return mutate(
 WasmRef.prototype.xorBy = function (this: WasmRef, b: ExprInput) { return mutate("xor", this, b); };
 WasmRef.prototype.shlBy = function (this: WasmRef, b: ExprInput) { return mutate("shl", this, b); };
 WasmRef.prototype.shrBy = function (this: WasmRef, b: ExprInput) { return mutate("shr", this, b); };
+
+// --- Unary operations ---
+
+/** Runtime helper for unary operations. Type safety is enforced by `declare module` above. */
+function unary(kind: string, ref: WasmRef): any {
+  return new ChainableExpr(
+    makeUnary(kind as any, ref._valType)(ref),
+    ref._valType,
+  );
+}
+
+// Float unary
+WasmRef.prototype.neg = function (this: WasmRef) { return unary("neg", this); };
+WasmRef.prototype.abs = function (this: WasmRef) { return unary("abs", this); };
+WasmRef.prototype.sqrt = function (this: WasmRef) { return unary("sqrt", this); };
+WasmRef.prototype.ceil = function (this: WasmRef) { return unary("ceil", this); };
+WasmRef.prototype.floor = function (this: WasmRef) { return unary("floor", this); };
+WasmRef.prototype.trunc = function (this: WasmRef) { return unary("trunc", this); };
+WasmRef.prototype.nearest = function (this: WasmRef) { return unary("nearest", this); };
+
+// Int unary
+WasmRef.prototype.clz = function (this: WasmRef) { return unary("clz", this); };
+WasmRef.prototype.ctz = function (this: WasmRef) { return unary("ctz", this); };
+WasmRef.prototype.popcnt = function (this: WasmRef) { return unary("popcnt", this); };
+WasmRef.prototype.eqz = function (this: WasmRef): any {
+  const type = this._valType;
+  return new ChainableExpr(
+    (function* (ref: WasmRef): Generator<FuncInstruction, WasmVal, any> {
+      const va = yield* resolve(ref);
+      return val(IR.eqz(va._node, type));
+    })(this),
+    "i32",
+  );
+};
+
+// --- Conversions ---
+
+/** Lookup table: `CONVERT_TABLE[targetType][sourceType]` → ConvertKind, or null for no-op same-type. */
+const CONVERT_TABLE: Record<WasmValType, Record<WasmValType, ConvertKind | null>> = {
+  i32: { i32: null, i64: "i32_wrap_i64", f32: "i32_trunc_f32_s", f64: "i32_trunc_f64_s" },
+  i64: { i32: "i64_extend_i32_s", i64: null, f32: "i64_trunc_f32_s", f64: "i64_trunc_f64_s" },
+  f32: { i32: "f32_convert_i32_s", i64: "f32_convert_i64_s", f32: null, f64: "f32_demote_f64" },
+  f64: { i32: "f64_convert_i32_s", i64: "f64_convert_i64_s", f32: "f64_promote_f32", f64: null },
+};
+
+function convertTo(ref: WasmRef, target: WasmValType): any {
+  const kind = CONVERT_TABLE[target][ref._valType];
+  if (!kind) return new ChainableExpr((function* () { return val(IR.local_get(ref._idx)); })(), target);
+  return new ChainableExpr(makeConvert(kind)(ref), target);
+}
+
+WasmRef.prototype.toF64 = function (this: WasmRef) { return convertTo(this, "f64"); };
+WasmRef.prototype.toI32 = function (this: WasmRef) { return convertTo(this, "i32"); };
+WasmRef.prototype.toI64 = function (this: WasmRef) { return convertTo(this, "i64"); };
+WasmRef.prototype.toF32 = function (this: WasmRef) { return convertTo(this, "f32"); };

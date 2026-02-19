@@ -31,8 +31,8 @@ function gameOfLifeWasm() {
         yield* gridSize.set(w.mul(h));
 
         // For each cell, count neighbors and compute next state
-        yield* Ctrl.for(y, 0, y.lt(h), y.add(1), function* () {
-          yield* Ctrl.for(x, 0, x.lt(w), x.add(1), function* () {
+        yield* Ctrl.range(y, h, function* () {
+          yield* Ctrl.range(x, w, function* () {
             yield* count.set(0);
             yield* cell.set(Mem.load8(y.mul(w).add(x)));
 
@@ -63,7 +63,7 @@ function gameOfLifeWasm() {
         });
 
         // Copy gridB → gridA
-        yield* Ctrl.for(x, 0, x.lt(gridSize), x.add(1), function* () {
+        yield* Ctrl.range(x, gridSize, function* () {
           yield* Mem.store8(x, Mem.load8(x.add(gridSize)));
         });
       },

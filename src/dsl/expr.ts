@@ -121,6 +121,134 @@ export class ChainableExpr<T extends WasmValType = "i32"> {
   shr(b: ExprInput): ChainableExpr<T> {
     return new ChainableExpr(makeBinopTyped("shr", this._type)(this._inner, b), this._type);
   }
+
+  // --- Unary: float ops (permissive — TS constraints enforced at WasmRef level) ---
+
+  /** Negates the value (`f32.neg` / `f64.neg`). Float types only at WasmRef level. */
+  neg(): ChainableExpr<T> {
+    return new ChainableExpr(makeUnary("neg", this._type)(this._inner), this._type);
+  }
+  /** Absolute value (`f32.abs` / `f64.abs`). */
+  abs(): ChainableExpr<T> {
+    return new ChainableExpr(makeUnary("abs", this._type)(this._inner), this._type);
+  }
+  /** Square root (`f32.sqrt` / `f64.sqrt`). */
+  sqrt(): ChainableExpr<T> {
+    return new ChainableExpr(makeUnary("sqrt", this._type)(this._inner), this._type);
+  }
+  /** Round toward positive infinity. */
+  ceil(): ChainableExpr<T> {
+    return new ChainableExpr(makeUnary("ceil", this._type)(this._inner), this._type);
+  }
+  /** Round toward negative infinity. */
+  floor(): ChainableExpr<T> {
+    return new ChainableExpr(makeUnary("floor", this._type)(this._inner), this._type);
+  }
+  /** Round toward zero. */
+  trunc(): ChainableExpr<T> {
+    return new ChainableExpr(makeUnary("trunc", this._type)(this._inner), this._type);
+  }
+  /** Round to nearest even. */
+  nearest(): ChainableExpr<T> {
+    return new ChainableExpr(makeUnary("nearest", this._type)(this._inner), this._type);
+  }
+
+  // --- Unary: int ops (permissive) ---
+
+  /** Count leading zeros. Integer types only at WasmRef level. */
+  clz(): ChainableExpr<T> {
+    return new ChainableExpr(makeUnary("clz", this._type)(this._inner), this._type);
+  }
+  /** Count trailing zeros. */
+  ctz(): ChainableExpr<T> {
+    return new ChainableExpr(makeUnary("ctz", this._type)(this._inner), this._type);
+  }
+  /** Population count (number of set bits). */
+  popcnt(): ChainableExpr<T> {
+    return new ChainableExpr(makeUnary("popcnt", this._type)(this._inner), this._type);
+  }
+
+  // --- eqz (all types → i32) ---
+
+  /** Tests if value equals zero. Returns i32 (0 or 1). */
+  eqz(): ChainableExpr<"i32"> {
+    const type = this._type;
+    return new ChainableExpr(
+      (function* (inner: Expr) {
+        const va = yield* resolve(inner);
+        return val(IR.eqz(va._node, type));
+      })(this._inner),
+      "i32",
+    );
+  }
+
+  // --- Conversions (auto-dispatch based on _type) ---
+
+  /** Converts to f64. Dispatches to the appropriate Wasm conversion based on source type. */
+  toF64(): ChainableExpr<"f64"> {
+    if (this._type === "f64") return this as unknown as ChainableExpr<"f64">;
+    const kind: ConvertKind =
+      this._type === "i32" ? "f64_convert_i32_s" :
+      this._type === "i64" ? "f64_convert_i64_s" :
+      /* f32 */ "f64_promote_f32";
+    return new ChainableExpr(makeConvert(kind)(this._inner), "f64");
+  }
+  /** Converts to i32. Dispatches to the appropriate Wasm conversion based on source type. */
+  toI32(): ChainableExpr<"i32"> {
+    if (this._type === "i32") return this as unknown as ChainableExpr<"i32">;
+    const kind: ConvertKind =
+      this._type === "f64" ? "i32_trunc_f64_s" :
+      this._type === "f32" ? "i32_trunc_f32_s" :
+      /* i64 */ "i32_wrap_i64";
+    return new ChainableExpr(makeConvert(kind)(this._inner), "i32");
+  }
+  /** Converts to i64. Dispatches to the appropriate Wasm conversion based on source type. */
+  toI64(): ChainableExpr<"i64"> {
+    if (this._type === "i64") return this as unknown as ChainableExpr<"i64">;
+    const kind: ConvertKind =
+      this._type === "i32" ? "i64_extend_i32_s" :
+      this._type === "f64" ? "i64_trunc_f64_s" :
+      /* f32 */ "i64_trunc_f32_s";
+    return new ChainableExpr(makeConvert(kind)(this._inner), "i64");
+  }
+  /** Converts to f32. Dispatches to the appropriate Wasm conversion based on source type. */
+  toF32(): ChainableExpr<"f32"> {
+    if (this._type === "f32") return this as unknown as ChainableExpr<"f32">;
+    const kind: ConvertKind =
+      this._type === "i32" ? "f32_convert_i32_s" :
+      this._type === "f64" ? "f32_demote_f64" :
+      /* i64 */ "f32_convert_i64_s";
+    return new ChainableExpr(makeConvert(kind)(this._inner), "f32");
+  }
+
+  // --- clamp(min, max) ---
+
+  /**
+   * Clamps the value to `[min, max]`.
+   * Float types use native `min`/`max` instructions; integer types use `select` + `cmp`.
+   */
+  clamp(min: ExprInput, max: ExprInput): ChainableExpr<T> {
+    const type = this._type;
+    const isFloat = type === "f32" || type === "f64";
+    return new ChainableExpr(
+      (function* (inner: Expr) {
+        const vSelf = yield* resolve(inner);
+        const vMin = yield* resolve(min);
+        const vMax = yield* resolve(max);
+        if (isFloat) {
+          // f32/f64 have native min/max instructions
+          const clamped = IR.binop("min", IR.binop("max", vSelf._node, vMin._node, type), vMax._node, type);
+          return val(clamped);
+        } else {
+          // i32/i64: use select + cmp
+          const aboveMin = IR.select(vSelf._node, vMin._node, IR.cmp("gt", vSelf._node, vMin._node, type));
+          const belowMax = IR.select(aboveMin, vMax._node, IR.cmp("lt", aboveMin, vMax._node, type));
+          return val(belowMax);
+        }
+      })(this._inner),
+      this._type,
+    );
+  }
 }
 
 // --- resolve helper ---

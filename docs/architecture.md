@@ -54,7 +54,7 @@ type WasmBinary<T> = Uint8Array & { readonly __exports?: T }
 |------|-----------|-----------|-----|
 | 式（pure） | No | `Op`, `Mem` | `Op.add()`, `Op.select()`, `Op.max()`, `Op.min()`, `Op.i64.add()`, `Op.f64.mul()`, `Op.wrap()`, `Op.toF64()`, `Mem.load()`, `Mem.i32()`, `Mem.i64()`, `Mem.f64()`, `Mem.loadI64()`, `Mem.loadF64()`, `Mem.size()`, `Mem.i32Array()`, `Mem.i32Array2D()` |
 | 文（statement） | Yes (`StmtInstruction`) | `Loc`, `Mem`, `Mod` | `Loc.set()`, `Mem.store()`, `Mem.storeI64()`, `Mem.storeF64()`, `Ctrl.br()`, `Mod.exportAll()` |
-| 制御フロー | Yes (compound) | `Ctrl` | `Ctrl.if().then().else()`, `Ctrl.loop()`, `Ctrl.block()`, `Ctrl.for()`, `Ctrl.while()`, `Ctrl.when()`, `Ctrl.switch().case().default()`, `Ctrl.unreachable()` |
+| 制御フロー | Yes (compound) | `Ctrl` | `Ctrl.if().then().else()`, `Ctrl.loop()`, `Ctrl.block()`, `Ctrl.for()`, `Ctrl.while()`, `Ctrl.when()`, `Ctrl.range()`, `Ctrl.switch().case().default()`, `Ctrl.unreachable()` |
 
 ### 使用例
 
@@ -124,6 +124,32 @@ const binary = compile<{ fib: (n: number) => number }>(function* () {
 | `x.shlBy(n)` | `x.set(x.shl(n))` |
 | `x.shrBy(n)` | `x.set(x.shr(n))` |
 
+### 単項演算メソッド
+
+`WasmRef` と `ChainableExpr` の両方で使用可能。TS の `this` 型制約で不正な型の組み合わせをコンパイル時に検出。
+
+| カテゴリ | メソッド | 対象型 |
+|---------|---------|--------|
+| Float | `.neg()`, `.abs()`, `.sqrt()`, `.ceil()`, `.floor()`, `.trunc()`, `.nearest()` | f32, f64 |
+| Int | `.clz()`, `.ctz()`, `.popcnt()` | i32, i64 |
+| 全型 | `.eqz()` → `ChainableExpr<"i32">` | i32, i64, f32, f64 |
+
+### 型変換メソッド
+
+`.toF64()`, `.toI32()`, `.toI64()`, `.toF32()` — source 型に基づいて適切な Wasm conversion 命令を自動選択。同型変換は no-op（`this` をそのまま返す）。
+
+```typescript
+const f = yield* local(Type.f64, 3.14);
+const i = f.toI32();  // i32.trunc_f64_s
+```
+
+### クランプメソッド
+
+`ChainableExpr.clamp(min, max)` — 値を `[min, max]` の範囲に制限。
+
+- Float (f32/f64): native `min`/`max` 命令を使用（`max(min(self, max_val), min_val)`）
+- Int (i32/i64): `select` + `cmp` で実現（`min`/`max` 命令がないため）
+
 ### トップレベル定数ヘルパ
 
 `i32(v)`, `i64(v)`, `f64(v)` をトップレベルで export。`Mem.i32(v)` の別名だが、定数リテラルであることが明確になる。
@@ -133,13 +159,22 @@ import { i32 } from "@/dsl/compiler";
 i32(1).shl(col)  // ビットマスク生成
 ```
 
-### 配列 fill ヘルパ
+### 配列ヘルパの拡張
 
-`Mem.i32Array()` が返すオブジェクトに `fill(startIdx, endIdx, value)` メソッドを追加。内部で while ループに展開。
+`Mem.i32Array(base)` は `base` として `ExprInput`（ランタイム式を含む）を受け付ける。返すオブジェクトは以下のメソッドを持つ:
+
+| メソッド | 戻り値 | 説明 |
+|---------|--------|------|
+| `load(idx)` | `ChainableExpr` | i32 読み取り |
+| `store(idx, val)` | `FuncGen<void>` | i32 書き込み |
+| `at(idx)` | `FieldAccessor<"i32">` | `.set()`, `.incrBy()` 等の mutation + 読み取り |
+| `swap(i, j, tmp)` | `FuncGen<void>` | 要素交換 |
+| `fill(start, end, val)` | `FuncGen<void>` | 一括初期化 |
 
 ```typescript
 const dp = Mem.i32Array(DP_BASE);
 yield* dp.fill(1, amount, INF);  // dp[1]..dp[amount] = INF
+yield* dp.at(i).incrBy(1);       // dp[i]++
 ```
 
 ### Expr 解決の仕組み
@@ -436,6 +471,28 @@ Point.size;  // 8 bytes
 const points = Point.array(alloc, 100);
 points.get(i, "x");       // ChainableExpr<"i32">
 points.set(i, "y", val);  // FuncGen<void>
+```
+
+#### OOP スタイルアクセス（FieldAccessor）
+
+`Struct.at(base)` / `StructArray.at(index)` は Proxy ベースの `StructAccessor` を返す。各フィールドは `FieldAccessor`（`ChainableExpr` のサブクラス）で、読み取り + `.set()` + in-place mutation（`.incrBy()` 等）を提供。
+
+```typescript
+const p = points.at(i);
+yield* p.x.incrBy(dx);   // load-modify-store in one sequence
+yield* p.y.set(0);       // direct write
+return p.x.add(p.y);     // read as ChainableExpr
+```
+
+**注意:** 動的 `ExprInput` インデックスで取得した `at()` プロキシは single-use。`ChainableExpr` が内部で single-use generator を保持するため、同じプロキシの複数フィールドアクセスには `get()` メソッドを使用する。
+
+#### Packed fields（u8/u16）
+
+`FieldType` は `WasmValType | "u8" | "u16"` に拡張。packed field はサブワードメモリ命令（`i32.load8_u`, `i32.store16` 等）でアクセスし、Wasm スタック上は `i32` として扱われる。
+
+```typescript
+const Pixel = Struct({ r: "u8", g: "u8", b: "u8", a: "u8" });
+Pixel.size;  // 4 bytes (1+1+1+1, align 1)
 ```
 
 ### 文字列サポート

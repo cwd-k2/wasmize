@@ -5,7 +5,7 @@
  */
 import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
-import { Type, Mod, Mem } from "../primitives";
+import { Type, Mod, Mem, f64, i32 } from "../primitives";
 import { instantiate } from "../../test-helpers";
 
 describe("polymorphic i64 ref ops", () => {
@@ -140,5 +140,166 @@ describe("ChainableExpr<T> type propagation", () => {
     );
     const { exports } = await instantiate(binary);
     expect(exports.chain(1.5, 2.5, 3.0)).toBe(12.0); // (1.5+2.5)*3
+  });
+});
+
+describe("ChainableExpr unary methods", () => {
+  test(".neg() on f64", async () => {
+    const binary = compile<{ run: (x: number) => number }>(function* () {
+      yield* Mod.exportFunc("run", { x: Type.f64 }, function* (x) {
+        return yield* x.neg();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect(exports.run(3.14)).toBeCloseTo(-3.14);
+    expect(exports.run(-2.5)).toBeCloseTo(2.5);
+  });
+
+  test(".abs() on f64", async () => {
+    const binary = compile<{ run: (x: number) => number }>(function* () {
+      yield* Mod.exportFunc("run", { x: Type.f64 }, function* (x) {
+        return yield* x.abs();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect(exports.run(-7.5)).toBeCloseTo(7.5);
+    expect(exports.run(3.0)).toBeCloseTo(3.0);
+  });
+
+  test(".sqrt() on f64", async () => {
+    const binary = compile<{ run: (x: number) => number }>(function* () {
+      yield* Mod.exportFunc("run", { x: Type.f64 }, function* (x) {
+        return yield* x.sqrt();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect(exports.run(9.0)).toBeCloseTo(3.0);
+    expect(exports.run(2.0)).toBeCloseTo(Math.SQRT2);
+  });
+
+  test(".clz() on i32", async () => {
+    const binary = compile<{ run: (x: number) => number }>(function* () {
+      yield* Mod.exportFunc("run", { x: Type.i32 }, function* (x) {
+        return yield* x.clz();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect(exports.run(1)).toBe(31);
+    expect(exports.run(0x80000000)).toBe(0);
+  });
+
+  test(".eqz()", async () => {
+    const binary = compile<{ run: (x: number) => number }>(function* () {
+      yield* Mod.exportFunc("run", { x: Type.i32 }, function* (x) {
+        return yield* x.eqz();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect(exports.run(0)).toBe(1);
+    expect(exports.run(42)).toBe(0);
+  });
+});
+
+describe("WasmRef unary methods", () => {
+  test("f64 ref .neg()", async () => {
+    const binary = compile<{ run: (x: number) => number }>(function* () {
+      yield* Mod.exportFunc("run", { x: Type.f64 }, function* (x) {
+        return yield* x.neg();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect(exports.run(5.0)).toBeCloseTo(-5.0);
+  });
+
+  test("i32 ref .eqz()", async () => {
+    const binary = compile<{ run: (x: number) => number }>(function* () {
+      yield* Mod.exportFunc("run", { x: Type.i32 }, function* (x) {
+        return yield* x.eqz();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect(exports.run(0)).toBe(1);
+    expect(exports.run(1)).toBe(0);
+  });
+
+  test("i32 ref .clz()", async () => {
+    const binary = compile<{ run: (x: number) => number }>(function* () {
+      yield* Mod.exportFunc("run", { x: Type.i32 }, function* (x) {
+        return yield* x.clz();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect(exports.run(1)).toBe(31);
+  });
+});
+
+describe("conversion methods", () => {
+  test(".toF64() from i32", async () => {
+    const binary = compile<{ run: (x: number) => number }>(function* () {
+      yield* Mod.exportFunc("run", { x: Type.i32 }, function* (x) {
+        return yield* x.toF64();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect(exports.run(42)).toBe(42.0);
+  });
+
+  test(".toI32() from f64", async () => {
+    const binary = compile<{ run: (x: number) => number }>(function* () {
+      yield* Mod.exportFunc("run", { x: Type.f64 }, function* (x) {
+        return yield* x.toI32();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect(exports.run(3.99)).toBe(3);
+    expect(exports.run(-2.7)).toBe(-2);
+  });
+
+  test(".toI64() from i32", async () => {
+    const binary = compile<{ run: (x: number) => bigint }>(function* () {
+      yield* Mod.exportFunc("run", { x: Type.i32 }, function* (x) {
+        return yield* x.toI64();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect(exports.run(42)).toBe(42n);
+    expect(exports.run(-1)).toBe(-1n);
+  });
+
+  test("ChainableExpr .toF64() from i32 constant", async () => {
+    const binary = compile<{ run: () => number }>(function* () {
+      yield* Mod.exportFunc("run", function* () {
+        return yield* i32(42).toF64();
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect(exports.run()).toBe(42.0);
+  });
+});
+
+describe(".clamp()", () => {
+  test("i32 clamp", async () => {
+    const binary = compile<{ run: (x: number) => number }>(function* () {
+      yield* Mod.exportFunc("run", { x: Type.i32 }, function* (x) {
+        // x.add(0) converts WasmRef → ChainableExpr to access .clamp()
+        return yield* x.add(0).clamp(10, 20);
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect(exports.run(5)).toBe(10);
+    expect(exports.run(15)).toBe(15);
+    expect(exports.run(25)).toBe(20);
+  });
+
+  test("f64 clamp", async () => {
+    const binary = compile<{ run: (x: number) => number }>(function* () {
+      yield* Mod.exportFunc("run", { x: Type.f64 }, function* (x) {
+        return yield* x.add(f64(0.0)).clamp(f64(0.0), f64(1.0));
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect(exports.run(-0.5)).toBeCloseTo(0.0);
+    expect(exports.run(0.5)).toBeCloseTo(0.5);
+    expect(exports.run(1.5)).toBeCloseTo(1.0);
   });
 });

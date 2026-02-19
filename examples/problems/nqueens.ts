@@ -19,7 +19,7 @@ export function problem14_nqueens() {
             return 1;
           })
           .else(function* () {
-            yield* Ctrl.for(col, 0, col.lt(n), col.add(1), () => [
+            yield* Ctrl.range(col, n, () => [
               bit.set(i32(1).shl(col)),
               d1bit.set(i32(1).shl(row.add(col))),
               d2bit.set(i32(1).shl(row.sub(col).add(n.sub(1)))),

@@ -17,7 +17,7 @@ export function problem13_lis() {
       const mid = yield* local(Type.i32);
       const val = yield* local(Type.i32);
 
-      yield* Ctrl.for(i, 0, i.lt(len), i.add(1), function* () {
+      yield* Ctrl.range(i, len, function* () {
         yield* val.set(input.load(i));
 
         // Inline lower_bound: find first index where tails[idx] >= val

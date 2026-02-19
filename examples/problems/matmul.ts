@@ -22,15 +22,15 @@ export function problem8_matmul() {
       yield* baseC.set(nn.mul(8));
       yield* n4.set(n.mul(4));
 
-      yield* Ctrl.for(i, 0, i.lt(n), i.add(1), function* () {
+      yield* Ctrl.range(i, n, function* () {
         yield* iRowA.set(i.mul(n4));
 
-        yield* Ctrl.for(j, 0, j.lt(n), j.add(1), function* () {
+        yield* Ctrl.range(j, n, function* () {
           yield* sum.set(0);
           yield* jColB.set(j.mul(4).add(baseB));
           yield* bStride.set(0);
 
-          yield* Ctrl.for(k, 0, k.lt(n), k.add(1), () => [
+          yield* Ctrl.range(k, n, () => [
             // A[i][k] * B[k][j] — stride-based addressing eliminates k*n mul
             sum.incrBy(
               Mem.load(iRowA.add(k.mul(4)))

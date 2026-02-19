@@ -463,6 +463,82 @@ describe("Mod.recursive", () => {
   });
 });
 
+describe("Ctrl.range", () => {
+  test("3-arg form: range(i, n, body) counts from 0", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      const arr = Mem.i32Array();
+      const fn = yield* Mod.func(function* () {
+        const n = yield* param(Type.i32);
+        const i = yield* local(Type.i32);
+        // fill arr[0..n) with i*i
+        yield* Ctrl.range(i, n, () => [
+          arr.store(i, i.mul(i)),
+        ]);
+        return yield* arr.load(n.sub(1));
+      });
+      yield* Mod.export("run", fn);
+    });
+    const { exports: { run } } = await instantiate(binary);
+    expect((run as Function)(5)).toBe(16); // 4*4
+  });
+
+  test("4-arg form: range(i, start, end, body)", async () => {
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        const start = yield* param(Type.i32);
+        const end = yield* param(Type.i32);
+        const i = yield* local(Type.i32);
+        const sum = yield* local(Type.i32, 0);
+        yield* Ctrl.range(i, start, end, () => [
+          sum.set(sum.add(i)),
+        ]);
+        return yield* Loc.get(sum);
+      });
+      yield* Mod.export("run", fn);
+    });
+    const { exports: { run } } = await instantiate(binary);
+    // sum of 3..7 = 3+4+5+6 = 18
+    expect((run as Function)(3, 7)).toBe(18);
+  });
+});
+
+describe("i32Array.at()", () => {
+  test("at() read and write", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      const arr = Mem.i32Array();
+      const fn = yield* Mod.func(function* () {
+        const idx = yield* param(Type.i32);
+        yield* arr.at(0).set(100);
+        yield* arr.at(1).set(200);
+        yield* arr.at(2).set(300);
+        return yield* arr.at(idx);
+      });
+      yield* Mod.export("run", fn);
+    });
+    const { exports: { run } } = await instantiate(binary);
+    expect((run as Function)(0)).toBe(100);
+    expect((run as Function)(1)).toBe(200);
+    expect((run as Function)(2)).toBe(300);
+  });
+
+  test("at().incrBy() mutation", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      const arr = Mem.i32Array();
+      const fn = yield* Mod.func(function* () {
+        yield* arr.at(0).set(10);
+        yield* arr.at(0).incrBy(5);
+        return yield* arr.load(0);
+      });
+      yield* Mod.export("run", fn);
+    });
+    const { exports: { run } } = await instantiate(binary);
+    expect((run as Function)()).toBe(15);
+  });
+});
+
 describe("Mod.global", () => {
   test("mutable global as counter", async () => {
     const binary = compile(function* () {

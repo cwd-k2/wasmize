@@ -39,7 +39,7 @@ export function problem5_binary_search() {
         const ti = yield* local(Type.i32);
         const sum = yield* local(Type.i32, 0);
 
-        yield* Ctrl.for(ti, 0, ti.lt(tcount), ti.add(1), () => [
+        yield* Ctrl.range(ti, tcount, () => [
           sum.incrBy(binary_search(len, Mem.load(tbase.add(ti.mul(4))))),
         ]);
 
