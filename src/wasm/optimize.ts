@@ -1,5 +1,6 @@
-import type { IRNode, BinopKind, CmpKind } from "./ir";
+import type { IRNode, BinopKind, CmpKind, UnaryKind } from "./ir";
 import { IR } from "./ir";
+import type { WasmValType } from "./opcodes";
 
 // --- Helpers ---
 
@@ -21,6 +22,93 @@ function toI32(v: number): number {
 // Structural equality for IR nodes (self-cancelling detection)
 function irEqual(a: IRNode, b: IRNode): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+// --- i32/i64 unified helpers ---
+
+function isIntZero(node: IRNode, type: WasmValType): boolean {
+  return type === "i32" ? (node.op === "const_i32" && node.v === 0)
+    : type === "i64" ? (node.op === "const_i64" && node.v === 0)
+    : false;
+}
+
+function isIntOne(node: IRNode, type: WasmValType): boolean {
+  return type === "i32" ? (node.op === "const_i32" && node.v === 1)
+    : type === "i64" ? (node.op === "const_i64" && node.v === 1)
+    : false;
+}
+
+function intConst(type: WasmValType, v: number): IRNode {
+  return type === "i64" ? IR.const_i64(v) : IR.const_i32(v);
+}
+
+function intConstVal(node: IRNode, type: WasmValType): number | null {
+  if (type === "i32" && node.op === "const_i32") return node.v;
+  if (type === "i64" && node.op === "const_i64") return node.v;
+  return null;
+}
+
+// --- i32 unary ops in JS ---
+
+function ctz32(v: number): number {
+  if (v === 0) return 32;
+  let n = 0;
+  v = v | 0;
+  while ((v & 1) === 0) { v >>>= 1; n++; }
+  return n;
+}
+
+function popcnt32(v: number): number {
+  v = v | 0;
+  v = v - ((v >>> 1) & 0x55555555);
+  v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
+  return (((v + (v >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
+}
+
+// Wasm `nearest` uses round-ties-to-even (IEEE 754), not Math.round (ties-away-from-zero)
+function roundTiesToEven(v: number): number {
+  const r = Math.round(v);
+  // When exactly halfway, round to even
+  if (Math.abs(v - r) === 0.5) return r % 2 === 0 ? r : r - Math.sign(v);
+  return r;
+}
+
+// --- Constant folding for unary ---
+
+function foldUnary(kind: UnaryKind, v: number, type: WasmValType): number | null {
+  if (type === "i32") {
+    switch (kind) {
+      case "clz": return Math.clz32(v);
+      case "ctz": return ctz32(v);
+      case "popcnt": return popcnt32(v);
+      default: return null;
+    }
+  }
+  if (type === "f64") {
+    switch (kind) {
+      case "neg": return -v;
+      case "abs": return Math.abs(v);
+      case "sqrt": return v >= 0 || isNaN(v) ? Math.sqrt(v) : NaN;
+      case "ceil": return Math.ceil(v);
+      case "floor": return Math.floor(v);
+      case "trunc": return Math.trunc(v);
+      case "nearest": return roundTiesToEven(v);
+      default: return null;
+    }
+  }
+  if (type === "f32") {
+    switch (kind) {
+      case "neg": return -v;
+      case "abs": return Math.abs(v);
+      case "sqrt": return Math.fround(Math.sqrt(v));
+      case "ceil": return Math.fround(Math.ceil(v));
+      case "floor": return Math.fround(Math.floor(v));
+      case "trunc": return Math.fround(Math.trunc(v));
+      case "nearest": return Math.fround(roundTiesToEven(v));
+      default: return null;
+    }
+  }
+  return null;
 }
 
 // Comparison inversion map for eqz-of-cmp optimization
@@ -90,59 +178,63 @@ function optimizeNode(node: IRNode): IRNode {
         if (result !== null) return IR.const_i32(result);
       }
 
-      // Identity elimination (i32 only) — checked before strength reduction
-      if (type === "i32") {
+      // Identity elimination (i32/i64) — checked before strength reduction
+      if (type === "i32" || type === "i64") {
         switch (node.kind) {
           case "add":
-            if (b.op === "const_i32" && b.v === 0) return a;
-            if (a.op === "const_i32" && a.v === 0) return b;
+            if (isIntZero(b, type)) return a;
+            if (isIntZero(a, type)) return b;
             break;
           case "sub":
-            if (b.op === "const_i32" && b.v === 0) return a;
+            if (isIntZero(b, type)) return a;
             break;
           case "mul":
-            if (b.op === "const_i32" && b.v === 1) return a;
-            if (a.op === "const_i32" && a.v === 1) return b;
-            if (b.op === "const_i32" && b.v === 0) return IR.const_i32(0);
-            if (a.op === "const_i32" && a.v === 0) return IR.const_i32(0);
+            if (isIntOne(b, type)) return a;
+            if (isIntOne(a, type)) return b;
+            if (isIntZero(b, type)) return intConst(type, 0);
+            if (isIntZero(a, type)) return intConst(type, 0);
             break;
           case "or": case "xor":
-            if (b.op === "const_i32" && b.v === 0) return a;
-            if (a.op === "const_i32" && a.v === 0) return b;
+            if (isIntZero(b, type)) return a;
+            if (isIntZero(a, type)) return b;
             break;
           case "and":
-            if (b.op === "const_i32" && b.v === 0) return IR.const_i32(0);
-            if (a.op === "const_i32" && a.v === 0) return IR.const_i32(0);
+            if (isIntZero(b, type)) return intConst(type, 0);
+            if (isIntZero(a, type)) return intConst(type, 0);
             break;
           case "shl": case "shr": case "shr_u":
-            if (b.op === "const_i32" && b.v === 0) return a;
+            if (isIntZero(b, type)) return a;
             break;
         }
 
         // Self-cancelling: sub(x, x) → 0, xor(x, x) → 0
         if ((node.kind === "sub" || node.kind === "xor") && irEqual(a, b)) {
-          return IR.const_i32(0);
+          return intConst(type, 0);
         }
       }
 
-      // Strength reduction: mul by power of 2 → shl (i32 only)
-      if (type === "i32" && node.kind === "mul") {
-        if (b.op === "const_i32" && isPow2(b.v))
-          return IR.binop("shl", a, IR.const_i32(log2(b.v)));
-        if (a.op === "const_i32" && isPow2(a.v))
-          return IR.binop("shl", b, IR.const_i32(log2(a.v)));
+      // Strength reduction: mul by power of 2 → shl (i32/i64)
+      if ((type === "i32" || type === "i64") && node.kind === "mul") {
+        const bv = intConstVal(b, type);
+        if (bv !== null && isPow2(bv))
+          return IR.binop("shl", a, intConst(type, log2(bv)), node.type);
+        const av = intConstVal(a, type);
+        if (av !== null && isPow2(av))
+          return IR.binop("shl", b, intConst(type, log2(av)), node.type);
       }
 
-      // Strength reduction: div_u by power of 2 → shr_u (i32 only)
-      if (type === "i32" && node.kind === "div_u") {
-        if (b.op === "const_i32" && isPow2(b.v))
-          return IR.binop("shr_u", a, IR.const_i32(log2(b.v)));
+      // Strength reduction: div_u by power of 2 → shr_u (i32/i64)
+      if ((type === "i32" || type === "i64") && node.kind === "div_u") {
+        const bv = intConstVal(b, type);
+        if (bv !== null && isPow2(bv))
+          return IR.binop("shr_u", a, intConst(type, log2(bv)), node.type);
       }
 
-      // Strength reduction: rem_u by power of 2 → and mask (i32 only)
-      if (type === "i32" && node.kind === "rem_u") {
-        if (b.op === "const_i32" && isPow2(b.v))
-          return IR.binop("and", a, IR.const_i32(b.v - 1));
+      // Strength reduction: rem_u by power of 2 → and mask (i32/i64)
+      if ((type === "i32" || type === "i64") && node.kind === "rem_u") {
+        const bv = intConstVal(b, type);
+        if (bv !== null && isPow2(bv))
+          return IR.binop("and", a, intConst(type, bv - 1), node.type);
       }
 
       return IR.binop(node.kind, a, b, node.type);
@@ -196,8 +288,36 @@ function optimizeNode(node: IRNode): IRNode {
       return IR.eqz(v, node.type);
     }
 
-    case "unary":
-      return IR.unary(node.kind, optimizeNode(node.val), node.type);
+    case "unary": {
+      const v = optimizeNode(node.val);
+      const type = node.type || "i32";
+
+      // Constant folding
+      if (type === "i32" && v.op === "const_i32") {
+        const r = foldUnary(node.kind, v.v, "i32");
+        if (r !== null) return IR.const_i32(r);
+      }
+      if (type === "f64" && v.op === "const_f64") {
+        const r = foldUnary(node.kind, v.v, "f64");
+        if (r !== null) return IR.const_f64(r);
+      }
+      if (type === "f32" && v.op === "const_f32") {
+        const r = foldUnary(node.kind, v.v, "f32");
+        if (r !== null) return IR.const_f32(r);
+      }
+
+      // Algebraic identities: neg(neg(x)) → x
+      if (node.kind === "neg" && v.op === "unary" && v.kind === "neg") {
+        return v.val;
+      }
+
+      // Algebraic identities: abs(abs(x)) → abs(x)
+      if (node.kind === "abs" && v.op === "unary" && v.kind === "abs") {
+        return v;
+      }
+
+      return IR.unary(node.kind, v, node.type);
+    }
 
     case "convert": {
       const v = optimizeNode(node.val);
@@ -216,6 +336,26 @@ function optimizeNode(node: IRNode): IRNode {
         return IR.const_i64(v.v >>> 0);
       if (node.kind === "f64_convert_i32_s" && v.op === "const_i32")
         return IR.const_f64(v.v);
+      if (node.kind === "f64_convert_i32_u" && v.op === "const_i32")
+        return IR.const_f64(v.v >>> 0);
+      if (node.kind === "f32_convert_i32_s" && v.op === "const_i32")
+        return IR.const_f32(Math.fround(v.v));
+      if (node.kind === "f64_promote_f32" && v.op === "const_f32")
+        return IR.const_f64(v.v);
+      if (node.kind === "f32_demote_f64" && v.op === "const_f64")
+        return IR.const_f32(Math.fround(v.v));
+
+      // i32_trunc: only fold when in range (NaN/Inf/overflow must trap at runtime)
+      if (node.kind === "i32_trunc_f64_s" && v.op === "const_f64") {
+        const t = Math.trunc(v.v);
+        if (Number.isFinite(t) && t >= -2147483648 && t <= 2147483647)
+          return IR.const_i32(t);
+      }
+      if (node.kind === "i32_trunc_f32_s" && v.op === "const_f32") {
+        const t = Math.trunc(v.v);
+        if (Number.isFinite(t) && t >= -2147483648 && t <= 2147483647)
+          return IR.const_i32(t);
+      }
 
       return IR.convert(node.kind, v);
     }
@@ -326,10 +466,16 @@ function optimizeNode(node: IRNode): IRNode {
     case "mem_store":
       return IR.mem_store(node.kind, optimizeNode(node.addr), optimizeNode(node.val));
 
-    case "f64_neg":
-      return IR.f64_neg(optimizeNode(node.val));
-    case "f64_abs":
-      return IR.f64_abs(optimizeNode(node.val));
+    case "f64_neg": {
+      const v = optimizeNode(node.val);
+      if (v.op === "const_f64") return IR.const_f64(-v.v);
+      return IR.f64_neg(v);
+    }
+    case "f64_abs": {
+      const v = optimizeNode(node.val);
+      if (v.op === "const_f64") return IR.const_f64(Math.abs(v.v));
+      return IR.f64_abs(v);
+    }
 
     case "i32_wrap_i64": {
       const v = optimizeNode(node.val);
@@ -351,8 +497,15 @@ function optimizeNode(node: IRNode): IRNode {
       return IR.f64_convert_i32_s(v);
     }
 
-    case "i32_trunc_f64_s":
-      return IR.i32_trunc_f64_s(optimizeNode(node.val));
+    case "i32_trunc_f64_s": {
+      const v = optimizeNode(node.val);
+      if (v.op === "const_f64") {
+        const t = Math.trunc(v.v);
+        if (Number.isFinite(t) && t >= -2147483648 && t <= 2147483647)
+          return IR.const_i32(t);
+      }
+      return IR.i32_trunc_f64_s(v);
+    }
 
     case "memory_grow":
       return IR.memory_grow(optimizeNode(node.pages));
@@ -375,6 +528,11 @@ function optimizeNode(node: IRNode): IRNode {
     case "unreachable":
     case "nop":
       return node;
+
+    default: {
+      const _exhaustive: never = node;
+      return _exhaustive;
+    }
   }
 }
 

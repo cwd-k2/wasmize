@@ -545,6 +545,236 @@ describe("type conversion folding", () => {
   test("convert(f64_convert_i32_s, const_i32) → const_f64", () => {
     expect(opt(IR.convert("f64_convert_i32_s", IR.const_i32(7)))).toEqual(IR.const_f64(7));
   });
+
+  test("convert(f32_convert_i32_s, const_i32) → const_f32", () => {
+    expect(opt(IR.convert("f32_convert_i32_s", IR.const_i32(42)))).toEqual(IR.const_f32(Math.fround(42)));
+  });
+
+  test("convert(f64_convert_i32_u, const_i32(-1)) → const_f64(4294967295)", () => {
+    expect(opt(IR.convert("f64_convert_i32_u", IR.const_i32(-1)))).toEqual(IR.const_f64(4294967295));
+  });
+
+  test("convert(f64_promote_f32, const_f32) → const_f64", () => {
+    expect(opt(IR.convert("f64_promote_f32", IR.const_f32(Math.fround(1.5))))).toEqual(IR.const_f64(Math.fround(1.5)));
+  });
+
+  test("convert(f32_demote_f64, const_f64) → const_f32", () => {
+    expect(opt(IR.convert("f32_demote_f64", IR.const_f64(1.5)))).toEqual(IR.const_f32(Math.fround(1.5)));
+  });
+
+  test("convert(i32_trunc_f64_s, const_f64(3.7)) → const_i32(3)", () => {
+    expect(opt(IR.convert("i32_trunc_f64_s", IR.const_f64(3.7)))).toEqual(IR.const_i32(3));
+  });
+
+  test("convert(i32_trunc_f64_s, const_f64(NaN)) stays (trap)", () => {
+    const result = opt(IR.convert("i32_trunc_f64_s", IR.const_f64(NaN)));
+    expect(result.op).toBe("convert");
+  });
+
+  test("convert(i32_trunc_f64_s, const_f64(Inf)) stays (trap)", () => {
+    const result = opt(IR.convert("i32_trunc_f64_s", IR.const_f64(Infinity)));
+    expect(result.op).toBe("convert");
+  });
+
+  test("convert(i32_trunc_f32_s, const_f32(2.9)) → const_i32(2)", () => {
+    expect(opt(IR.convert("i32_trunc_f32_s", IR.const_f32(Math.fround(2.9))))).toEqual(IR.const_i32(2));
+  });
+
+  test("legacy i32_trunc_f64_s(const_f64(7.9)) → const_i32(7)", () => {
+    expect(opt(IR.i32_trunc_f64_s(IR.const_f64(7.9)))).toEqual(IR.const_i32(7));
+  });
+
+  test("legacy i32_trunc_f64_s(const_f64(NaN)) stays (trap)", () => {
+    const result = opt(IR.i32_trunc_f64_s(IR.const_f64(NaN)));
+    expect(result.op).toBe("i32_trunc_f64_s");
+  });
+});
+
+describe("unary constant folding", () => {
+  test("clz(0) → 32", () => {
+    expect(opt(IR.unary("clz", IR.const_i32(0)))).toEqual(IR.const_i32(32));
+  });
+
+  test("clz(1) → 31", () => {
+    expect(opt(IR.unary("clz", IR.const_i32(1)))).toEqual(IR.const_i32(31));
+  });
+
+  test("clz(0x80000000) → 0", () => {
+    expect(opt(IR.unary("clz", IR.const_i32(0x80000000 | 0)))).toEqual(IR.const_i32(0));
+  });
+
+  test("ctz(0) → 32", () => {
+    expect(opt(IR.unary("ctz", IR.const_i32(0)))).toEqual(IR.const_i32(32));
+  });
+
+  test("ctz(8) → 3", () => {
+    expect(opt(IR.unary("ctz", IR.const_i32(8)))).toEqual(IR.const_i32(3));
+  });
+
+  test("popcnt(0) → 0", () => {
+    expect(opt(IR.unary("popcnt", IR.const_i32(0)))).toEqual(IR.const_i32(0));
+  });
+
+  test("popcnt(0x0f) → 4", () => {
+    expect(opt(IR.unary("popcnt", IR.const_i32(0x0f)))).toEqual(IR.const_i32(4));
+  });
+
+  test("popcnt(-1) → 32", () => {
+    expect(opt(IR.unary("popcnt", IR.const_i32(-1)))).toEqual(IR.const_i32(32));
+  });
+
+  test("f64 neg", () => {
+    expect(opt(IR.unary("neg", IR.const_f64(3.14), "f64"))).toEqual(IR.const_f64(-3.14));
+  });
+
+  test("f64 abs", () => {
+    expect(opt(IR.unary("abs", IR.const_f64(-2.5), "f64"))).toEqual(IR.const_f64(2.5));
+  });
+
+  test("f64 sqrt", () => {
+    expect(opt(IR.unary("sqrt", IR.const_f64(9), "f64"))).toEqual(IR.const_f64(3));
+  });
+
+  test("f64 ceil", () => {
+    expect(opt(IR.unary("ceil", IR.const_f64(2.3), "f64"))).toEqual(IR.const_f64(3));
+  });
+
+  test("f64 floor", () => {
+    expect(opt(IR.unary("floor", IR.const_f64(2.7), "f64"))).toEqual(IR.const_f64(2));
+  });
+
+  test("f64 trunc", () => {
+    expect(opt(IR.unary("trunc", IR.const_f64(-2.7), "f64"))).toEqual(IR.const_f64(-2));
+  });
+
+  test("f64 nearest (ties-to-even: 2.5 → 2)", () => {
+    expect(opt(IR.unary("nearest", IR.const_f64(2.5), "f64"))).toEqual(IR.const_f64(2));
+  });
+
+  test("f64 nearest (ties-to-even: 3.5 → 4)", () => {
+    expect(opt(IR.unary("nearest", IR.const_f64(3.5), "f64"))).toEqual(IR.const_f64(4));
+  });
+
+  test("f64 nearest (non-tie: 2.3 → 2)", () => {
+    expect(opt(IR.unary("nearest", IR.const_f64(2.3), "f64"))).toEqual(IR.const_f64(2));
+  });
+});
+
+describe("unary algebraic identities", () => {
+  test("neg(neg(x)) → x", () => {
+    const x = IR.local_get(0);
+    const negNeg = IR.unary("neg", IR.unary("neg", x, "f64"), "f64");
+    expect(opt(negNeg)).toEqual(x);
+  });
+
+  test("abs(abs(x)) → abs(x)", () => {
+    const x = IR.local_get(0);
+    const inner = IR.unary("abs", x, "f64");
+    const outer = IR.unary("abs", inner, "f64");
+    expect(opt(outer)).toEqual(inner);
+  });
+});
+
+describe("i64 identity elimination", () => {
+  test("add(x, 0) → x", () => {
+    const x = IR.local_get(0);
+    expect(opt(IR.binop("add", x, IR.const_i64(0), "i64"))).toEqual(x);
+  });
+
+  test("add(0, x) → x", () => {
+    const x = IR.local_get(0);
+    expect(opt(IR.binop("add", IR.const_i64(0), x, "i64"))).toEqual(x);
+  });
+
+  test("sub(x, 0) → x", () => {
+    const x = IR.local_get(0);
+    expect(opt(IR.binop("sub", x, IR.const_i64(0), "i64"))).toEqual(x);
+  });
+
+  test("mul(x, 1) → x", () => {
+    const x = IR.local_get(0);
+    expect(opt(IR.binop("mul", x, IR.const_i64(1), "i64"))).toEqual(x);
+  });
+
+  test("mul(x, 0) → const_i64(0)", () => {
+    const x = IR.local_get(0);
+    expect(opt(IR.binop("mul", x, IR.const_i64(0), "i64"))).toEqual(IR.const_i64(0));
+  });
+
+  test("or(x, 0) → x", () => {
+    const x = IR.local_get(0);
+    expect(opt(IR.binop("or", x, IR.const_i64(0), "i64"))).toEqual(x);
+  });
+
+  test("and(x, 0) → const_i64(0)", () => {
+    const x = IR.local_get(0);
+    expect(opt(IR.binop("and", x, IR.const_i64(0), "i64"))).toEqual(IR.const_i64(0));
+  });
+
+  test("shl(x, 0) → x", () => {
+    const x = IR.local_get(0);
+    expect(opt(IR.binop("shl", x, IR.const_i64(0), "i64"))).toEqual(x);
+  });
+
+  test("xor(x, 0) → x", () => {
+    const x = IR.local_get(0);
+    expect(opt(IR.binop("xor", x, IR.const_i64(0), "i64"))).toEqual(x);
+  });
+
+  test("sub(x, x) → const_i64(0)", () => {
+    const x = IR.local_get(0);
+    expect(opt(IR.binop("sub", x, x, "i64"))).toEqual(IR.const_i64(0));
+  });
+
+  test("xor(x, x) → const_i64(0)", () => {
+    const x = IR.local_get(0);
+    expect(opt(IR.binop("xor", x, x, "i64"))).toEqual(IR.const_i64(0));
+  });
+});
+
+describe("i64 strength reduction", () => {
+  test("mul(x, 4) → shl(x, 2)", () => {
+    const x = IR.local_get(0);
+    expect(opt(IR.binop("mul", x, IR.const_i64(4), "i64"))).toEqual(
+      IR.binop("shl", x, IR.const_i64(2), "i64"),
+    );
+  });
+
+  test("div_u(x, 8) → shr_u(x, 3)", () => {
+    const x = IR.local_get(0);
+    expect(opt(IR.binop("div_u", x, IR.const_i64(8), "i64"))).toEqual(
+      IR.binop("shr_u", x, IR.const_i64(3), "i64"),
+    );
+  });
+
+  test("rem_u(x, 16) → and(x, 15)", () => {
+    const x = IR.local_get(0);
+    expect(opt(IR.binop("rem_u", x, IR.const_i64(16), "i64"))).toEqual(
+      IR.binop("and", x, IR.const_i64(15), "i64"),
+    );
+  });
+});
+
+describe("legacy f64_neg/f64_abs constant folding", () => {
+  test("f64_neg(const_f64(3.14)) → const_f64(-3.14)", () => {
+    expect(opt(IR.f64_neg(IR.const_f64(3.14)))).toEqual(IR.const_f64(-3.14));
+  });
+
+  test("f64_abs(const_f64(-2.5)) → const_f64(2.5)", () => {
+    expect(opt(IR.f64_abs(IR.const_f64(-2.5)))).toEqual(IR.const_f64(2.5));
+  });
+
+  test("f64_neg(non-const) stays", () => {
+    const x = IR.local_get(0);
+    const result = opt(IR.f64_neg(x));
+    expect(result.op).toBe("f64_neg");
+  });
+
+  test("f64_abs(non-const) stays", () => {
+    const x = IR.local_get(0);
+    const result = opt(IR.f64_abs(x));
+    expect(result.op).toBe("f64_abs");
+  });
 });
 
 describe("2-pass cascade", () => {
