@@ -203,6 +203,60 @@ export function jsNqueens(n: number): number {
   return solve(0, 0, 0, 0);
 }
 
+export function jsDijkstra(
+  weights: number[],
+  w: number,
+  h: number,
+  sx: number,
+  sy: number,
+  gx: number,
+  gy: number,
+): number {
+  const INF = 0x7fffffff;
+  const n = w * h;
+  const dist = new Int32Array(n).fill(INF);
+
+  // Priority queue as sorted array of [distance, index]
+  const pq: [number, number][] = [];
+  const startIdx = sy * w + sx;
+  dist[startIdx] = weights[startIdx];
+  pq.push([weights[startIdx], startIdx]);
+
+  const dx = [1, -1, 0, 0];
+  const dy = [0, 0, 1, -1];
+
+  while (pq.length > 0) {
+    const [curDist, ci] = pq.shift()!;
+    if (curDist > dist[ci]) continue;
+
+    const cx = ci % w;
+    const cy = (ci - cx) / w;
+    if (cx === gx && cy === gy) return curDist;
+
+    for (let d = 0; d < 4; d++) {
+      const nx = cx + dx[d];
+      const ny = cy + dy[d];
+      if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+        const ni = ny * w + nx;
+        const newDist = curDist + weights[ni];
+        if (newDist < dist[ni]) {
+          dist[ni] = newDist;
+          // Insert maintaining sorted order
+          let lo = 0, hi = pq.length;
+          while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (pq[mid][0] < newDist) lo = mid + 1;
+            else hi = mid;
+          }
+          pq.splice(lo, 0, [newDist, ni]);
+        }
+      }
+    }
+  }
+
+  return -1;
+}
+
 export class JsUnionFind {
   parent: number[];
   rank: number[];
