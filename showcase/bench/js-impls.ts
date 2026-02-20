@@ -148,23 +148,23 @@ export function jsFloodFill(
   fill: number,
 ): number {
   if (grid[sy * W + sx] !== target) return 0;
-  const queue: [number, number][] = [[sx, sy]];
+  // Ring-buffer queue (head pointer advance instead of shift)
+  const cap = W * H * 2;
+  const qx = new Int32Array(cap);
+  const qy = new Int32Array(cap);
+  let head = 0, tail = 0;
+  qx[tail] = sx; qy[tail] = sy; tail++;
   grid[sy * W + sx] = fill;
   let count = 1;
-  const dirs = [
-    [1, 0],
-    [-1, 0],
-    [0, 1],
-    [0, -1],
-  ];
-  while (queue.length > 0) {
-    const [cx, cy] = queue.shift()!;
-    for (const [dx, dy] of dirs) {
-      const nx = cx + dx,
-        ny = cy + dy;
+  const dx = [1, -1, 0, 0];
+  const dy = [0, 0, 1, -1];
+  while (head < tail) {
+    const cx = qx[head], cy = qy[head]; head++;
+    for (let d = 0; d < 4; d++) {
+      const nx = cx + dx[d], ny = cy + dy[d];
       if (nx >= 0 && nx < W && ny >= 0 && ny < H && grid[ny * W + nx] === target) {
         grid[ny * W + nx] = fill;
-        queue.push([nx, ny]);
+        qx[tail] = nx; qy[tail] = ny; tail++;
         count++;
       }
     }
@@ -216,17 +216,53 @@ export function jsDijkstra(
   const n = w * h;
   const dist = new Int32Array(n).fill(INF);
 
-  // Priority queue as sorted array of [distance, index]
-  const pq: [number, number][] = [];
+  // Binary min-heap of (priority, cellIndex) interleaved in flat array
+  const heap: number[] = [];
+  function heapPush(pri: number, val: number) {
+    heap.push(pri, val);
+    let i = (heap.length >> 1) - 1;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (heap[parent << 1] <= heap[i << 1]) break;
+      // swap
+      const tp = heap[parent << 1], tv = heap[(parent << 1) + 1];
+      heap[parent << 1] = heap[i << 1]; heap[(parent << 1) + 1] = heap[(i << 1) + 1];
+      heap[i << 1] = tp; heap[(i << 1) + 1] = tv;
+      i = parent;
+    }
+  }
+  function heapPop(): [number, number] {
+    const pri = heap[0], val = heap[1];
+    const last = (heap.length >> 1) - 1;
+    if (last > 0) {
+      heap[0] = heap[last << 1]; heap[1] = heap[(last << 1) + 1];
+    }
+    heap.length -= 2;
+    let i = 0;
+    const size = heap.length >> 1;
+    while (true) {
+      let smallest = i;
+      const l = 2 * i + 1, r = 2 * i + 2;
+      if (l < size && heap[l << 1] < heap[smallest << 1]) smallest = l;
+      if (r < size && heap[r << 1] < heap[smallest << 1]) smallest = r;
+      if (smallest === i) break;
+      const tp = heap[i << 1], tv = heap[(i << 1) + 1];
+      heap[i << 1] = heap[smallest << 1]; heap[(i << 1) + 1] = heap[(smallest << 1) + 1];
+      heap[smallest << 1] = tp; heap[(smallest << 1) + 1] = tv;
+      i = smallest;
+    }
+    return [pri, val];
+  }
+
   const startIdx = sy * w + sx;
   dist[startIdx] = weights[startIdx];
-  pq.push([weights[startIdx], startIdx]);
+  heapPush(weights[startIdx], startIdx);
 
   const dx = [1, -1, 0, 0];
   const dy = [0, 0, 1, -1];
 
-  while (pq.length > 0) {
-    const [curDist, ci] = pq.shift()!;
+  while (heap.length > 0) {
+    const [curDist, ci] = heapPop();
     if (curDist > dist[ci]) continue;
 
     const cx = ci % w;
@@ -241,14 +277,7 @@ export function jsDijkstra(
         const newDist = curDist + weights[ni];
         if (newDist < dist[ni]) {
           dist[ni] = newDist;
-          // Insert maintaining sorted order
-          let lo = 0, hi = pq.length;
-          while (lo < hi) {
-            const mid = (lo + hi) >> 1;
-            if (pq[mid][0] < newDist) lo = mid + 1;
-            else hi = mid;
-          }
-          pq.splice(lo, 0, [newDist, ni]);
+          heapPush(newDist, ni);
         }
       }
     }
