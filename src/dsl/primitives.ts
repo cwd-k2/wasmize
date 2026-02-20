@@ -10,7 +10,7 @@
 // Side-effect: augments WasmRef.prototype with chainable methods
 import "./augment";
 
-export { type ExprInput, type CallableFunc, ChainableExpr, ThenBuilder } from "./expr";
+export { type ExprInput, type CallableFunc, ChainableExpr, ThenBuilder, ElseIfBuilder } from "./expr";
 
 export { param, local, Type } from "./declarations";
 

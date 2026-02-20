@@ -510,14 +510,59 @@ export class ThenBuilder {
     private readonly _cond: ExprInput,
     private readonly _then: FuncBody<FuncReturn>,
     private readonly _else?: FuncBody<FuncReturn>,
+    private readonly _elseIfChain: Array<{ cond: ExprInput; body: FuncBody<FuncReturn> }> = [],
   ) {}
 
   /** Specifies the else-branch body. Returns a new ThenBuilder (immutable chaining). */
   else(body: FuncBody<FuncReturn>): ThenBuilder {
-    return new ThenBuilder(this._cond, this._then, body);
+    return new ThenBuilder(this._cond, this._then, body, this._elseIfChain);
+  }
+
+  /** Adds an else-if branch. Chain `.then(body)` to complete it. */
+  elseif(cond: ExprInput): ElseIfBuilder {
+    return new ElseIfBuilder(
+      [{ cond: this._cond, body: this._then }, ...this._elseIfChain],
+      cond,
+    );
   }
 
   [Symbol.iterator](): Generator<FuncInstruction, any, any> {
-    return if_impl(this._cond, this._then, this._else);
+    if (this._elseIfChain.length === 0) {
+      return if_impl(this._cond, this._then, this._else);
+    }
+    const elseBody = this._buildElseChain(0, this._else);
+    return if_impl(this._cond, this._then, elseBody);
+  }
+
+  private _buildElseChain(
+    idx: number,
+    finalElse?: FuncBody<FuncReturn>,
+  ): FuncBody<FuncReturn> {
+    const entry = this._elseIfChain[idx]!;
+    const nextElse =
+      idx + 1 < this._elseIfChain.length
+        ? this._buildElseChain(idx + 1, finalElse)
+        : finalElse;
+    return function* () {
+      return yield* if_impl(entry.cond, entry.body, nextElse);
+    };
+  }
+}
+
+/** Builder for `.elseif(cond)` — call `.then(body)` to complete the branch. */
+export class ElseIfBuilder {
+  constructor(
+    private readonly _chain: Array<{ cond: ExprInput; body: FuncBody<FuncReturn> }>,
+    private readonly _cond: ExprInput,
+  ) {}
+
+  /** Specifies the body for this else-if branch. */
+  then(body: FuncBody<FuncReturn>): ThenBuilder {
+    return new ThenBuilder(
+      this._chain[0]!.cond,
+      this._chain[0]!.body,
+      undefined,
+      [...this._chain.slice(1), { cond: this._cond, body }],
+    );
   }
 }

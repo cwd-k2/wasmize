@@ -610,6 +610,125 @@ describe("i32Array.at()", () => {
   });
 });
 
+describe("Ctrl.if().elseif() chaining", () => {
+  test("basic 2-branch elseif (no final else)", async () => {
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        const x = yield* param(Type.i32);
+        const result = yield* local(Type.i32, 0);
+        yield* Ctrl.if(x.eq(1))
+          .then(function* () {
+            yield* result.set(10);
+          })
+          .elseif(x.eq(2))
+          .then(function* () {
+            yield* result.set(20);
+          });
+        return yield* Loc.get(result);
+      });
+      yield* Mod.export("run", fn);
+    });
+    const {
+      exports: { run },
+    } = await instantiate(binary);
+    expect((run as Function)(1)).toBe(10);
+    expect((run as Function)(2)).toBe(20);
+    expect((run as Function)(3)).toBe(0); // no match, stays 0
+  });
+
+  test("3-branch with final else", async () => {
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        const x = yield* param(Type.i32);
+        const result = yield* local(Type.i32, 0);
+        yield* Ctrl.if(x.eq(1))
+          .then(function* () {
+            yield* result.set(10);
+          })
+          .elseif(x.eq(2))
+          .then(function* () {
+            yield* result.set(20);
+          })
+          .else(function* () {
+            yield* result.set(99);
+          });
+        return yield* Loc.get(result);
+      });
+      yield* Mod.export("run", fn);
+    });
+    const {
+      exports: { run },
+    } = await instantiate(binary);
+    expect((run as Function)(1)).toBe(10);
+    expect((run as Function)(2)).toBe(20);
+    expect((run as Function)(0)).toBe(99);
+  });
+
+  test("multiple elseif chain (4 branches)", async () => {
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        const x = yield* param(Type.i32);
+        const result = yield* local(Type.i32, 0);
+        yield* Ctrl.if(x.eq(1))
+          .then(function* () {
+            yield* result.set(10);
+          })
+          .elseif(x.eq(2))
+          .then(function* () {
+            yield* result.set(20);
+          })
+          .elseif(x.eq(3))
+          .then(function* () {
+            yield* result.set(30);
+          })
+          .elseif(x.eq(4))
+          .then(function* () {
+            yield* result.set(40);
+          })
+          .else(function* () {
+            yield* result.set(-1);
+          });
+        return yield* Loc.get(result);
+      });
+      yield* Mod.export("run", fn);
+    });
+    const {
+      exports: { run },
+    } = await instantiate(binary);
+    expect((run as Function)(1)).toBe(10);
+    expect((run as Function)(2)).toBe(20);
+    expect((run as Function)(3)).toBe(30);
+    expect((run as Function)(4)).toBe(40);
+    expect((run as Function)(5)).toBe(-1);
+  });
+
+  test("elseif with return values (if-expression)", async () => {
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        const x = yield* param(Type.i32);
+        return yield* Ctrl.if(x.lt(0))
+          .then(function* () {
+            return yield* Mem.i32(-1);
+          })
+          .elseif(x.eq(0))
+          .then(function* () {
+            return yield* Mem.i32(0);
+          })
+          .else(function* () {
+            return yield* Mem.i32(1);
+          });
+      });
+      yield* Mod.export("sign", fn);
+    });
+    const {
+      exports: { sign },
+    } = await instantiate(binary);
+    expect((sign as Function)(-5)).toBe(-1);
+    expect((sign as Function)(0)).toBe(0);
+    expect((sign as Function)(7)).toBe(1);
+  });
+});
+
 describe("Mod.global", () => {
   test("mutable global as counter", async () => {
     const binary = compile(function* () {

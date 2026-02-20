@@ -28,6 +28,7 @@ export {
   // Fluent API
   ChainableExpr,
   ThenBuilder,
+  ElseIfBuilder,
   type ExprInput,
   type CallableFunc,
   // Namespaces

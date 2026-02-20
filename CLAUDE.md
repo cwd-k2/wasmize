@@ -80,6 +80,7 @@ docs/                   # 技術ドキュメント
 - `instantiate()` ヘルパでインスタンス化。`const { exports: { fn }, mem } = await instantiate(problem())` パターン
 - ループ糖衣: `Ctrl.for(var, start, cond, step, body)`, `Ctrl.while(cond, body)`, `Ctrl.when(cond, body)`, `Ctrl.range(i, n, body)` / `Ctrl.range(i, start, end, body)`
 - Range ループ: `Ctrl.range(i, n, body)` は `Ctrl.for(i, 0, i.lt(n), i.add(1), body)` の糖衣。4 引数形式で開始値指定可
+- elseif チェイン: `Ctrl.if(c1).then(b1).elseif(c2).then(b2).else(b3)` — フラットな else-if。IR は既存ネスト if/else と同一。戻り値ありの if-expression としても使用可
 - 多方向分岐: `Ctrl.switch(expr).case(v, body).default(body)` — ビルダパターン、dense 時 br_table / sparse 時 if/else チェイン
 - 値選択: `Op.select(cond, a, b)` は Wasm `select` 命令、`Op.max(a, b)` / `Op.min(a, b)` は select ベース
 - 配列ヘルパ: `Mem.i32Array(base)` で `.mul(4)` を隠蔽、`.at(i)` で `FieldAccessor` 取得、`.swap(i, j, tmp)` で要素交換、`.fill(start, end, value)` で一括初期化。`base` はランタイム `ExprInput` も可

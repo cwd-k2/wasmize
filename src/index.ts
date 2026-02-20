@@ -18,6 +18,7 @@ export {
   Type,
   ChainableExpr,
   ThenBuilder,
+  ElseIfBuilder,
   type ExprInput,
   type CallableFunc,
   Mod,
