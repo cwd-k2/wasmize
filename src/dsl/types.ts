@@ -248,6 +248,17 @@ export function globalRef(idx: number, type: WasmValType, mutable: boolean): Glo
   return { _tag: "global", _idx: idx, _type: type, _mutable: mutable };
 }
 
+// --- Scope handle ---
+
+/**
+ * Handle passed to `Ctrl.scope(body)` for registering deferred cleanup.
+ * Call `defer(cleanup)` to schedule a generator to run (LIFO) when the scope exits.
+ */
+export interface ScopeHandle {
+  /** Registers a cleanup generator to execute when the scope exits (LIFO order). */
+  defer(cleanup: FuncGen<void>): void;
+}
+
 // --- Data segment ---
 
 /**

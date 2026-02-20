@@ -1,4 +1,4 @@
-import { local, Type, Mod, Mem, Ctrl, Loc, Meta, Queue } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl, Loc, Queue } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 import { instantiate } from "@/runtime/instantiate";
 
@@ -13,6 +13,13 @@ import { instantiate } from "@/runtime/instantiate";
 type Exports = {
   solve: (w: number, h: number, sx: number, sy: number, gx: number, gy: number) => number;
 };
+
+const NEIGHBORS_4 = [
+  { dx: 1, dy: 0 },
+  { dx: -1, dy: 0 },
+  { dx: 0, dy: 1 },
+  { dx: 0, dy: -1 },
+] as const;
 
 function mazeBfsWasm() {
   return compileWithWat<Exports>(function* () {
@@ -64,7 +71,7 @@ function mazeBfsWasm() {
           });
 
           // Explore 4 neighbors
-          for (const { dx, dy } of Meta.neighbors4) {
+          for (const { dx, dy } of NEIGHBORS_4) {
             yield* nx.set(cx.add(dx));
             yield* ny.set(cy.add(dy));
             yield* Ctrl.when(nx.ge(0).and(nx.lt(w)).and(ny.ge(0)).and(ny.lt(h)), function* () {

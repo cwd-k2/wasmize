@@ -838,6 +838,6 @@ Memory pages: 10。
 ### DSL の見どころ
 
 - `Queue(qBase)` で BFS キューを生成（head/tail 自動管理）
-- `Meta.neighbors4` で 4 方向展開
+- ローカル定数 `NEIGHBORS_4` で 4 方向展開
 - `Mem.byteGrid` + `Mem.i32Array2D` で異なる型のグリッドを同一モジュールで管理
 - `Loc.return` で目標到達時の早期リターン

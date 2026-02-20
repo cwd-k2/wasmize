@@ -76,8 +76,13 @@ yield *
     });
   });
 
-// After: JS 側で 8 オフセットを列挙
-for (const { dx, dy } of Meta.neighbors8) {
+// After: JS 側でローカル定数を列挙（ドメイン固有の定数はファイルローカルに定義）
+const NEIGHBORS_8 = [
+  { dx: -1, dy: -1 }, { dx: -1, dy: 0 }, { dx: -1, dy: 1 },
+  { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+  { dx: 1, dy: -1 }, { dx: 1, dy: 0 }, { dx: 1, dy: 1 },
+];
+for (const { dx, dy } of NEIGHBORS_8) {
   yield * ny.set(y.add(dy));
   yield * nx.set(x.add(dx));
   yield *
@@ -278,12 +283,22 @@ Meta.product([a, b, c]);
 
 ### 近傍定数
 
+ドメイン固有の近傍オフセットはファイルローカルに定義する:
+
 ```typescript
 // 4 近傍: Right, Left, Down, Up
-for (const { dx, dy } of Meta.neighbors4) { ... }
+const NEIGHBORS_4 = [
+  { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+];
+for (const { dx, dy } of NEIGHBORS_4) { ... }
 
 // 8 近傍: Game of Life 等
-for (const { dx, dy } of Meta.neighbors8) { ... }
+const NEIGHBORS_8 = [
+  { dx: -1, dy: -1 }, { dx: -1, dy: 0 }, { dx: -1, dy: 1 },
+  { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+  { dx: 1, dy: -1 }, { dx: 1, dy: 0 }, { dx: 1, dy: 1 },
+];
+for (const { dx, dy } of NEIGHBORS_8) { ... }
 ```
 
 ### 組み合わせ例: 3x3 畳み込みカーネル

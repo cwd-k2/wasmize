@@ -18,9 +18,10 @@ import type { WasmValType } from "../wasm/opcodes";
 import { IR } from "../wasm/ir";
 import type { BinopKind, IRNode } from "../wasm/ir";
 import { Mem } from "./namespaces";
-import { ChainableExpr, resolve, mul, add, type ExprInput } from "./expr";
-import { val, type FuncGen, type WasmVal, type FuncInstruction } from "./types";
+import { ChainableExpr, resolve, mul, add, set, type ExprInput } from "./expr";
+import { val, WasmRef, type FuncGen, type WasmVal, type FuncInstruction } from "./types";
 import type { BumpAllocator } from "./allocator";
+import { local, Type } from "./declarations";
 
 // --- Field types ---
 
@@ -204,6 +205,17 @@ export interface StructArray<F extends FieldSpec> {
   get<K extends keyof F & string>(index: ExprInput, field: K): ChainableExpr<FieldResultType<F[K]>>;
   set<K extends keyof F & string>(index: ExprInput, field: K, value: ExprInput): FuncGen<void>;
   at(index: ExprInput): StructAccessor<F>;
+  snapshot<K extends keyof F & string>(
+    index: ExprInput,
+    ...fields: K[]
+  ): FuncGen<{ [P in K]: WasmRef<FieldResultType<F[P]>> }>;
+  forEach(
+    count: ExprInput,
+    body: (
+      accessor: StructAccessor<F>,
+      index: WasmRef<"i32">,
+    ) => Generator<FuncInstruction, void, any>,
+  ): FuncGen<void>;
 }
 
 export interface StructType<F extends FieldSpec> {
@@ -215,6 +227,10 @@ export interface StructType<F extends FieldSpec> {
 
   at(base: ExprInput): StructAccessor<F>;
   array(allocator: BumpAllocator, count: number): StructArray<F>;
+  snapshot<K extends keyof F & string>(
+    base: ExprInput,
+    ...fields: K[]
+  ): FuncGen<{ [P in K]: WasmRef<FieldResultType<F[P]>> }>;
 }
 
 // --- Helpers ---
@@ -302,6 +318,23 @@ export function Struct<F extends FieldSpec>(spec: F): StructType<F> {
       return makeAccessor(fields, (name) => fieldAddr(base, name));
     },
 
+    snapshot<K extends keyof F & string>(
+      base: ExprInput,
+      ...fieldNames: K[]
+    ): FuncGen<{ [P in K]: WasmRef<FieldResultType<F[P]>> }> {
+      return (function* () {
+        const result = {} as { [P in K]: WasmRef<FieldResultType<F[P]>> };
+        for (const name of fieldNames) {
+          const f = (fields as any)[name] as FieldInfo;
+          const st = stackType(f.type);
+          const ref = yield* local(st as any);
+          yield* set(ref, loadTyped(fieldAddr(base, name), f.type));
+          (result as any)[name] = ref;
+        }
+        return result;
+      })() as FuncGen<{ [P in K]: WasmRef<FieldResultType<F[P]>> }>;
+    },
+
     array(allocator: BumpAllocator, count: number): StructArray<F> {
       const arrayBase = allocator.alloc(count * structSize, maxAlign);
 
@@ -332,6 +365,51 @@ export function Struct<F extends FieldSpec>(spec: F): StructType<F> {
 
         at(index: ExprInput): StructAccessor<F> {
           return makeAccessor(fields, (name) => elementAddr(index, name));
+        },
+
+        snapshot<K extends keyof F & string>(
+          index: ExprInput,
+          ...fieldNames: K[]
+        ): FuncGen<{ [P in K]: WasmRef<FieldResultType<F[P]>> }> {
+          return (function* () {
+            const result = {} as { [P in K]: WasmRef<FieldResultType<F[P]>> };
+            for (const name of fieldNames) {
+              const f = (fields as any)[name] as FieldInfo;
+              const st = stackType(f.type);
+              const ref = yield* local(st as any);
+              yield* set(ref, loadTyped(elementAddr(index, name), f.type));
+              (result as any)[name] = ref;
+            }
+            return result;
+          })() as FuncGen<{ [P in K]: WasmRef<FieldResultType<F[P]>> }>;
+        },
+
+        forEach(
+          count: ExprInput,
+          body: (
+            accessor: StructAccessor<F>,
+            index: WasmRef<"i32">,
+          ) => Generator<FuncInstruction, void, any>,
+        ): FuncGen<void> {
+          return (function* () {
+            const idx: WasmRef<"i32"> = yield* local(Type.i32, 0);
+            yield {
+              _type: "block" as const,
+              body: function* () {
+                yield {
+                  _type: "loop" as const,
+                  body: function* () {
+                    const vc = yield* resolve(idx.ge(count));
+                    yield { _type: "stmt" as const, node: IR.br_if(1, vc._node) };
+                    const accessor = makeAccessor(fields, (name) => elementAddr(idx, name));
+                    yield* body(accessor, idx);
+                    yield* set(idx, idx.add(1));
+                    yield { _type: "stmt" as const, node: IR.br(0) };
+                  },
+                };
+              },
+            };
+          })();
         },
       };
     },

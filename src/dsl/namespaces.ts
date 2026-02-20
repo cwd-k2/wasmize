@@ -32,6 +32,7 @@ import {
   type WasmVal,
   type ModuleInstruction,
   type GlobalRef,
+  type ScopeHandle,
 } from "./types";
 import {
   type ExprInput,
@@ -1289,6 +1290,38 @@ export const Ctrl = {
   unreachable(): FuncGen<void> {
     return (function* () {
       yield { _type: "stmt", node: IR.unreachable() };
+    })();
+  },
+  /**
+   * Scoped resource management with deferred cleanup.
+   *
+   * `scope.defer(cleanup)` registers a generator to run when the scope exits (LIFO order).
+   * The body's `yield*` statements pass through transparently via generator delegation.
+   *
+   * @example
+   * ```ts
+   * yield* Ctrl.scope(function* (scope) {
+   *   const buf = yield* local(Type.i32, 0);
+   *   scope.defer(Mem.store(buf, 0));  // cleanup: zero the buffer
+   *   yield* Mem.store(buf, 42);
+   * });
+   * // after scope: buf is zeroed
+   * ```
+   */
+  scope(
+    body: (scope: ScopeHandle) => Generator<FuncInstruction, void, any>,
+  ): FuncGen<void> {
+    return (function* () {
+      const deferred: FuncGen<void>[] = [];
+      const handle: ScopeHandle = {
+        defer(cleanup) {
+          deferred.push(cleanup);
+        },
+      };
+      yield* body(handle);
+      for (let i = deferred.length - 1; i >= 0; i--) {
+        yield* deferred[i]!;
+      }
     })();
   },
 };

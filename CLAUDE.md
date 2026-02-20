@@ -88,6 +88,12 @@ docs/                   # 技術ドキュメント
 - バイトグリッド: `Mem.byteGrid(base, cols)` で `.load(row, col)` / `.store(row, col, val)` / `.at(row, col)`。`Mem.load8`/`Mem.store8` ベース、byte-per-cell グリッドに最適
 - RGBA プリセット: `RGBA = Struct({ r: "u8", g: "u8", b: "u8", a: "u8" })`。`RGBA.at(offset)` でピクセル読み書き。**注意:** `offset` は `WasmRef`（ローカル変数）を使うこと（`ChainableExpr` は single-use）
 - Queue ヘルパ: `const q = yield* Queue(base)` で BFS キュー生成。`q.enqueue(v)`, `q.dequeue(dst)`, `q.notEmpty`（条件式）, `q.reset()` を提供。内部で `head`/`tail` ローカル変数を確保
+- Stack ヘルパ: `const s = yield* Stack(base)` で LIFO スタック生成。`s.push(v)`, `s.pop(dst)`, `s.notEmpty`, `s.peek()`, `s.reset()` を提供。内部で `top` ローカル変数を確保
+- RingBuffer ヘルパ: `const rb = yield* RingBuffer(base, capacity)` で固定容量循環バッファ生成。`rb.write(v)`, `rb.read(dst)`, `rb.isFull`, `rb.isEmpty`, `rb.reset()` を提供。capacity が 2 の冪なら `and` でラップ、それ以外は `rem_u`。内部で `head`/`tail`/`count` ローカル変数を確保
+- BitSet ヘルパ: `const bs = BitSet(base)` でビット配列生成（Generator 不要の plain function）。`bs.set(idx)`, `bs.get(idx)`, `bs.clear(idx)`, `bs.clearAll(bitCount)` を提供。`clearAll` はコンパイル時展開
+- Scope/defer: `Ctrl.scope(function* (scope) { scope.defer(cleanup); ... })` でスコープ付きリソース管理。defer は LIFO 順でクリーンアップ展開
+- Struct snapshot: `const { r, g, b } = yield* RGBA.snapshot(offset, "r", "g", "b")` で指定フィールドをローカル変数にコピー。StructArray にも同様に `particles.snapshot(i, "x", "y")` が使用可
+- StructArray forEach: `yield* particles.forEach(n, function* (p, i) { yield* p.x.incrBy(p.vx); })` で配列要素をイテレーション。ループ変数は内部で宣言
 - 一括 export: `Mod.exportAll({ name: funcRef, ... })`
 - i32 unsigned ops: `Op.div_u`, `Op.rem_u`, `Op.shr_u`, `Op.lt_u`, `Op.gt_u`, `Op.le_u`, `Op.ge_u`
 - i64 演算: `Op.i64.add/sub/mul/div`, `Op.i64.eqz`
@@ -149,8 +155,6 @@ Generator DSL は JS ランタイム上で実行されるため、JS/TS はチ�
 - `Meta.sum(exprs)`: N 個の式を加算チェイン。`ChainableExpr` を返す
 - `Meta.product(exprs)`: N 個の式を乗算チェイン
 - `Meta.weightedSum([{weight, expr}, ...])`: 重み付き加算。weight=0 はスキップ、weight=1 は乗算省略
-- `Meta.neighbors4`: 4 近傍オフセット `[{dx,dy}, ...]`（Right, Left, Down, Up）
-- `Meta.neighbors8`: 8 近傍オフセット（center 除く）
 
 ### Known TS Limitations (polymorphic type system)
 

@@ -22,4 +22,4 @@
 
 - RGBA 画像処理: `RGBA.at(offset)` で pixel 読み書き
 - チャンネル展開: `for (const ch of ["r","g","b"] as const)` でコンパイル時 3 回展開
-- 近傍走査: `Meta.neighbors4` / `Meta.neighbors8` で方向オフセット
+- 近傍走査: ファイルローカル定数（`NEIGHBORS_4` / `NEIGHBORS_8`）で方向オフセット

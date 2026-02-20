@@ -1,4 +1,4 @@
-import { local, Type, Mod, Mem, Ctrl, Meta } from "@/dsl/compiler";
+import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 import type { WasmRef } from "@/dsl/types";
 import { instantiate } from "@/runtime/instantiate";
@@ -10,6 +10,17 @@ type Exports = {
   step: (w: number, h: number) => void;
   getCell: (x: number, y: number, w: number) => number;
 };
+
+const NEIGHBORS_8 = [
+  { dx: -1, dy: -1 },
+  { dx: -1, dy: 0 },
+  { dx: -1, dy: 1 },
+  { dx: 0, dy: -1 },
+  { dx: 0, dy: 1 },
+  { dx: 1, dy: -1 },
+  { dx: 1, dy: 0 },
+  { dx: 1, dy: 1 },
+] as const;
 
 function gameOfLifeWasm() {
   return compileWithWat<Exports>(function* () {
@@ -34,8 +45,8 @@ function gameOfLifeWasm() {
           yield* count.set(0);
           yield* cell.set(gridA.load(y, x));
 
-          // Count 8 neighbors — compile-time unrolled via Meta.neighbors8
-          for (const { dx, dy } of Meta.neighbors8) {
+          // Count 8 neighbors — compile-time unrolled
+          for (const { dx, dy } of NEIGHBORS_8) {
             yield* ny.set(y.add(dy));
             yield* nx.set(x.add(dx));
             yield* Ctrl.when(ny.ge(0).and(ny.lt(h)).and(nx.ge(0)).and(nx.lt(w)), () => [

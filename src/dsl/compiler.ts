@@ -47,6 +47,9 @@ export {
   RGBA,
   // Data structure helpers
   Queue,
+  Stack,
+  RingBuffer,
+  BitSet,
 } from "./primitives";
 export {
   WasmRef,
