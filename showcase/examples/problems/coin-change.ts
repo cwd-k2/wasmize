@@ -1,3 +1,11 @@
+/**
+ * P4: Coin Change — minimum coins to make amount.
+ *
+ * Approach: Bottom-up DP, dp[i] = min coins for amount i.
+ * Memory layout: coins at COIN_BASE, dp table at DP_BASE (i32 arrays).
+ * Complexity: O(amount * numCoins) time.
+ * DSL features: Op.min, Mem.i32Array, nested Ctrl.range.
+ */
 import { local, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 

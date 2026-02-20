@@ -1,3 +1,11 @@
+/**
+ * P7: Sieve of Eratosthenes — count primes up to n.
+ *
+ * Approach: Classic sieve marking composites in a byte array.
+ * Memory layout: byte array at offset 0, one byte per number (0=prime, 1=composite).
+ * Complexity: O(n log log n) time, O(n) space.
+ * DSL features: Mem.store8/load8, nested Ctrl.for.
+ */
 import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 

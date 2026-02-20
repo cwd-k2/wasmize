@@ -1,6 +1,6 @@
 # Problems
 
-15 のアルゴリズム問題 + 4 つの Realworld Example のカタログ。各問題は `showcase/examples/problems/` に、Realworld 例は `showcase/examples/realworld/` に実装され、`compile()` で Wasm バイナリに変換されます。
+16 のアルゴリズム問題 + 10 の Realworld Example のカタログ。各問題は `showcase/examples/problems/` に、Realworld 例は `showcase/examples/realworld/` に実装され、`compile()` で Wasm バイナリに変換されます。
 
 ---
 
@@ -539,6 +539,42 @@ Memory pages: 2。
 
 ---
 
+## 16. Edit Distance (Levenshtein)
+
+**ファイル:** `showcase/examples/problems/edit-distance.ts` | **関数:** `problem16_edit_distance()`
+
+### アルゴリズム
+
+Levenshtein 編集距離を 2D DP で計算。
+
+- A at offset 0 (i32 array), B at offset 4096, DP at offset 8192
+- `dp[i][j] = min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1] + (A[i-1]!=B[j-1]))`
+
+### Wasm Export
+
+```
+editDistance(len_a: i32, len_b: i32) → i32
+```
+
+### メモリレイアウト
+
+| 領域 | アドレス               | 内容     |
+| ---- | ---------------------- | -------- |
+| A    | `i * 4`                | A[i]     |
+| B    | `4096 + j * 4`         | B[j]     |
+| DP   | `8192 + (i*(n+1)+j)*4` | dp[i][j] |
+
+Memory pages: 10。
+
+### DSL の見どころ
+
+- `Mem.i32Array2D(DP_BASE, cols)` で 2D DP テーブルアクセス
+- `Op.min` のネストで 3 方向の最小値を計算
+- `Ctrl.range` による 2 重ループ
+- `Ctrl.if().then().else()` で match/mismatch コスト分岐
+
+---
+
 # Realworld Examples
 
 `showcase/examples/realworld/` に配置された実用ユースケース。ブラウザ UI でインタラクティブデモとして動作する。
@@ -641,3 +677,167 @@ Memory pages: 2。
 - `f64` 全フィールド + `Op.f64.neg` で速度反転
 - `Ctrl.when` で 4 壁の条件分岐（左・右・上・下）
 - JS 側は `Float64Array` ビューで直接読み書き
+
+---
+
+## R5. Sepia Tone Filter
+
+**ファイル:** `showcase/examples/realworld/sepia.ts`
+
+### 機能
+
+- `sepia(len)`: RGBA ピクセルを in-place でセピア調に変換。固定小数点行列演算（×256 + `>> 8`）
+
+### メモリレイアウト
+
+| アドレス | 内容            | バイト幅 |
+| -------- | --------------- | -------- |
+| `i * 4`  | pixel[i] (RGBA) | 4 bytes  |
+
+Memory pages: 1。
+
+### DSL の見どころ
+
+- `Meta.each` で出力チャンネル（R, G, B）をイテレーション
+- `Meta.weightedSum` でセピア行列の行×RGB ベクトルを 1 式で計算
+- `RGBA.at(offset)` でピクセルフィールドアクセス
+- 固定小数点: `shr(8)` で 256 スケーリングを除去
+
+---
+
+## R6. 3×3 Image Convolution
+
+**ファイル:** `showcase/examples/realworld/convolution.ts`
+
+### 機能
+
+- `convolve(w, h, divisor)`: 3×3 カーネル畳み込み（blur / sharpen / edge detect）
+
+### メモリレイアウト
+
+| 領域   | アドレス    | 内容               |
+| ------ | ----------- | ------------------ |
+| input  | `0`         | RGBA ピクセル      |
+| output | `w * h * 4` | 出力 RGBA ピクセル |
+
+Memory pages: 2。
+
+### DSL の見どころ
+
+- `Meta.weightedSum` で 3×3 カーネル係数の累積を compile-time 展開
+- `Meta.each` でチャンネルイテレーション + カーネル 2D 展開
+- `RGBA.at()` による入出力ピクセル操作
+- カーネル定数はすべて JS 側で定義（`KERNELS.blur`, `KERNELS.sharpen`, `KERNELS.edge`）
+
+---
+
+## R7. Grayscale Histogram
+
+**ファイル:** `showcase/examples/realworld/histogram.ts`
+
+### 機能
+
+- `histogram(len)`: グレースケール画像から 256 バケットヒストグラムを計算
+- `histogramRgba(len)`: RGBA 画像を BT.601 輝度に変換してヒストグラム計算
+- `cdf()`: 累積分布関数を前方和で計算
+
+### メモリレイアウト
+
+| 領域         | アドレス | 内容                      |
+| ------------ | -------- | ------------------------- |
+| ピクセル     | `0`      | グレースケール (1B/pixel) |
+| ヒストグラム | `65536`  | 256 × i32                 |
+| CDF          | `66560`  | 256 × i32                 |
+
+Memory pages: 2。
+
+### DSL の見どころ
+
+- `Meta.weightedSum` で BT.601 グレースケール計算
+- `Mem.i32Array().at(idx).incrBy(1)` でヒストグラムバケットのインクリメント
+- `Meta.times(256, ...)` で compile-time ヒストグラムクリア
+
+---
+
+## R8. Histogram Equalization
+
+**ファイル:** `showcase/examples/realworld/histogram-equalization.ts`
+
+### 機能
+
+- `equalize(len)`: RGBA 画像のコントラストをヒストグラム均等化で自動調整
+
+### アルゴリズム
+
+1. BT.601 重みでグレースケールヒストグラムを構築
+2. 前方和で CDF を計算
+3. 各ピクセルをリマップ: `newGray = (cdf[gray] - cdfMin) * 255 / (total - cdfMin)`
+
+### メモリレイアウト
+
+| 領域          | アドレス | 内容      |
+| ------------- | -------- | --------- |
+| RGBA ピクセル | `0`      | in-place  |
+| ヒストグラム  | `65536`  | 256 × i32 |
+| CDF           | `66560`  | 256 × i32 |
+
+Memory pages: 4。
+
+### DSL の見どころ
+
+- `RGBA.at(offset)` でピクセル操作
+- `Meta.weightedSum` で輝度計算
+- `Op.div_u` で符号なし除算（均等化マッピング）
+- `Ctrl.range` で 3 つのパス（ヒストグラム構築 → CDF → リマップ）
+
+---
+
+## R9. Binary Morphology (Erode / Dilate)
+
+**ファイル:** `showcase/examples/realworld/erode-dilate.ts`
+
+### 機能
+
+- `erode(w, h)`: 収縮演算（3×3 近傍がすべて 1 なら 1）
+- `dilate(w, h)`: 膨張演算（3×3 近傍にひとつでも 1 があれば 1）
+
+### メモリレイアウト
+
+| 領域   | アドレス | 内容               |
+| ------ | -------- | ------------------ |
+| input  | `0`      | byte grid (0/1 値) |
+| output | `w * h`  | byte grid (結果)   |
+
+### DSL の見どころ
+
+- `Mem.byteGrid(0, w)` / `Mem.byteGrid(gridSize, w)` で入出力グリッド
+- 3×3 カーネルを JS 配列 + `Meta.each` で compile-time 展開
+- `Mem.store8` / `Mem.load8` で byte-level 操作
+- 境界チェック付きの近傍走査
+
+---
+
+## R10. Maze BFS (Shortest Path)
+
+**ファイル:** `showcase/examples/realworld/maze-bfs.ts`
+
+### 機能
+
+- `solve(w, h, sx, sy, gx, gy)`: グリッド迷路の最短経路長（BFS）。到達不能なら -1
+
+### メモリレイアウト
+
+| 領域     | アドレス      | 内容                     |
+| -------- | ------------- | ------------------------ |
+| maze     | `0`           | byte grid (0=通路, 1=壁) |
+| distance | `w*h`         | i32 grid (-1=未訪問)     |
+| queue    | `w*h + w*h*4` | i32 BFS キュー           |
+
+Memory pages: 10。
+
+### DSL の見どころ
+
+- `Queue(qBase)` で BFS キューを生成（head/tail 自動管理）
+- `Meta.neighbors4` で 4 方向展開
+- `Mem.byteGrid` + `Mem.i32Array2D` で異なる型のグリッドを同一モジュールで管理
+- `Loc.return` で目標到達時の早期リターン

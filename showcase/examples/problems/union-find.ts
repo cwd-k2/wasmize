@@ -1,3 +1,12 @@
+/**
+ * P15: Union-Find — disjoint set with path compression and union by rank.
+ *
+ * Approach: Array-based union-find with two operations: find (with path compression)
+ * and union (by rank).
+ * Memory layout: parent array at PARENT_BASE, rank array at RANK_BASE.
+ * Complexity: O(α(n)) amortized per operation.
+ * DSL features: Mem.i32Array, Ctrl.while (path compression loop), Ctrl.if.
+ */
 import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 

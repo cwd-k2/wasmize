@@ -1,3 +1,15 @@
+/**
+ * Intermediate Representation (IR) definitions and factory functions.
+ *
+ * The IR is a discriminated union of {@link IRNode} variants, each identified
+ * by its `op` field. Covers all Wasm MVP operations: constants, locals,
+ * globals, memory access, arithmetic, comparisons, control flow, and calls.
+ *
+ * The {@link IR} namespace provides factory functions for constructing each
+ * node type with proper structure.
+ *
+ * @module
+ */
 import type { WasmValType } from "./opcodes";
 
 export type BinopKind =
@@ -61,6 +73,10 @@ export type ConvertKind =
   | "f32_reinterpret_i32"
   | "f64_reinterpret_i64";
 
+/**
+ * Discriminated union of all IR node types.
+ * Each variant is identified by the `op` field and carries operation-specific data.
+ */
 export type IRNode =
   | { op: "const_i32"; v: number }
   | { op: "const_i64"; v: number }

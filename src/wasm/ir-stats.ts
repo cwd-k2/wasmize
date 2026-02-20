@@ -1,3 +1,13 @@
+/**
+ * IR statistics analysis for profiling and optimization reporting.
+ *
+ * {@link analyzeFunc} and {@link analyzeModule} walk IR trees to collect
+ * metrics: total nodes, nodes by opcode, max nesting depth, memory ops,
+ * branches, calls, and local accesses. {@link formatStats} produces a
+ * human-readable summary.
+ *
+ * @module
+ */
 import type { IRNode } from "./ir";
 import type { FuncDef } from "./module";
 import { visitChildren } from "./optimizer-passes";

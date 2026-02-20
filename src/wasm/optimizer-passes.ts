@@ -1,16 +1,34 @@
+/**
+ * Plugin-style optimizer passes with bottom-up tree walking.
+ *
+ * Provides the {@link OptimizerPass} interface and 9 builtin passes:
+ * constant folding, strength reduction, algebraic simplification,
+ * constant propagation, dead store elimination, branch simplification,
+ * load-after-store forwarding, common subexpression elimination, and
+ * double-negation elimination.
+ *
+ * {@link createOptimizer} composes passes into a single bottom-up
+ * transform function. {@link visitChildren} enables recursive IR traversal.
+ *
+ * @module
+ */
 import type { IRNode, BinopKind, CmpKind, UnaryKind } from "./ir";
 import { IR } from "./ir";
 import type { WasmValType } from "./opcodes";
 
 // ── Pass interface ──────────────────────────────────────────────────
 
+/** A single optimization pass that transforms IR nodes bottom-up. */
 export interface OptimizerPass {
   readonly name: string;
+  /** Transforms a single IR node. Return the node unchanged to skip. */
   transform(node: IRNode): IRNode;
 }
 
+/** Configuration for the optimizer: which passes to apply and how many iterations. */
 export interface OptimizerConfig {
   passes?: OptimizerPass[];
+  /** Number of fixed-point iterations (default: 2). */
   iterations?: number;
 }
 

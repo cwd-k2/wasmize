@@ -1,3 +1,11 @@
+/**
+ * P6: GCD Array — greatest common divisor of an array.
+ *
+ * Approach: Iterative Euclidean algorithm applied across all elements.
+ * Memory layout: i32 array at offset 0.
+ * Complexity: O(n * log(max)) time.
+ * DSL features: Ctrl.while, Ctrl.range, Mem.i32Array.
+ */
 import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 

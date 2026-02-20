@@ -1,3 +1,12 @@
+/**
+ * Public API entry point.
+ *
+ * Re-exports the DSL (compile, namespaces, primitives), data structures
+ * (Struct, Str, BumpAllocator), high-level APIs (wasmFunc, wasmize),
+ * and runtime utilities (instantiate, marshal).
+ *
+ * @module
+ */
 // Side-effect: WasmRef prototype augmentation (must be first)
 import "./dsl/augment";
 

@@ -1,3 +1,12 @@
+/**
+ * IR optimization entry point.
+ *
+ * {@link optimizeFunc} applies a configurable set of optimizer passes
+ * to a function body's IR nodes, iterating multiple times for fixed-point
+ * convergence. Re-exports pass infrastructure from `optimizer-passes.ts`.
+ *
+ * @module
+ */
 import type { IRNode } from "./ir";
 import {
   builtinPasses,

@@ -1,3 +1,11 @@
+/**
+ * P13: Longest Increasing Subsequence — patience sorting approach.
+ *
+ * Approach: Binary search on tails array for O(n log n) LIS.
+ * Memory layout: input at offset 0, tails array at TAILS_BASE.
+ * Complexity: O(n log n) time, O(n) space.
+ * DSL features: Mem.i32Array, Ctrl.while (binary search inner loop).
+ */
 import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 

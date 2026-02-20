@@ -1,3 +1,14 @@
+/**
+ * Wasm feature scanning and target validation.
+ *
+ * Scans compiled IR to detect which Wasm features are required
+ * (mutable-globals, multi-value, sign-extension, reference-types, etc.)
+ * and validates against a target {@link FeatureSet}. Provides preset
+ * feature sets ({@link Features}.MVP/Standard/All) and utilities for
+ * suggesting the minimal required target.
+ *
+ * @module
+ */
 import type { IRNode } from "./ir";
 import type { FuncDef } from "./module";
 import { visitChildren } from "./optimizer-passes";

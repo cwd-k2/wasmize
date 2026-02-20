@@ -1,3 +1,11 @@
+/**
+ * P3: Kadane's Algorithm — maximum subarray sum.
+ *
+ * Approach: Single-pass scan tracking current and global max.
+ * Memory layout: input array at offset 1024 (i32 elements).
+ * Complexity: O(n) time, O(1) extra space.
+ * DSL features: Op.max (branchless select), Ctrl.range.
+ */
 import { local, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 

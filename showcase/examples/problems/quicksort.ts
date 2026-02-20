@@ -1,3 +1,11 @@
+/**
+ * P11: Quicksort — in-place Lomuto partition scheme.
+ *
+ * Approach: Recursive quicksort with Lomuto partitioning.
+ * Memory layout: i32 array at offset 0 (caller writes data).
+ * Complexity: O(n log n) average, O(n²) worst case.
+ * DSL features: Mod.recursive, Mem.i32Array().swap(), Ctrl.if, Ctrl.range.
+ */
 import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 

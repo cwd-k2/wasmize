@@ -1,3 +1,12 @@
+/**
+ * Barrel re-export for DSL primitives.
+ *
+ * Imports `augment.ts` as a side-effect to ensure WasmRef prototype
+ * methods are available before any DSL code runs. Aggregates all
+ * user-facing DSL exports from their respective modules.
+ *
+ * @module
+ */
 // Side-effect: augments WasmRef.prototype with chainable methods
 import "./augment";
 

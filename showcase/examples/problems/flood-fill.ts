@@ -1,3 +1,11 @@
+/**
+ * P12: Flood Fill — BFS-based region coloring on a 2D grid.
+ *
+ * Approach: BFS using Queue helper with 4-directional expansion.
+ * Memory layout: byte grid at offset 0, Queue buffer above grid region.
+ * Complexity: O(rows * cols) time and space.
+ * DSL features: Queue (BFS helper), Mem.byteGrid, Meta.each for 4 directions.
+ */
 import { local, Type, Mod, Mem, Ctrl, Queue } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 

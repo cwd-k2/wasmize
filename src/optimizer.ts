@@ -1,3 +1,8 @@
+/**
+ * Re-exports optimizer passes and capability tracking utilities.
+ *
+ * @module
+ */
 // Optimizer passes
 export {
   type OptimizerPass,

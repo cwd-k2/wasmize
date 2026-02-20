@@ -1,3 +1,13 @@
+/**
+ * Wasm module builder: assembles sections into a valid binary module.
+ *
+ * {@link buildModule} takes compiled function definitions and module options
+ * (imports, exports, memory, globals, data segments, tables) and produces
+ * a complete Wasm binary. Handles type deduplication, section ordering
+ * per the Wasm spec, and proper index space management for imports.
+ *
+ * @module
+ */
 import { WasmEncoder } from "./encoder";
 import { TYPE, type WasmValType } from "./opcodes";
 import { OP } from "./opcodes";
@@ -55,6 +65,15 @@ export interface ModuleOptions {
   elements?: ElementDef[];
 }
 
+/**
+ * Assembles function definitions and module options into a complete Wasm binary.
+ *
+ * Handles type deduplication, correct section ordering (type → import → function →
+ * table → memory → global → export → element → code → data), and import index
+ * offset for function references.
+ *
+ * @returns A `Uint8Array` containing the valid Wasm module binary.
+ */
 export function buildModule(
   funcs: FuncDef[],
   {

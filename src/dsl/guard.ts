@@ -1,3 +1,16 @@
+/**
+ * Memory bounds guard for development-time safety.
+ *
+ * {@link withBoundsCheck} wraps a function generator to inject `unreachable`
+ * traps before any memory access where the address exceeds `maxBytes`.
+ * Store operations are guarded at the statement level; load operations are
+ * wrapped in conditional expressions. Nested loads within stores are also guarded.
+ *
+ * Designed for development use — remove `withBoundsCheck` in production
+ * for zero overhead.
+ *
+ * @module
+ */
 import { IR, type IRNode } from "../wasm/ir";
 import { visitChildren } from "../wasm/optimizer-passes";
 import { interceptIR } from "./intercept";

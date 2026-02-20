@@ -1,3 +1,21 @@
+/**
+ * WasmRef prototype augmentation via `declare module` + runtime assignment.
+ *
+ * Extends {@link WasmRef} with chainable arithmetic, comparison, bitwise,
+ * unary, conversion, and in-place mutation methods (e.g. `i.add(1)`,
+ * `x.incrBy(dx)`, `n.toF64()`). These methods are the primary way users
+ * interact with local variables in the generator DSL.
+ *
+ * **Pattern:** The `declare module "./types"` block provides compile-time
+ * type signatures with `this: WasmRef<IntType>` / `this: WasmRef<FloatType>`
+ * constraints to prevent type-invalid operations (e.g. `floatRef.and()`).
+ * The runtime implementations use `_valType` for dynamic dispatch.
+ *
+ * Imported as a side-effect by `primitives.ts` to ensure augmentation
+ * is applied before any DSL code runs.
+ *
+ * @module
+ */
 import { IR } from "../wasm/ir";
 import type { ConvertKind } from "../wasm/ir";
 import type { WasmValType } from "../wasm/opcodes";

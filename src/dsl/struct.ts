@@ -1,3 +1,19 @@
+/**
+ * Struct type system with automatic field offset/alignment calculation.
+ *
+ * Provides compile-time struct layout for Wasm linear memory:
+ * - {@link Struct} factory computes field offsets respecting natural alignment.
+ * - Supports packed sub-word fields (`u8`, `u16`) that use byte/half-word
+ *   memory instructions but appear as `i32` on the Wasm stack.
+ * - {@link FieldAccessor} extends `ChainableExpr` with `.set()` and in-place
+ *   mutation methods (`incrBy`, `decrBy`, etc.) using load-modify-store patterns.
+ * - Proxy-based `StructAccessor` enables object-style access: `p.x.add(p.y)`.
+ * - `StructArray` provides indexed access into arrays of structs.
+ *
+ * All layout computation happens at JS compile time — zero Wasm runtime overhead.
+ *
+ * @module
+ */
 import type { WasmValType } from "../wasm/opcodes";
 import { IR } from "../wasm/ir";
 import type { BinopKind, IRNode } from "../wasm/ir";

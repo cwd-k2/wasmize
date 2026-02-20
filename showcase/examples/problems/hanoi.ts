@@ -1,3 +1,11 @@
+/**
+ * P1: Tower of Hanoi — recursive disk-moving.
+ *
+ * Approach: Recursive function with self-reference via `Mod.recursive`.
+ * Counts total moves rather than outputting individual steps.
+ * Complexity: O(2^n) calls.
+ * DSL features: Mod.recursive, Ctrl.if, recursion.
+ */
 import { local, Type, Mod, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 

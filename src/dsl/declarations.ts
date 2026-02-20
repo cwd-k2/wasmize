@@ -1,3 +1,12 @@
+/**
+ * Parameter and local variable declaration primitives.
+ *
+ * {@link param} and {@link local} yield `decl` instructions to the
+ * interpreter, which assigns local indices and returns typed `WasmRef`
+ * handles. {@link Type} provides value type constants for convenience.
+ *
+ * @module
+ */
 import type { WasmValType } from "../wasm/opcodes";
 import { WasmRef, type FuncGen } from "./types";
 import { type ExprInput, set } from "./expr";

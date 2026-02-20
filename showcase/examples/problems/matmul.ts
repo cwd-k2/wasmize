@@ -1,3 +1,11 @@
+/**
+ * P8: Matrix Multiplication — C = A × B (n×n square matrices).
+ *
+ * Approach: Triple-nested loop with Mem.i32Array2D for 2D indexing.
+ * Memory layout: three n×n i32 matrices at fixed offsets.
+ * Complexity: O(n³) time.
+ * DSL features: Mem.i32Array2D, triple Ctrl.range.
+ */
 import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 

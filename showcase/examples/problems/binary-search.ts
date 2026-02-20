@@ -1,3 +1,11 @@
+/**
+ * P5: Binary Search — find element in sorted array.
+ *
+ * Approach: Classic iterative binary search with lo/hi pointers.
+ * Memory layout: sorted i32 array at offset 0.
+ * Complexity: O(log n) time.
+ * DSL features: Ctrl.while, Loc.return (early return), Mem.i32Array.
+ */
 import { local, Type, Mod, Mem, Ctrl, Loc } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 

@@ -1,3 +1,11 @@
+/**
+ * P14: N-Queens — count solutions via bitwise backtracking.
+ *
+ * Approach: Recursive backtracking using bitmasks for column/diagonal tracking.
+ * No memory access — all state in i32 locals (bitmask per constraint).
+ * Complexity: O(n!) time (with pruning).
+ * DSL features: Mod.recursive, bitwise ops (and/or/shl), i32() constants.
+ */
 import { local, i32, Type, Mod, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 

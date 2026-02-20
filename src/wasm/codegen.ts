@@ -1,3 +1,13 @@
+/**
+ * IR → Wasm binary code emission.
+ *
+ * Translates {@link IRNode} trees into Wasm bytecode via {@link emitIR}.
+ * Uses 2D dispatch tables (`binopTable`, `cmpTable`, `unaryTable`) to map
+ * `(type, kind)` pairs to Wasm opcodes, enabling polymorphic i32/i64/f32/f64
+ * support without branching in the hot path.
+ *
+ * @module
+ */
 import { WasmEncoder } from "./encoder";
 import { OP } from "./opcodes";
 import { TYPE } from "./opcodes";
@@ -185,6 +195,7 @@ function extractOffset(addr: IRNode): { base: IRNode; offset: number } {
   return { base: addr, offset: 0 };
 }
 
+/** Emits Wasm bytecode for an IR node tree into the encoder. Recursively processes children. */
 export function emitIR(enc: WasmEncoder, node: IRNode | undefined): void {
   if (!node) return;
   switch (node.op) {

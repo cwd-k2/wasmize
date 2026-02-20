@@ -1,3 +1,19 @@
+/**
+ * Core DSL namespaces: Mod, Op, Mem, Ctrl, Loc.
+ *
+ * These five namespaces form the primary API surface of the generator DSL:
+ * - **Mod** — Module-level declarations (functions, exports, imports, memory, globals, tables)
+ * - **Op** — Arithmetic, comparison, bitwise, and type-conversion operations.
+ *   Includes typed sub-namespaces (`Op.i64`, `Op.f64`, `Op.f32`, `Op.convert`).
+ * - **Mem** — Memory access (load/store), constants (`i32`/`i64`/`f64`),
+ *   and structured array helpers (`i32Array`, `i32Array2D`, `byteGrid`).
+ * - **Ctrl** — Control flow: `if`/`while`/`for`/`range`/`switch`, raw blocks/loops, branches.
+ * - **Loc** — Local variable operations: `get`, `set`, `tee`, `drop`, `return`.
+ *
+ * Also exports top-level constant helpers (`i32`, `i64`, `f64`).
+ *
+ * @module
+ */
 import { IR } from "../wasm/ir";
 import type { ConvertKind, IRNode } from "../wasm/ir";
 import { BumpAllocator } from "./allocator";
@@ -486,6 +502,7 @@ export const Op = {
   },
 
   // --- i64 operations ---
+  /** 64-bit integer operations. All ops take/return i64 except comparisons (→ i32). */
   i64: {
     add: makeBinopTyped("add", "i64"),
     sub: makeBinopTyped("sub", "i64"),
@@ -524,6 +541,7 @@ export const Op = {
   },
 
   // --- f32 operations ---
+  /** 32-bit float operations: arithmetic, rounding, comparison. */
   f32: {
     add: makeBinopTyped("add", "f32"),
     sub: makeBinopTyped("sub", "f32"),
@@ -548,6 +566,7 @@ export const Op = {
   },
 
   // --- f64 operations ---
+  /** 64-bit float operations: arithmetic, rounding, comparison. */
   f64: {
     add: makeBinopTyped("add", "f64"),
     sub: makeBinopTyped("sub", "f64"),
@@ -606,6 +625,7 @@ export const Op = {
   },
 
   // --- All conversions namespace ---
+  /** All Wasm numeric conversions as named functions (e.g. `Op.convert.f64_convert_i32_s`). */
   convert: Object.fromEntries(
     (
       [

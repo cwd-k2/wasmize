@@ -1,3 +1,13 @@
+/**
+ * Optimization report: before/after IR comparison.
+ *
+ * {@link compileWithReport} compiles a program twice (unoptimized and
+ * optimized) to produce an {@link OptimizationReport} with node count
+ * reductions, memory op savings, and branch elimination metrics.
+ * {@link formatReport} renders the report as a human-readable string.
+ *
+ * @module
+ */
 import { compileToIR } from "../dsl/interpreter";
 import { compile } from "../dsl/interpreter";
 import type { WasmBinary, WasmProgram } from "../dsl/types";

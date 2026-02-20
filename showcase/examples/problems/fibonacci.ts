@@ -1,3 +1,11 @@
+/**
+ * P2: Fibonacci — bottom-up dynamic programming.
+ *
+ * Approach: Iterative DP, storing results in linear memory i32 array.
+ * Memory layout: i32 array at offset 0, dp[i] = fib(i).
+ * Complexity: O(n) time, O(n) space.
+ * DSL features: Mem.i32Array, Ctrl.range, local variables.
+ */
 import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 

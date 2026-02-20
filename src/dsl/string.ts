@@ -1,3 +1,12 @@
+/**
+ * String primitives for compile-time embedding and runtime operations.
+ *
+ * `Str.from()` embeds UTF-8 strings into linear memory via a bump allocator
+ * (compile-time). `Str.len()`, `Str.eq()`, and `Str.cmp()` generate inline
+ * Wasm loops for runtime string operations.
+ *
+ * @module
+ */
 import type { BumpAllocator } from "./allocator";
 import { Mem } from "./namespaces";
 import { ChainableExpr, add, eq, ne, type ExprInput, resolve } from "./expr";

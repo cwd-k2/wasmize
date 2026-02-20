@@ -1,3 +1,11 @@
+/**
+ * P10: 0/1 Knapsack — maximize value within weight capacity.
+ *
+ * Approach: 2D DP, dp[i][w] = max value using first i items with capacity w.
+ * Memory layout: weights at W_BASE, values at V_BASE, DP at DP_BASE.
+ * Complexity: O(n * capacity) time and space.
+ * DSL features: Mem.i32Array, Mem.i32Array2D, Op.max, nested Ctrl.range.
+ */
 import { local, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 

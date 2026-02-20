@@ -1,3 +1,14 @@
+/**
+ * Wasm opcode constants and type encoding values.
+ *
+ * {@link OP} contains numeric opcode values for all supported Wasm instructions,
+ * organized by category (control, parametric, variable, memory, numeric).
+ * {@link TYPE} maps Wasm value types (`i32`, `i64`, `f32`, `f64`) to their
+ * binary encoding bytes.
+ *
+ * @module
+ */
+
 export const OP = {
   // Control
   unreachable: 0x00,

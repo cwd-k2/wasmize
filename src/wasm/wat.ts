@@ -1,3 +1,11 @@
+/**
+ * WAT (WebAssembly Text Format) generation from IR.
+ *
+ * Converts {@link IRNode} trees and {@link FuncDef} arrays into human-readable
+ * WAT text for debugging and inspection. Used by `compileWithWat()` in `debug.ts`.
+ *
+ * @module
+ */
 import type { IRNode } from "./ir";
 import type { FuncDef, ModuleOptions } from "./module";
 import type { WasmValType } from "./opcodes";

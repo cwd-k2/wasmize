@@ -1,3 +1,17 @@
+/**
+ * Expression primitives and the `resolve()` hub.
+ *
+ * Provides the building blocks for the generator DSL's expression layer:
+ * - {@link resolve} — universal resolver that converts any `ExprInput`
+ *   (number, WasmRef, WasmVal, ChainableExpr, FuncGen) into a `WasmVal`.
+ * - {@link ChainableExpr} — fluent wrapper enabling `a.add(b).mul(c)` chains
+ *   that compose into a single IR tree via deferred generators.
+ * - Binary/comparison/unary/conversion factory functions used by both
+ *   the `Op` namespace and `WasmRef` prototype augmentation.
+ * - {@link CallableFunc} — typed callable reference for function invocation.
+ *
+ * @module
+ */
 import { IR, type BinopKind, type CmpKind, type UnaryKind, type ConvertKind } from "../wasm/ir";
 import type { WasmValType } from "../wasm/opcodes";
 import {
@@ -295,6 +309,13 @@ export function* resolve(expr: ExprInput): Generator<FuncInstruction, WasmVal, a
 
 // --- CallableFunc factory ---
 
+/**
+ * Creates a {@link CallableFunc} from a function index.
+ *
+ * The returned object is both callable (for value-returning calls) and
+ * has a `.void()` method (for statement calls). It also carries `_tag`
+ * and `_idx` so it can be passed to `Mod.export()`.
+ */
 export function callableFunc(idx: number): CallableFunc {
   const ref: FuncRef = { _tag: "func", _idx: idx };
   return Object.assign((...args: ExprInput[]): FuncGen<WasmVal> => call(ref, ...args), {

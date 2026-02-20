@@ -1,3 +1,11 @@
+/**
+ * P9: Longest Common Subsequence — DP on two byte sequences.
+ *
+ * Approach: Classic 2D DP table, dp[i][j] = LCS length of A[0..i], B[0..j].
+ * Memory layout: A at A_BASE, B at B_BASE, DP table at DP_BASE (i32 2D array).
+ * Complexity: O(m * n) time and space.
+ * DSL features: Mem.i32Array2D, Mem.load8, Op.max, Ctrl.if.
+ */
 import { local, Type, Mod, Op, Ctrl, Mem } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 
