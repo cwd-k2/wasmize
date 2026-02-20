@@ -6,7 +6,7 @@
  * Complexity: O(n * capacity) time and space.
  * DSL features: Mem.i32Array, Mem.i32Array2D, Op.max, nested Ctrl.range.
  */
-import { local, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
+import { locals, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 
 export function problem10_knapsack() {
@@ -21,10 +21,7 @@ export function problem10_knapsack() {
     const dp = Mem.i32Array(DP_BASE);
 
     yield* Mod.exportFunc("knapsack", { n: Type.i32, cap: Type.i32 }, function* (n, cap) {
-      const i = yield* local(Type.i32);
-      const w = yield* local(Type.i32);
-      const wi = yield* local(Type.i32);
-      const vi = yield* local(Type.i32);
+      const [i, w, wi, vi] = yield* locals(Type.i32, Type.i32, Type.i32, Type.i32);
 
       yield* dp.fill(0, cap, 0);
 

@@ -1,5 +1,5 @@
 import { wasmize } from "@/declarative";
-import { local, Type, Op, Ctrl, Mem, type ExprInput } from "@/dsl/primitives";
+import { locals, Type, Op, Ctrl, Mem, type ExprInput } from "@/dsl/primitives";
 import type { WasmRef, FuncGen } from "@/dsl/types";
 
 /**
@@ -19,8 +19,7 @@ export async function arrayStats() {
     return {
       params: { len: "i32" as const },
       body: function* (len: WasmRef) {
-        const i = yield* local(Type.i32);
-        const acc = yield* local(Type.i32, init);
+        const [i, acc] = yield* locals(Type.i32, [Type.i32, init]);
 
         yield* Ctrl.for(i, startIdx, i.lt(len), i.add(1), () => [combine(acc, arr.load(i))]);
 

@@ -6,7 +6,7 @@
  * Complexity: O(n * log(max)) time.
  * DSL features: Ctrl.while, Ctrl.range, Mem.i32Array.
  */
-import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { locals, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 
 export function problem6_gcd_array() {
@@ -16,11 +16,7 @@ export function problem6_gcd_array() {
 
     // array_gcd(len) — GCD loop inlined to avoid per-element function call overhead
     yield* Mod.exportFunc("array_gcd", { len: Type.i32 }, function* (len) {
-      const result = yield* local(Type.i32);
-      const i = yield* local(Type.i32);
-      const a = yield* local(Type.i32);
-      const b = yield* local(Type.i32);
-      const t = yield* local(Type.i32);
+      const [result, i, a, b, t] = yield* locals(Type.i32, Type.i32, Type.i32, Type.i32, Type.i32);
 
       yield* result.set(arr.load(0));
 

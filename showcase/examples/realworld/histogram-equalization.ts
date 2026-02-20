@@ -1,4 +1,4 @@
-import { local, Type, Mod, Mem, Ctrl, Op, Meta, RGBA } from "@/dsl/compiler";
+import { locals, Type, Mod, Mem, Ctrl, Op, Meta, RGBA } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 import { instantiate } from "@/runtime/instantiate";
 
@@ -32,17 +32,11 @@ function histogramEqualizationWasm() {
     const cdf = Mem.i32Array(CDF_BASE);
 
     yield* Mod.exportFunc("equalize", { len: Type.i32 }, function* (len) {
-      const i = yield* local(Type.i32);
-      const offset = yield* local(Type.i32);
-      const gray = yield* local(Type.i32);
-      const sum = yield* local(Type.i32, 0);
-      const cdfMin = yield* local(Type.i32, 0);
-      const denom = yield* local(Type.i32);
-      const newGray = yield* local(Type.i32);
-      const origR = yield* local(Type.i32);
-      const origG = yield* local(Type.i32);
-      const origB = yield* local(Type.i32);
-      const scale = yield* local(Type.i32);
+      const [i, offset, gray, sum, cdfMin, denom, newGray, origR, origG, origB, scale] =
+        yield* locals(
+          Type.i32, Type.i32, Type.i32, [Type.i32, 0], [Type.i32, 0],
+          Type.i32, Type.i32, Type.i32, Type.i32, Type.i32, Type.i32,
+        );
 
       // --- Phase 1: Build grayscale histogram ---
       yield* Ctrl.range(i, 256, () => [hist.store(i, 0)]);

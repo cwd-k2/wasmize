@@ -1,4 +1,4 @@
-import { local, Type, Mod, Mem, Ctrl, Op } from "@/dsl/compiler";
+import { locals, Type, Mod, Mem, Ctrl, Op } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 import { instantiate } from "@/runtime/instantiate";
 
@@ -36,9 +36,7 @@ function crc32Wasm() {
       "crc32",
       { dataOffset: Type.i32, len: Type.i32 },
       function* (dataOffset, len) {
-        const crc = yield* local(Type.i32);
-        const i = yield* local(Type.i32, 0);
-        const idx = yield* local(Type.i32);
+        const [crc, i, idx] = yield* locals(Type.i32, [Type.i32, 0], Type.i32);
 
         // crc = 0xFFFFFFFF = -1 in i32
         yield* crc.set(-1);

@@ -6,7 +6,7 @@
  * Complexity: O(n!) time (with pruning).
  * DSL features: Mod.recursive, bitwise ops (and/or/shl), i32() constants.
  */
-import { local, i32, Type, Mod, Ctrl } from "@/dsl/compiler";
+import { locals, i32, Type, Mod, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 
 export function problem14_nqueens() {
@@ -17,11 +17,8 @@ export function problem14_nqueens() {
     const solve = yield* Mod.recursive(
       { n: Type.i32, row: Type.i32, cols: Type.i32, diag1: Type.i32, diag2: Type.i32 },
       function* (self, n, row, cols, diag1, diag2) {
-        const count = yield* local(Type.i32, 0);
-        const col = yield* local(Type.i32);
-        const bit = yield* local(Type.i32);
-        const d1bit = yield* local(Type.i32);
-        const d2bit = yield* local(Type.i32);
+        const [count, col, bit, d1bit, d2bit] =
+          yield* locals([Type.i32, 0], Type.i32, Type.i32, Type.i32, Type.i32);
 
         return yield* Ctrl.if(row.ge(n))
           .then(function* () {

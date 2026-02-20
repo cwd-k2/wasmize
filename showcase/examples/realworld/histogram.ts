@@ -1,4 +1,4 @@
-import { local, Type, Mod, Mem, Ctrl, Meta, RGBA } from "@/dsl/compiler";
+import { locals, Type, Mod, Mem, Ctrl, Meta, RGBA } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 import { instantiate } from "@/runtime/instantiate";
 
@@ -30,8 +30,7 @@ function histogramWasm() {
 
     // histogram: count occurrences of each byte value (grayscale input)
     yield* Mod.exportFunc("histogram", { len: Type.i32 }, function* (len) {
-      const i = yield* local(Type.i32, 0);
-      const val = yield* local(Type.i32);
+      const [i, val] = yield* locals([Type.i32, 0], Type.i32);
 
       // Clear histogram buckets
       yield* Ctrl.range(i, 256, () => [hist.store(i, 0)]);
@@ -47,9 +46,7 @@ function histogramWasm() {
 
     // histogramRgba: compute grayscale from RGBA, then histogram
     yield* Mod.exportFunc("histogramRgba", { len: Type.i32 }, function* (len) {
-      const i = yield* local(Type.i32, 0);
-      const offset = yield* local(Type.i32);
-      const gray = yield* local(Type.i32);
+      const [i, offset, gray] = yield* locals([Type.i32, 0], Type.i32, Type.i32);
 
       // Clear histogram buckets
       yield* Ctrl.range(i, 256, () => [hist.store(i, 0)]);
@@ -75,8 +72,7 @@ function histogramWasm() {
 
     // cdf: prefix sum over histogram → cumulative distribution function
     yield* Mod.exportFunc("cdf", function* () {
-      const i = yield* local(Type.i32);
-      const sum = yield* local(Type.i32, 0);
+      const [i, sum] = yield* locals(Type.i32, [Type.i32, 0]);
 
       yield* Ctrl.range(i, 256, function* () {
         yield* sum.incrBy(hist.load(i));

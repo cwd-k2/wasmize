@@ -6,7 +6,7 @@
  * Complexity: O(2^n) calls.
  * DSL features: Mod.recursive, Ctrl.if, recursion.
  */
-import { local, Type, Mod, Ctrl } from "@/dsl/compiler";
+import { locals, Type, Mod, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 
 export function problem1_hanoi() {
@@ -15,8 +15,7 @@ export function problem1_hanoi() {
       const hanoi = yield* Mod.recursive(
         { n: Type.i32, from: Type.i32, to: Type.i32, aux: Type.i32 },
         function* (self, n, from, to, aux) {
-          const count1 = yield* local(Type.i32);
-          const count2 = yield* local(Type.i32);
+          const [count1, count2] = yield* locals(Type.i32, Type.i32);
 
           return yield* Ctrl.if(n.le(0))
             .then(function* () {

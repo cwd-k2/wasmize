@@ -1,4 +1,4 @@
-import { compile, local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { compile, locals, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { bench } from "@/bench";
 
 /**
@@ -12,9 +12,7 @@ export async function benchSieve() {
     yield* Mod.memory(2);
 
     yield* Mod.exportFunc("sieve", { n: Type.i32 }, function* (n) {
-      const i = yield* local(Type.i32);
-      const j = yield* local(Type.i32);
-      const count = yield* local(Type.i32, 0);
+      const [i, j, count] = yield* locals(Type.i32, Type.i32, [Type.i32, 0]);
 
       // i32 チャンクで 0x01010101 を一括書き込み
       yield* Ctrl.for(i, 0, i.le(n.div(4)), i.add(1), () => [Mem.store(i.mul(4), 0x01010101)]);

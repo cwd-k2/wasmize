@@ -24,6 +24,7 @@ import {
   type FuncBody,
   type FuncReturn,
   type FuncInstruction,
+  type VoidStmt,
 } from "./types";
 
 // --- ExprInput + ChainableExpr ---
@@ -427,6 +428,16 @@ export function select_(cond: ExprInput, ifTrue: ExprInput, ifFalse: ExprInput):
 }
 
 // --- Statement primitives ---
+
+/**
+ * Executes multiple void statements in sequence.
+ * Bridges the `() => VoidStmt[]` array notation into a `yield*`-able generator.
+ */
+export function run(body: () => VoidStmt[]): FuncGen<void> {
+  return (function* () {
+    for (const s of body()) yield* s;
+  })();
+}
 
 export function set(r: WasmRef, value: ExprInput): FuncGen<void> {
   return (function* () {

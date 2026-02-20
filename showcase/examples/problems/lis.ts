@@ -6,7 +6,7 @@
  * Complexity: O(n log n) time, O(n) space.
  * DSL features: Mem.i32Array, Ctrl.while (binary search inner loop).
  */
-import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { locals, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 
 export function problem13_lis() {
@@ -19,12 +19,8 @@ export function problem13_lis() {
 
     // lis(len) -> LIS length — binary search inlined to avoid function call overhead
     yield* Mod.exportFunc("lis", { len: Type.i32 }, function* (len) {
-      const i = yield* local(Type.i32);
-      const tails_len = yield* local(Type.i32, 0);
-      const lo = yield* local(Type.i32);
-      const hi = yield* local(Type.i32);
-      const mid = yield* local(Type.i32);
-      const val = yield* local(Type.i32);
+      const [i, tails_len, lo, hi, mid, val] =
+        yield* locals(Type.i32, [Type.i32, 0], Type.i32, Type.i32, Type.i32, Type.i32);
 
       yield* Ctrl.range(i, len, function* () {
         yield* val.set(input.load(i));

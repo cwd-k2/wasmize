@@ -1,4 +1,4 @@
-import { param, local, Type, Mod, Ctrl } from "@/dsl/compiler";
+import { param, locals, Type, Mod, Ctrl } from "@/dsl/compiler";
 import { instantiate } from "@/runtime/instantiate";
 import { compileWithReport, formatReport } from "@/wasm/optimizer-report";
 
@@ -13,10 +13,7 @@ export async function optimizerReportExample() {
     yield* Mod.memory(1);
     yield* Mod.exportFunc("fib", {}, function* () {
       const n = yield* param(Type.i32);
-      const a = yield* local(Type.i32, 0);
-      const b = yield* local(Type.i32, 1);
-      const tmp = yield* local(Type.i32);
-      const i = yield* local(Type.i32);
+      const [a, b, tmp, i] = yield* locals([Type.i32, 0], [Type.i32, 1], Type.i32, Type.i32);
 
       yield* Ctrl.range(i, n, function* () {
         yield* tmp.set(yield* b.add(a));

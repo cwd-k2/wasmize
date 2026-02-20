@@ -1,4 +1,4 @@
-import { compile, param, local, Type, Mod, Ctrl, withTrace, type TraceEntry } from "@/dsl/compiler";
+import { compile, param, locals, local, Type, Mod, Ctrl, withTrace, type TraceEntry } from "@/dsl/compiler";
 import { instantiate } from "@/runtime/instantiate";
 import { createProfile, withProfiling, type InstructionProfile } from "@/dsl/instrument";
 
@@ -22,9 +22,7 @@ export async function interceptTraceExample() {
           "fib",
           (function* () {
             const n = yield* param(Type.i32);
-            const a = yield* local(Type.i32, 0);
-            const b = yield* local(Type.i32, 1);
-            const tmp = yield* local(Type.i32);
+            const [a, b, tmp] = yield* locals([Type.i32, 0], [Type.i32, 1], Type.i32);
 
             const i = yield* local(Type.i32);
             yield* Ctrl.range(i, n, function* () {

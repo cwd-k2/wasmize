@@ -6,7 +6,7 @@
  * Complexity: O(amount * numCoins) time.
  * DSL features: Op.min, Mem.i32Array, nested Ctrl.range.
  */
-import { local, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
+import { locals, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 
 export function problem4_coin_change() {
@@ -23,10 +23,7 @@ export function problem4_coin_change() {
         "coin_change",
         { amount: Type.i32, num_coins: Type.i32 },
         function* (amount, num_coins) {
-          const i = yield* local(Type.i32);
-          const j = yield* local(Type.i32);
-          const coin = yield* local(Type.i32);
-          const tmp = yield* local(Type.i32);
+          const [i, j, coin, tmp] = yield* locals(Type.i32, Type.i32, Type.i32, Type.i32);
 
           yield* dp.store(0, 0);
           yield* dp.fill(1, amount, INF);

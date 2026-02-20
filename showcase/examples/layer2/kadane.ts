@@ -1,5 +1,5 @@
 import { wasmize } from "@/declarative";
-import { local, Type, Op, Ctrl, Mem } from "@/dsl/primitives";
+import { locals, Type, Op, Ctrl, Mem } from "@/dsl/primitives";
 
 /**
  * Kadane's Algorithm via wasmize() — Layer 2 API.
@@ -18,10 +18,7 @@ export async function kadane() {
         body: function* (len) {
           // layout.arr は base 0 に配置される → Mem.i32Array() でアクセス
           const arr = Mem.i32Array();
-          const i = yield* local(Type.i32);
-          const current = yield* local(Type.i32);
-          const best = yield* local(Type.i32);
-          const v = yield* local(Type.i32);
+          const [i, current, best, v] = yield* locals(Type.i32, Type.i32, Type.i32, Type.i32);
 
           yield* current.set(arr.load(0));
           yield* best.set(current);

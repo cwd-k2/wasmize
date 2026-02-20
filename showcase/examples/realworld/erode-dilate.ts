@@ -1,4 +1,4 @@
-import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { locals, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 import { instantiate } from "@/runtime/instantiate";
 
@@ -34,10 +34,7 @@ function erodeDilateWasm() {
 
     // Erode: all 9 cells in 3x3 must be 1
     yield* Mod.exportFunc("erode", { w: Type.i32, h: Type.i32 }, function* (w, h) {
-      const x = yield* local(Type.i32);
-      const y = yield* local(Type.i32);
-      const allOnes = yield* local(Type.i32);
-      const gridSize = yield* local(Type.i32);
+      const [x, y, allOnes, gridSize] = yield* locals(Type.i32, Type.i32, Type.i32, Type.i32);
 
       yield* gridSize.set(w.mul(h));
       const src = Mem.byteGrid(0, w);
@@ -62,10 +59,7 @@ function erodeDilateWasm() {
 
     // Dilate: any of 9 cells in 3x3 is 1
     yield* Mod.exportFunc("dilate", { w: Type.i32, h: Type.i32 }, function* (w, h) {
-      const x = yield* local(Type.i32);
-      const y = yield* local(Type.i32);
-      const anyOne = yield* local(Type.i32);
-      const gridSize = yield* local(Type.i32);
+      const [x, y, anyOne, gridSize] = yield* locals(Type.i32, Type.i32, Type.i32, Type.i32);
 
       yield* gridSize.set(w.mul(h));
       const src = Mem.byteGrid(0, w);

@@ -1,4 +1,4 @@
-import { local, Type, Mod, Ctrl, Meta, RGBA } from "@/dsl/compiler";
+import { locals, Type, Mod, Ctrl, Meta, RGBA } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 import { instantiate } from "@/runtime/instantiate";
 
@@ -30,13 +30,9 @@ function sepiaWasm() {
     yield* Mod.memory(1);
 
     yield* Mod.exportFunc("sepia", { len: Type.i32 }, function* (len) {
-      const i = yield* local(Type.i32, 0);
-      const offset = yield* local(Type.i32);
       // Save input RGB to avoid write-after-read hazard (in-place transform)
-      const r = yield* local(Type.i32);
-      const g = yield* local(Type.i32);
-      const b = yield* local(Type.i32);
-      const ch = yield* local(Type.i32);
+      const [i, offset, r, g, b, ch] =
+        yield* locals([Type.i32, 0], Type.i32, Type.i32, Type.i32, Type.i32, Type.i32);
 
       yield* Ctrl.while(i.lt(len), function* () {
         yield* offset.set(i.mul(4));

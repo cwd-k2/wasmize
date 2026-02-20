@@ -6,7 +6,7 @@
  * Complexity: O(n log log n) time, O(n) space.
  * DSL features: Mem.store8/load8, nested Ctrl.for.
  */
-import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { locals, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 
 export function problem7_sieve() {
@@ -14,9 +14,7 @@ export function problem7_sieve() {
     yield* Mod.memory(2);
 
     yield* Mod.exportFunc("sieve", { n: Type.i32 }, function* (n) {
-      const i = yield* local(Type.i32);
-      const j = yield* local(Type.i32);
-      const count = yield* local(Type.i32, 0);
+      const [i, j, count] = yield* locals(Type.i32, Type.i32, [Type.i32, 0]);
 
       // Bulk init: write 0x01010101 in i32 chunks (4x fewer iterations)
       yield* Ctrl.for(i, 0, i.le(n.div(4)), i.add(1), () => [Mem.store(i.mul(4), 0x01010101)]);

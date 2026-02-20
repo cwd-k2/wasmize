@@ -24,6 +24,7 @@ export {
   // Declarations
   param,
   local,
+  locals,
   Type,
   // Fluent API
   ChainableExpr,
@@ -31,6 +32,8 @@ export {
   ElseIfBuilder,
   type ExprInput,
   type CallableFunc,
+  // Statement combinator
+  run,
   // Namespaces
   Mod,
   Op,

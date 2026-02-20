@@ -1,4 +1,4 @@
-import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { locals, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 import type { WasmRef } from "@/dsl/types";
 import { instantiate } from "@/runtime/instantiate";
@@ -27,13 +27,8 @@ function gameOfLifeWasm() {
     yield* Mod.memory(2);
 
     yield* Mod.exportFunc("step", { w: Type.i32, h: Type.i32 }, function* (w, h) {
-      const x = yield* local(Type.i32);
-      const y = yield* local(Type.i32);
-      const count = yield* local(Type.i32);
-      const cell = yield* local(Type.i32);
-      const gridSize = yield* local(Type.i32);
-      const nx = yield* local(Type.i32);
-      const ny = yield* local(Type.i32);
+      const [x, y, count, cell, gridSize, nx, ny] =
+        yield* locals(Type.i32, Type.i32, Type.i32, Type.i32, Type.i32, Type.i32, Type.i32);
 
       yield* gridSize.set(w.mul(h));
       const gridA = Mem.byteGrid(0, w);

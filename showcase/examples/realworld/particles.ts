@@ -1,4 +1,4 @@
-import { local, Type, Mod, Ctrl } from "@/dsl/compiler";
+import { local, locals, Type, Mod, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 import { Struct, BumpAllocator } from "@/dsl/primitives";
 import { f64 } from "@/dsl/primitives";
@@ -52,9 +52,7 @@ function particlesWasm() {
 
     // bounce: 壁反射 — 完全弾性反射（速度反転 + 位置クランプ）
     yield* Mod.exportFunc("bounce", { n: Type.i32, w: Type.f64, h: Type.f64 }, function* (n, w, h) {
-      const i = yield* local(Type.i32);
-      const x = yield* local(Type.f64);
-      const y = yield* local(Type.f64);
+      const [i, x, y] = yield* locals(Type.i32, Type.f64, Type.f64);
 
       yield* Ctrl.range(i, n, function* () {
         const p = particles.at(i);

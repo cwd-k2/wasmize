@@ -6,7 +6,7 @@
  * Complexity: O(n) time, O(1) extra space.
  * DSL features: Op.max (branchless select), Ctrl.range.
  */
-import { local, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
+import { locals, Type, Mod, Op, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 
 export function problem3_kadane() {
@@ -16,10 +16,7 @@ export function problem3_kadane() {
     const arr = Mem.i32Array(BASE);
 
     yield* Mod.exportFunc("kadane", { len: Type.i32 }, function* (len) {
-      const i = yield* local(Type.i32);
-      const current_sum = yield* local(Type.i32);
-      const max_sum = yield* local(Type.i32);
-      const v = yield* local(Type.i32);
+      const [i, current_sum, max_sum, v] = yield* locals(Type.i32, Type.i32, Type.i32, Type.i32);
 
       yield* current_sum.set(arr.load(0));
       yield* max_sum.set(current_sum);

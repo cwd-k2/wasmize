@@ -1,5 +1,5 @@
 import { wasmize } from "@/declarative";
-import { local, Type, Ctrl, Loc, Mem } from "@/dsl/primitives";
+import { locals, Type, Ctrl, Loc, Mem } from "@/dsl/primitives";
 
 /**
  * Binary Search via wasmize() — Layer 2 API.
@@ -17,10 +17,8 @@ export async function binarySearch() {
         params: { len: "i32" as const, target: "i32" as const },
         body: function* (len, target) {
           const arr = Mem.i32Array();
-          const lo = yield* local(Type.i32, 0);
-          const hi = yield* local(Type.i32, len.sub(1));
-          const mid = yield* local(Type.i32);
-          const v = yield* local(Type.i32);
+          const [lo, hi, mid, v] =
+            yield* locals([Type.i32, 0], [Type.i32, len.sub(1)], Type.i32, Type.i32);
 
           yield* Ctrl.while(lo.le(hi), () => [
             mid.set(lo.add(hi).div(2)),

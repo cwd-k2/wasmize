@@ -6,7 +6,7 @@
  * Complexity: O(n³) time.
  * DSL features: Mem.i32Array2D, triple Ctrl.range.
  */
-import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { locals, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 
 export function problem8_matmul() {
@@ -14,17 +14,11 @@ export function problem8_matmul() {
     yield* Mod.memory(2);
 
     yield* Mod.exportFunc("matmul", { n: Type.i32 }, function* (n) {
-      const i = yield* local(Type.i32);
-      const j = yield* local(Type.i32);
-      const k = yield* local(Type.i32);
-      const sum = yield* local(Type.i32);
-      const nn = yield* local(Type.i32);
-      const baseB = yield* local(Type.i32);
-      const baseC = yield* local(Type.i32);
-      const n4 = yield* local(Type.i32);
-      const iRowA = yield* local(Type.i32);
-      const jColB = yield* local(Type.i32);
-      const bStride = yield* local(Type.i32);
+      const [i, j, k, sum, nn, baseB, baseC, n4, iRowA, jColB, bStride] =
+        yield* locals(
+          Type.i32, Type.i32, Type.i32, Type.i32, Type.i32, Type.i32,
+          Type.i32, Type.i32, Type.i32, Type.i32, Type.i32,
+        );
 
       yield* nn.set(n.mul(n));
       yield* baseB.set(nn.mul(4));

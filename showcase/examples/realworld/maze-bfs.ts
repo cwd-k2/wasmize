@@ -1,4 +1,4 @@
-import { local, Type, Mod, Mem, Ctrl, Loc, Queue } from "@/dsl/compiler";
+import { locals, Type, Mod, Mem, Ctrl, Loc, Queue } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 import { instantiate } from "@/runtime/instantiate";
 
@@ -29,18 +29,11 @@ function mazeBfsWasm() {
       "solve",
       { w: Type.i32, h: Type.i32, sx: Type.i32, sy: Type.i32, gx: Type.i32, gy: Type.i32 },
       function* (w, h, sx, sy, gx, gy) {
-        const gridSize = yield* local(Type.i32);
-        const distBase = yield* local(Type.i32);
-        const qBase = yield* local(Type.i32);
-        const cx = yield* local(Type.i32);
-        const cy = yield* local(Type.i32);
-        const ci = yield* local(Type.i32);
-        const nx = yield* local(Type.i32);
-        const ny = yield* local(Type.i32);
-        const ni = yield* local(Type.i32);
-        const idx = yield* local(Type.i32);
-        const curDist = yield* local(Type.i32);
-        const startIdx = yield* local(Type.i32);
+        const [gridSize, distBase, qBase, cx, cy, ci, nx, ny, ni, idx, curDist, startIdx] =
+          yield* locals(
+            Type.i32, Type.i32, Type.i32, Type.i32, Type.i32, Type.i32,
+            Type.i32, Type.i32, Type.i32, Type.i32, Type.i32, Type.i32,
+          );
 
         yield* gridSize.set(w.mul(h));
         yield* distBase.set(gridSize);

@@ -1,4 +1,4 @@
-import { local, Type, Mod, Mem, Ctrl, Op } from "@/dsl/compiler";
+import { locals, Type, Mod, Mem, Ctrl, Op } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 
 // Levenshtein edit distance via 2D DP table
@@ -19,11 +19,9 @@ export function problem16_edit_distance() {
       "editDistance",
       { len_a: Type.i32, len_b: Type.i32 },
       function* (len_a, len_b) {
-        const i = yield* local(Type.i32);
-        const j = yield* local(Type.i32);
-        const cols = yield* local(Type.i32, len_b.add(1));
+        const [i, j, cols, cost] =
+          yield* locals(Type.i32, Type.i32, [Type.i32, len_b.add(1)], Type.i32);
         const dp = Mem.i32Array2D(DP_BASE, cols);
-        const cost = yield* local(Type.i32);
 
         // dp[0][j] = j (inserting j characters)
         yield* Ctrl.range(j, cols, () => [dp.store(0, j, j)]);

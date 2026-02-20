@@ -6,7 +6,7 @@
  * Complexity: O(rows * cols) time and space.
  * DSL features: Queue (BFS helper), Mem.byteGrid, Meta.each for 4 directions.
  */
-import { local, Type, Mod, Mem, Ctrl, Queue } from "@/dsl/compiler";
+import { locals, Type, Mod, Mem, Ctrl, Queue } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 
 export function problem12_flood_fill() {
@@ -26,13 +26,8 @@ export function problem12_flood_fill() {
       "flood_fill",
       { W: Type.i32, H: Type.i32, sx: Type.i32, sy: Type.i32, target: Type.i32, fill: Type.i32 },
       function* (W, H, sx, sy, target, fill) {
-        const qbase = yield* local(Type.i32);
-        const count = yield* local(Type.i32);
-        const cx = yield* local(Type.i32);
-        const cy = yield* local(Type.i32);
-        const nx = yield* local(Type.i32);
-        const ny = yield* local(Type.i32);
-        const addr = yield* local(Type.i32);
+        const [qbase, count, cx, cy, nx, ny, addr] =
+          yield* locals(Type.i32, Type.i32, Type.i32, Type.i32, Type.i32, Type.i32, Type.i32);
 
         yield* qbase.set(W.mul(H).mul(4));
         const q = yield* Queue(qbase);

@@ -6,7 +6,7 @@
  * Complexity: O(m * n) time and space.
  * DSL features: Mem.i32Array2D, Mem.load8, Op.max, Ctrl.if.
  */
-import { local, Type, Mod, Op, Ctrl, Mem } from "@/dsl/compiler";
+import { locals, Type, Mod, Op, Ctrl, Mem } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 
 export function problem9_lcs() {
@@ -20,9 +20,7 @@ export function problem9_lcs() {
     const b = Mem.i32Array(B_BASE);
 
     yield* Mod.exportFunc("lcs", { len_a: Type.i32, len_b: Type.i32 }, function* (len_a, len_b) {
-      const i = yield* local(Type.i32);
-      const j = yield* local(Type.i32);
-      const cols = yield* local(Type.i32, len_b.add(1));
+      const [i, j, cols] = yield* locals(Type.i32, Type.i32, [Type.i32, len_b.add(1)]);
       const dp = Mem.i32Array2D(DP_BASE, cols);
 
       // Initialize DP[0][j] = 0 (first row)

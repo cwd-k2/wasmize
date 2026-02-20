@@ -1,5 +1,5 @@
 import { wasmFunc } from "@/inline";
-import { local, Type, Ctrl } from "@/dsl/primitives";
+import { locals, Type, Ctrl } from "@/dsl/primitives";
 
 /**
  * GCD (Euclidean algorithm) via wasmFunc — Layer 3 API.
@@ -10,9 +10,7 @@ import { local, Type, Ctrl } from "@/dsl/primitives";
  */
 export async function gcd() {
   return wasmFunc({ a: "i32", b: "i32" }, "i32", function* (a, b) {
-    const x = yield* local(Type.i32, a);
-    const y = yield* local(Type.i32, b);
-    const t = yield* local(Type.i32);
+    const [x, y, t] = yield* locals([Type.i32, a], [Type.i32, b], Type.i32);
 
     yield* Ctrl.while(y.ne(0), () => [t.set(y), y.set(x.rem(y)), x.set(t)]);
 

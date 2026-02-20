@@ -6,7 +6,7 @@
  * Complexity: O(n log n) average, O(n²) worst case.
  * DSL features: Mod.recursive, Mem.i32Array().swap(), Ctrl.if, Ctrl.range.
  */
-import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import { local, locals, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 
 export function problem11_quicksort() {
@@ -16,10 +16,7 @@ export function problem11_quicksort() {
 
     // partition(lo, hi) -> pivot index, Lomuto scheme
     const partition = yield* Mod.func({ lo: Type.i32, hi: Type.i32 }, function* (lo, hi) {
-      const pivot = yield* local(Type.i32);
-      const i = yield* local(Type.i32);
-      const j = yield* local(Type.i32);
-      const tmp = yield* local(Type.i32);
+      const [pivot, i, j, tmp] = yield* locals(Type.i32, Type.i32, Type.i32, Type.i32);
 
       yield* pivot.set(arr.load(hi));
       yield* i.set(lo);

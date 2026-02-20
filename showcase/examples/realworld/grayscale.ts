@@ -1,4 +1,4 @@
-import { local, Type, Mod, Ctrl, Op, Meta, RGBA } from "@/dsl/compiler";
+import { locals, Type, Mod, Ctrl, Op, Meta, RGBA } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 import { instantiate } from "@/runtime/instantiate";
 
@@ -17,9 +17,7 @@ function grayscaleWasm() {
 
     // grayscale: ITU-R BT.601 整数近似 gray = (77*R + 150*G + 29*B) >> 8
     yield* Mod.exportFunc("grayscale", { len: Type.i32 }, function* (len) {
-      const i = yield* local(Type.i32, 0);
-      const offset = yield* local(Type.i32);
-      const gray = yield* local(Type.i32);
+      const [i, offset, gray] = yield* locals([Type.i32, 0], Type.i32, Type.i32);
 
       yield* Ctrl.while(i.lt(len), function* () {
         yield* offset.set(i.mul(4));
@@ -43,9 +41,7 @@ function grayscaleWasm() {
 
     // brightness: 各 RGB チャンネル += delta, clamp(0, 255) via Op.max/Op.min
     yield* Mod.exportFunc("brightness", { len: Type.i32, delta: Type.i32 }, function* (len, delta) {
-      const i = yield* local(Type.i32, 0);
-      const offset = yield* local(Type.i32);
-      const ch = yield* local(Type.i32);
+      const [i, offset, ch] = yield* locals([Type.i32, 0], Type.i32, Type.i32);
 
       yield* Ctrl.while(i.lt(len), function* () {
         yield* offset.set(i.mul(4));

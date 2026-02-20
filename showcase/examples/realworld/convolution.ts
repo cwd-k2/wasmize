@@ -1,4 +1,4 @@
-import { local, Type, Mod, Mem, Ctrl, Meta, RGBA } from "@/dsl/compiler";
+import { locals, Type, Mod, Mem, Ctrl, Meta, RGBA } from "@/dsl/compiler";
 import { compileWithWat } from "@/debug";
 import { instantiate } from "@/runtime/instantiate";
 
@@ -42,12 +42,8 @@ function convolutionWasm(kernel: number[]) {
       "convolve",
       { w: Type.i32, h: Type.i32, divisor: Type.i32 },
       function* (w, h, divisor) {
-        const x = yield* local(Type.i32);
-        const y = yield* local(Type.i32);
-        const inputSize = yield* local(Type.i32);
-        const dstAddr = yield* local(Type.i32);
-        const srcAddr = yield* local(Type.i32);
-        const ch = yield* local(Type.i32);
+        const [x, y, inputSize, dstAddr, srcAddr, ch] =
+          yield* locals(Type.i32, Type.i32, Type.i32, Type.i32, Type.i32, Type.i32);
 
         yield* inputSize.set(w.mul(h).mul(4));
 

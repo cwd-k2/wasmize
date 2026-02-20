@@ -1,4 +1,4 @@
-import { compile, local, Type, Mod, Ctrl } from "@/dsl/compiler";
+import { compile, locals, Type, Mod, Ctrl } from "@/dsl/compiler";
 import { Struct, BumpAllocator } from "@/dsl/primitives";
 import { instantiate } from "@/runtime/instantiate";
 
@@ -23,10 +23,7 @@ export async function structPoints() {
 
     // 連続する点間の Manhattan 距離の合計を計算
     yield* Mod.exportFunc("manhattanPath", { n: Type.i32 }, function* (n) {
-      const i = yield* local(Type.i32, 1);
-      const total = yield* local(Type.i32, 0);
-      const dx = yield* local(Type.i32);
-      const dy = yield* local(Type.i32);
+      const [i, total, dx, dy] = yield* locals([Type.i32, 1], [Type.i32, 0], Type.i32, Type.i32);
 
       yield* Ctrl.range(i, 1, n, function* () {
         const curr = points.at(i);
