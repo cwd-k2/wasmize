@@ -36,10 +36,7 @@ export class WorkerPool<T = Record<string, unknown>> {
   private queue: Array<{ name: string; args: any[]; task: WorkerTask }> = [];
   private inflight: Map<string, Promise<any>> | null;
 
-  constructor(
-    binary: WasmBinary<T>,
-    options: { workers: number; dedup?: boolean },
-  ) {
+  constructor(binary: WasmBinary<T>, options: { workers: number; dedup?: boolean }) {
     this.inflight = options.dedup ? new Map() : null;
     const wasmBytes = Array.from(binary);
 
@@ -116,10 +113,7 @@ export class WorkerPool<T = Record<string, unknown>> {
    * When `dedup: true`, identical calls (same name + args) that are already
    * in-flight will return the existing Promise instead of dispatching again.
    */
-  run<K extends string & keyof T>(
-    name: K,
-    ...args: any[]
-  ): Promise<any> {
+  run<K extends string & keyof T>(name: K, ...args: any[]): Promise<any> {
     if (this.inflight) {
       const key = `${name}:${JSON.stringify(args)}`;
       const existing = this.inflight.get(key);

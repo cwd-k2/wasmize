@@ -38,10 +38,22 @@ describe("Realworld examples", () => {
       const g = await grayscale();
       g.setPixels(
         new Uint8Array([
-          255, 0, 0, 255, // red
-          0, 255, 0, 255, // green
-          0, 0, 255, 255, // blue
-          128, 128, 128, 255, // gray
+          255,
+          0,
+          0,
+          255, // red
+          0,
+          255,
+          0,
+          255, // green
+          0,
+          0,
+          255,
+          255, // blue
+          128,
+          128,
+          128,
+          255, // gray
         ]),
       );
       g.grayscale(4);
@@ -169,7 +181,8 @@ describe("Realworld examples", () => {
       const c = await convolution("blur");
       // We use a custom kernel test via blur with divisor
       // 3x3 image: all channels = 100, alpha = 255
-      const w = 3, h = 3;
+      const w = 3,
+        h = 3;
       const pixels = new Uint8Array(w * h * 4);
       for (let i = 0; i < w * h; i++) {
         pixels[i * 4] = 100;
@@ -191,7 +204,8 @@ describe("Realworld examples", () => {
     test("blur averages surrounding pixels", async () => {
       const c = await convolution("blur");
       // 3x3: center pixel bright, rest dark
-      const w = 3, h = 3;
+      const w = 3,
+        h = 3;
       const pixels = new Uint8Array(w * h * 4);
       for (let i = 0; i < w * h; i++) {
         pixels[i * 4 + 3] = 255;
@@ -206,7 +220,8 @@ describe("Realworld examples", () => {
 
     test("sharpen amplifies center", async () => {
       const c = await convolution("sharpen");
-      const w = 3, h = 3;
+      const w = 3,
+        h = 3;
       const pixels = new Uint8Array(w * h * 4);
       for (let i = 0; i < w * h; i++) {
         pixels[i * 4] = 100;
@@ -295,10 +310,10 @@ describe("Realworld examples", () => {
       h.setGrayscaleData(new Uint8Array([0, 1, 1, 2, 2, 2]));
       h.histogram(6);
       h.cdf();
-      expect(h.getCdf(0)).toBe(1);    // 1
-      expect(h.getCdf(1)).toBe(3);    // 1 + 2
-      expect(h.getCdf(2)).toBe(6);    // 1 + 2 + 3
-      expect(h.getCdf(255)).toBe(6);  // total
+      expect(h.getCdf(0)).toBe(1); // 1
+      expect(h.getCdf(1)).toBe(3); // 1 + 2
+      expect(h.getCdf(2)).toBe(6); // 1 + 2 + 3
+      expect(h.getCdf(255)).toBe(6); // total
     });
 
     test("RGBA histogram uses BT.601 grayscale", async () => {
@@ -486,10 +501,7 @@ describe("Realworld examples", () => {
       const he = await histogramEqualization();
       // 4 pixels, all same color → equalization should output near-uniform
       const data = new Uint8Array([
-        100, 100, 100, 255,
-        100, 100, 100, 255,
-        100, 100, 100, 255,
-        100, 100, 100, 255,
+        100, 100, 100, 255, 100, 100, 100, 255, 100, 100, 100, 255, 100, 100, 100, 255,
       ]);
       he.setPixels(data);
       he.equalize(4);
@@ -506,9 +518,18 @@ describe("Realworld examples", () => {
       const he = await histogramEqualization();
       // 3 distinct gray levels: dark, medium, bright
       const data = new Uint8Array([
-        50, 50, 50, 255,    // dark gray
-        128, 128, 128, 255,  // medium gray
-        200, 200, 200, 255,  // bright gray
+        50,
+        50,
+        50,
+        255, // dark gray
+        128,
+        128,
+        128,
+        255, // medium gray
+        200,
+        200,
+        200,
+        255, // bright gray
       ]);
       he.setPixels(data);
       he.equalize(3);
@@ -521,10 +542,7 @@ describe("Realworld examples", () => {
 
     test("alpha channel preserved", async () => {
       const he = await histogramEqualization();
-      const data = new Uint8Array([
-        100, 50, 200, 128,
-        50, 150, 100, 64,
-      ]);
+      const data = new Uint8Array([100, 50, 200, 128, 50, 150, 100, 64]);
       he.setPixels(data);
       he.equalize(2);
       const px = he.getPixels(2);
@@ -535,8 +553,14 @@ describe("Realworld examples", () => {
     test("black and white image", async () => {
       const he = await histogramEqualization();
       const data = new Uint8Array([
-        0, 0, 0, 255,       // black
-        255, 255, 255, 255,  // white
+        0,
+        0,
+        0,
+        255, // black
+        255,
+        255,
+        255,
+        255, // white
       ]);
       he.setPixels(data);
       he.equalize(2);

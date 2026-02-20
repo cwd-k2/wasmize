@@ -33,11 +33,19 @@ export function irToWAT(node: IRNode, depth: number = 0): string {
       return [irToWAT(node.val, depth), indent(`global.set ${node.idx}`, depth)].join("\n");
     case "binop": {
       const t = node.type || "i32";
-      return [irToWAT(node.a, depth), irToWAT(node.b, depth), indent(`${t}.${node.kind}`, depth)].join("\n");
+      return [
+        irToWAT(node.a, depth),
+        irToWAT(node.b, depth),
+        indent(`${t}.${node.kind}`, depth),
+      ].join("\n");
     }
     case "cmp": {
       const t = node.type || "i32";
-      return [irToWAT(node.a, depth), irToWAT(node.b, depth), indent(`${t}.${node.kind}`, depth)].join("\n");
+      return [
+        irToWAT(node.a, depth),
+        irToWAT(node.b, depth),
+        indent(`${t}.${node.kind}`, depth),
+      ].join("\n");
     }
     case "unary": {
       const t = node.type || "i32";
@@ -50,38 +58,61 @@ export function irToWAT(node: IRNode, depth: number = 0): string {
       return [irToWAT(node.val, depth), indent(`${t}.eqz`, depth)].join("\n");
     }
     case "select":
-      return [irToWAT(node.a, depth), irToWAT(node.b, depth), irToWAT(node.cond, depth), indent("select", depth)].join("\n");
+      return [
+        irToWAT(node.a, depth),
+        irToWAT(node.b, depth),
+        irToWAT(node.cond, depth),
+        indent("select", depth),
+      ].join("\n");
     case "drop":
       return [irToWAT(node.val, depth), indent("drop", depth)].join("\n");
     case "return":
       return [irToWAT(node.val, depth), indent("return", depth)].join("\n");
     case "call":
-      return [...node.args.map((a) => irToWAT(a, depth)), indent(`call ${node.idx}`, depth)].join("\n");
+      return [...node.args.map((a) => irToWAT(a, depth)), indent(`call ${node.idx}`, depth)].join(
+        "\n",
+      );
     case "call_indirect":
-      return [...node.args.map((a) => irToWAT(a, depth)), irToWAT(node.indexExpr, depth), indent(`call_indirect (type ${node.typeIdx})`, depth)].join("\n");
+      return [
+        ...node.args.map((a) => irToWAT(a, depth)),
+        irToWAT(node.indexExpr, depth),
+        indent(`call_indirect (type ${node.typeIdx})`, depth),
+      ].join("\n");
     case "load_i32":
       return [irToWAT(node.addr, depth), indent("i32.load", depth)].join("\n");
     case "store_i32":
-      return [irToWAT(node.addr, depth), irToWAT(node.val, depth), indent("i32.store", depth)].join("\n");
+      return [irToWAT(node.addr, depth), irToWAT(node.val, depth), indent("i32.store", depth)].join(
+        "\n",
+      );
     case "load_i32_8u":
       return [irToWAT(node.addr, depth), indent("i32.load8_u", depth)].join("\n");
     case "store_i32_8":
-      return [irToWAT(node.addr, depth), irToWAT(node.val, depth), indent("i32.store8", depth)].join("\n");
+      return [
+        irToWAT(node.addr, depth),
+        irToWAT(node.val, depth),
+        indent("i32.store8", depth),
+      ].join("\n");
     case "load_i64":
       return [irToWAT(node.addr, depth), indent("i64.load", depth)].join("\n");
     case "store_i64":
-      return [irToWAT(node.addr, depth), irToWAT(node.val, depth), indent("i64.store", depth)].join("\n");
+      return [irToWAT(node.addr, depth), irToWAT(node.val, depth), indent("i64.store", depth)].join(
+        "\n",
+      );
     case "load_f64":
       return [irToWAT(node.addr, depth), indent("f64.load", depth)].join("\n");
     case "store_f64":
-      return [irToWAT(node.addr, depth), irToWAT(node.val, depth), indent("f64.store", depth)].join("\n");
+      return [irToWAT(node.addr, depth), irToWAT(node.val, depth), indent("f64.store", depth)].join(
+        "\n",
+      );
     case "mem_load": {
       const watName = node.kind.replace(/_/g, ".");
       return [irToWAT(node.addr, depth), indent(watName, depth)].join("\n");
     }
     case "mem_store": {
       const watName = node.kind.replace(/_/g, ".");
-      return [irToWAT(node.addr, depth), irToWAT(node.val, depth), indent(watName, depth)].join("\n");
+      return [irToWAT(node.addr, depth), irToWAT(node.val, depth), indent(watName, depth)].join(
+        "\n",
+      );
     }
     case "if": {
       const typeAnnotation = node.type === "void" ? "" : ` (result ${node.type})`;
@@ -161,9 +192,8 @@ export function funcToWAT(func: FuncDef, index: number, exportName?: string): st
   const lines: string[] = [];
   const exportStr = exportName ? ` (export "${exportName}")` : "";
   const paramStr = func.params.map((p, i) => ` (param $p${i} ${typeStr(p)})`).join("");
-  const resultStr = func.results.length > 0
-    ? ` (result ${func.results.map(typeStr).join(" ")})`
-    : "";
+  const resultStr =
+    func.results.length > 0 ? ` (result ${func.results.map(typeStr).join(" ")})` : "";
 
   lines.push(`  (func $f${index}${exportStr}${paramStr}${resultStr}`);
 
@@ -184,10 +214,7 @@ export function funcToWAT(func: FuncDef, index: number, exportName?: string): st
 }
 
 /** Converts a complete module to WAT. */
-export function moduleToWAT(
-  funcs: FuncDef[],
-  options?: ModuleOptions,
-): string {
+export function moduleToWAT(funcs: FuncDef[], options?: ModuleOptions): string {
   const lines: string[] = [];
   lines.push("(module");
 
@@ -230,7 +257,9 @@ export function moduleToWAT(
   // Data segments
   if (options?.dataSegments) {
     for (const seg of options.dataSegments) {
-      const hexBytes = Array.from(seg.init).map((b) => `\\${b.toString(16).padStart(2, "0")}`).join("");
+      const hexBytes = Array.from(seg.init)
+        .map((b) => `\\${b.toString(16).padStart(2, "0")}`)
+        .join("");
       lines.push(`  (data (i32.const ${seg.offset}) "${hexBytes}")`);
     }
   }

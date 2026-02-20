@@ -46,37 +46,34 @@ describe("scanFeatures", () => {
 
   test("nested global_set is detected", () => {
     const funcs = makeFuncs({
-      body: [
-        IR.if_then_else(
-          IR.const_i32(1),
-          [IR.global_set(0, IR.const_i32(1))],
-          [],
-          "void",
-        ),
-      ],
+      body: [IR.if_then_else(IR.const_i32(1), [IR.global_set(0, IR.const_i32(1))], [], "void")],
     });
     const features = scanFeatures(funcs as any);
     expect(features.has("mutable-globals")).toBe(true);
   });
 
   test("multi-value detected from multiple results", () => {
-    const funcs: FuncDef[] = [{
-      params: [],
-      results: ["i32", "i32"],
-      locals: [],
-      body: [IR.const_i32(1), IR.const_i32(2)],
-    }];
+    const funcs: FuncDef[] = [
+      {
+        params: [],
+        results: ["i32", "i32"],
+        locals: [],
+        body: [IR.const_i32(1), IR.const_i32(2)],
+      },
+    ];
     const features = scanFeatures(funcs);
     expect(features.has("multi-value")).toBe(true);
   });
 
   test("single result does not add multi-value", () => {
-    const funcs: FuncDef[] = [{
-      params: [],
-      results: ["i32"],
-      locals: [],
-      body: [IR.const_i32(42)],
-    }];
+    const funcs: FuncDef[] = [
+      {
+        params: [],
+        results: ["i32"],
+        locals: [],
+        body: [IR.const_i32(42)],
+      },
+    ];
     const features = scanFeatures(funcs);
     expect(features.has("multi-value")).toBe(false);
   });
@@ -116,58 +113,68 @@ describe("scanFeatures", () => {
 
 describe("validateFeatures", () => {
   test("MVP program validates against MVP target", () => {
-    const funcs: FuncDef[] = [{
-      params: ["i32"],
-      results: ["i32"],
-      locals: [],
-      body: [IR.binop("add", IR.local_get(0), IR.const_i32(1))],
-    }];
+    const funcs: FuncDef[] = [
+      {
+        params: ["i32"],
+        results: ["i32"],
+        locals: [],
+        body: [IR.binop("add", IR.local_get(0), IR.const_i32(1))],
+      },
+    ];
     const result = validateFeatures(funcs, Features.MVP);
     expect(result.valid).toBe(true);
     expect(result.missing).toEqual([]);
   });
 
   test("mutable-globals program fails against MVP", () => {
-    const funcs: FuncDef[] = [{
-      params: [],
-      results: [],
-      locals: [],
-      body: [IR.global_set(0, IR.const_i32(42))],
-    }];
+    const funcs: FuncDef[] = [
+      {
+        params: [],
+        results: [],
+        locals: [],
+        body: [IR.global_set(0, IR.const_i32(42))],
+      },
+    ];
     const result = validateFeatures(funcs, Features.MVP);
     expect(result.valid).toBe(false);
     expect(result.missing).toContain("mutable-globals");
   });
 
   test("mutable-globals program passes against Standard", () => {
-    const funcs: FuncDef[] = [{
-      params: [],
-      results: [],
-      locals: [],
-      body: [IR.global_set(0, IR.const_i32(42))],
-    }];
+    const funcs: FuncDef[] = [
+      {
+        params: [],
+        results: [],
+        locals: [],
+        body: [IR.global_set(0, IR.const_i32(42))],
+      },
+    ];
     const result = validateFeatures(funcs, Features.Standard);
     expect(result.valid).toBe(true);
   });
 
   test("validates against All target", () => {
-    const funcs: FuncDef[] = [{
-      params: [],
-      results: ["i32", "i32"],
-      locals: [],
-      body: [IR.global_set(0, IR.const_i32(1)), IR.const_i32(1), IR.const_i32(2)],
-    }];
+    const funcs: FuncDef[] = [
+      {
+        params: [],
+        results: ["i32", "i32"],
+        locals: [],
+        body: [IR.global_set(0, IR.const_i32(1)), IR.const_i32(1), IR.const_i32(2)],
+      },
+    ];
     const result = validateFeatures(funcs, Features.All);
     expect(result.valid).toBe(true);
   });
 
   test("required features are reported", () => {
-    const funcs: FuncDef[] = [{
-      params: [],
-      results: ["i32", "i32"],
-      locals: [],
-      body: [IR.global_set(0, IR.const_i32(1)), IR.const_i32(1), IR.const_i32(2)],
-    }];
+    const funcs: FuncDef[] = [
+      {
+        params: [],
+        results: ["i32", "i32"],
+        locals: [],
+        body: [IR.global_set(0, IR.const_i32(1)), IR.const_i32(1), IR.const_i32(2)],
+      },
+    ];
     const result = validateFeatures(funcs, Features.All);
     expect(result.required.has("mvp")).toBe(true);
     expect(result.required.has("mutable-globals")).toBe(true);
@@ -194,8 +201,16 @@ describe("Features presets", () => {
 
   test("All includes everything", () => {
     const allFeatures: WasmFeature[] = [
-      "mvp", "bulk-memory", "multi-value", "sign-extension", "mutable-globals",
-      "simd", "gc", "tail-call", "exception-handling", "reference-types",
+      "mvp",
+      "bulk-memory",
+      "multi-value",
+      "sign-extension",
+      "mutable-globals",
+      "simd",
+      "gc",
+      "tail-call",
+      "exception-handling",
+      "reference-types",
     ];
     for (const f of allFeatures) {
       expect(Features.All.has(f)).toBe(true);
@@ -250,12 +265,15 @@ describe("compile with target", () => {
     const { Mod, Mem } = await import("../../dsl/primitives");
 
     expect(() => {
-      compile(function* () {
-        yield* Mod.memory(1);
-        yield* Mod.exportFunc("val", {}, function* () {
-          return yield* Mem.i32(42);
-        });
-      }, { target: Features.MVP });
+      compile(
+        function* () {
+          yield* Mod.memory(1);
+          yield* Mod.exportFunc("val", {}, function* () {
+            return yield* Mem.i32(42);
+          });
+        },
+        { target: Features.MVP },
+      );
     }).not.toThrow();
   });
 
@@ -278,14 +296,17 @@ describe("compile with target", () => {
     const { Mod, Mem, Type } = await import("../../dsl/primitives");
 
     expect(() => {
-      compile(function* () {
-        yield* Mod.memory(1);
-        const g = yield* Mod.global(Type.i32, 0);
-        yield* Mod.exportFunc("test", {}, function* () {
-          yield* g.set(yield* Mem.i32(1));
-          return yield* g.get();
-        });
-      }, { target: Features.MVP });
+      compile(
+        function* () {
+          yield* Mod.memory(1);
+          const g = yield* Mod.global(Type.i32, 0);
+          yield* Mod.exportFunc("test", {}, function* () {
+            yield* g.set(yield* Mem.i32(1));
+            return yield* g.get();
+          });
+        },
+        { target: Features.MVP },
+      );
     }).toThrow(/Suggested target: Features\.Standard/);
   });
 });

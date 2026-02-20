@@ -55,10 +55,10 @@ export async function boundsGuardExample() {
   }
 
   return {
-    prodResult,                // 42
-    debugResult,               // 42
-    prodOOB,                   // 99 (silently succeeds)
-    debugTrapped,              // true
-    guardBoundary: MAX_BYTES,  // 1024
+    prodResult, // 42
+    debugResult, // 42
+    prodOOB, // 99 (silently succeeds)
+    debugTrapped, // true
+    guardBoundary: MAX_BYTES, // 1024
   };
 }

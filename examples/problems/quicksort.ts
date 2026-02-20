@@ -7,28 +7,22 @@ export function problem11_quicksort() {
     const arr = Mem.i32Array();
 
     // partition(lo, hi) -> pivot index, Lomuto scheme
-    const partition = yield* Mod.func(
-      { lo: Type.i32, hi: Type.i32 },
-      function* (lo, hi) {
-        const pivot = yield* local(Type.i32);
-        const i = yield* local(Type.i32);
-        const j = yield* local(Type.i32);
-        const tmp = yield* local(Type.i32);
+    const partition = yield* Mod.func({ lo: Type.i32, hi: Type.i32 }, function* (lo, hi) {
+      const pivot = yield* local(Type.i32);
+      const i = yield* local(Type.i32);
+      const j = yield* local(Type.i32);
+      const tmp = yield* local(Type.i32);
 
-        yield* pivot.set(arr.load(hi));
-        yield* i.set(lo);
+      yield* pivot.set(arr.load(hi));
+      yield* i.set(lo);
 
-        yield* Ctrl.for(j, lo, j.lt(hi), j.add(1), () => [
-          Ctrl.when(arr.load(j).le(pivot), () => [
-            arr.swap(i, j, tmp),
-            i.incrBy(1),
-          ]),
-        ]);
+      yield* Ctrl.for(j, lo, j.lt(hi), j.add(1), () => [
+        Ctrl.when(arr.load(j).le(pivot), () => [arr.swap(i, j, tmp), i.incrBy(1)]),
+      ]);
 
-        yield* arr.swap(i, hi, tmp);
-        return i;
-      },
-    );
+      yield* arr.swap(i, hi, tmp);
+      return i;
+    });
 
     // quicksort(lo, hi) — void, no partition count overhead
     const quicksort = yield* Mod.recursive(

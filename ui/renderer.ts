@@ -38,9 +38,9 @@ export async function main(): Promise<void> {
       </div>
     `;
 
-    div.querySelector(".problem-header")!.addEventListener("click", () =>
-      div.classList.toggle("open"),
-    );
+    div
+      .querySelector(".problem-header")!
+      .addEventListener("click", () => div.classList.toggle("open"));
     container.appendChild(div);
   });
 

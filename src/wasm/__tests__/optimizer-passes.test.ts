@@ -13,13 +13,20 @@ import { optimizeFunc } from "../optimize";
 describe("visitChildren", () => {
   test("leaf nodes return unchanged", () => {
     const c = IR.const_i32(42);
-    expect(visitChildren(c, () => { throw new Error("should not visit"); })).toBe(c);
+    expect(
+      visitChildren(c, () => {
+        throw new Error("should not visit");
+      }),
+    ).toBe(c);
   });
 
   test("visits single val child", () => {
     const visited: IRNode[] = [];
     const node = IR.eqz(IR.const_i32(5));
-    visitChildren(node, (n) => { visited.push(n); return n; });
+    visitChildren(node, (n) => {
+      visited.push(n);
+      return n;
+    });
     expect(visited).toHaveLength(1);
     expect(visited[0]).toEqual(IR.const_i32(5));
   });
@@ -27,19 +34,20 @@ describe("visitChildren", () => {
   test("visits binop children", () => {
     const visited: IRNode[] = [];
     const node = IR.binop("add", IR.const_i32(1), IR.const_i32(2));
-    visitChildren(node, (n) => { visited.push(n); return n; });
+    visitChildren(node, (n) => {
+      visited.push(n);
+      return n;
+    });
     expect(visited).toHaveLength(2);
   });
 
   test("visits if children (cond + branches)", () => {
     const visited: IRNode[] = [];
-    const node = IR.if_then_else(
-      IR.const_i32(1),
-      [IR.const_i32(2)],
-      [IR.const_i32(3)],
-      "i32",
-    );
-    visitChildren(node, (n) => { visited.push(n); return n; });
+    const node = IR.if_then_else(IR.const_i32(1), [IR.const_i32(2)], [IR.const_i32(3)], "i32");
+    visitChildren(node, (n) => {
+      visited.push(n);
+      return n;
+    });
     // cond + 1 then element + 1 else element = 3
     expect(visited).toHaveLength(3);
   });
@@ -47,7 +55,10 @@ describe("visitChildren", () => {
   test("visits call args", () => {
     const visited: IRNode[] = [];
     const node = IR.call(0, [IR.const_i32(1), IR.const_i32(2)]);
-    visitChildren(node, (n) => { visited.push(n); return n; });
+    visitChildren(node, (n) => {
+      visited.push(n);
+      return n;
+    });
     expect(visited).toHaveLength(2);
   });
 
@@ -64,31 +75,51 @@ describe("visitChildren", () => {
     // Verify that visitChildren doesn't throw for any IR node type
     const identity = (n: IRNode) => n;
     const nodes: IRNode[] = [
-      IR.const_i32(0), IR.const_i64(0), IR.const_f32(0), IR.const_f64(0),
-      IR.local_get(0), IR.local_set(0, IR.const_i32(0)), IR.local_tee(0, IR.const_i32(0)),
+      IR.const_i32(0),
+      IR.const_i64(0),
+      IR.const_f32(0),
+      IR.const_f64(0),
+      IR.local_get(0),
+      IR.local_set(0, IR.const_i32(0)),
+      IR.local_tee(0, IR.const_i32(0)),
       IR.binop("add", IR.const_i32(0), IR.const_i32(0)),
       IR.cmp("eq", IR.const_i32(0), IR.const_i32(0)),
-      IR.unary("clz", IR.const_i32(0)), IR.convert("i32_wrap_i64", IR.const_i64(0)),
+      IR.unary("clz", IR.const_i32(0)),
+      IR.convert("i32_wrap_i64", IR.const_i64(0)),
       IR.eqz(IR.const_i32(0)),
       IR.if_then_else(IR.const_i32(0), [], [], "void"),
-      IR.loop([]), IR.block([]), IR.seq([IR.nop()]),
-      IR.br(0), IR.br_if(0, IR.const_i32(0)),
+      IR.loop([]),
+      IR.block([]),
+      IR.seq([IR.nop()]),
+      IR.br(0),
+      IR.br_if(0, IR.const_i32(0)),
       IR.br_table([0], 0, IR.const_i32(0)),
-      IR.call(0, []), IR.drop(IR.const_i32(0)), IR.return_(IR.const_i32(0)),
+      IR.call(0, []),
+      IR.drop(IR.const_i32(0)),
+      IR.return_(IR.const_i32(0)),
       IR.store_i32(IR.const_i32(0), IR.const_i32(0)),
       IR.load_i32(IR.const_i32(0)),
       IR.store_i32_8(IR.const_i32(0), IR.const_i32(0)),
       IR.load_i32_8u(IR.const_i32(0)),
-      IR.load_i64(IR.const_i32(0)), IR.store_i64(IR.const_i32(0), IR.const_i64(0)),
-      IR.load_f64(IR.const_i32(0)), IR.store_f64(IR.const_i32(0), IR.const_f64(0)),
-      IR.mem_load("i32", IR.const_i32(0)), IR.mem_store("i32", IR.const_i32(0), IR.const_i32(0)),
+      IR.load_i64(IR.const_i32(0)),
+      IR.store_i64(IR.const_i32(0), IR.const_i64(0)),
+      IR.load_f64(IR.const_i32(0)),
+      IR.store_f64(IR.const_i32(0), IR.const_f64(0)),
+      IR.mem_load("i32", IR.const_i32(0)),
+      IR.mem_store("i32", IR.const_i32(0), IR.const_i32(0)),
       IR.select(IR.const_i32(0), IR.const_i32(0), IR.const_i32(0)),
-      IR.f64_neg(IR.const_f64(0)), IR.f64_abs(IR.const_f64(0)),
-      IR.i32_wrap_i64(IR.const_i64(0)), IR.i64_extend_i32_s(IR.const_i32(0)),
-      IR.f64_convert_i32_s(IR.const_i32(0)), IR.i32_trunc_f64_s(IR.const_f64(0)),
-      IR.global_get(0), IR.global_set(0, IR.const_i32(0)),
-      IR.memory_size(), IR.memory_grow(IR.const_i32(1)),
-      IR.unreachable(), IR.nop(),
+      IR.f64_neg(IR.const_f64(0)),
+      IR.f64_abs(IR.const_f64(0)),
+      IR.i32_wrap_i64(IR.const_i64(0)),
+      IR.i64_extend_i32_s(IR.const_i32(0)),
+      IR.f64_convert_i32_s(IR.const_i32(0)),
+      IR.i32_trunc_f64_s(IR.const_f64(0)),
+      IR.global_get(0),
+      IR.global_set(0, IR.const_i32(0)),
+      IR.memory_size(),
+      IR.memory_grow(IR.const_i32(1)),
+      IR.unreachable(),
+      IR.nop(),
       IR.effect(0, IR.const_i32(0)),
       IR.call_indirect(0, 0, [IR.const_i32(0)], IR.const_i32(0)),
     ];
@@ -157,14 +188,19 @@ describe("custom passes", () => {
       },
     };
 
-    const binary = compile(function* () {
-      yield* Mod.memory(1);
-      yield* Mod.exportFunc("val", {}, function* () {
-        return yield* Mem.i32(21);
-      });
-    }, { optimizerConfig: { passes: [doubleConst], iterations: 1 } });
+    const binary = compile(
+      function* () {
+        yield* Mod.memory(1);
+        yield* Mod.exportFunc("val", {}, function* () {
+          return yield* Mem.i32(21);
+        });
+      },
+      { optimizerConfig: { passes: [doubleConst], iterations: 1 } },
+    );
 
-    const { exports: { val } } = await instantiate(binary);
+    const {
+      exports: { val },
+    } = await instantiate(binary);
     expect((val as Function)()).toBe(42);
   });
 });
@@ -189,19 +225,17 @@ describe("withoutPasses", () => {
 
   test("withoutPasses preserves remaining optimizations", () => {
     // Remove constant-folding, but identity elimination still works
-    const result = optimizeFunc(
-      [IR.binop("add", IR.local_get(0), IR.const_i32(0))],
-      { passes: withoutPasses(["constant-folding"]) },
-    );
+    const result = optimizeFunc([IR.binop("add", IR.local_get(0), IR.const_i32(0))], {
+      passes: withoutPasses(["constant-folding"]),
+    });
     expect(result[0]).toEqual(IR.local_get(0));
   });
 
   test("removing constant-folding keeps non-constant binop", () => {
     // binop(add, const(3), const(4)) should NOT be folded when constant-folding is removed
-    const result = optimizeFunc(
-      [IR.binop("add", IR.const_i32(3), IR.const_i32(4))],
-      { passes: withoutPasses(["constant-folding"]) },
-    );
+    const result = optimizeFunc([IR.binop("add", IR.const_i32(3), IR.const_i32(4))], {
+      passes: withoutPasses(["constant-folding"]),
+    });
     expect(result[0]!.op).toBe("binop");
   });
 });
@@ -237,18 +271,26 @@ describe("iterations config", () => {
     // Actually this cascades within a single bottom-up pass
     // Need a true multi-pass example
     const result = optimizeFunc(
-      [IR.select(IR.const_i32(10), IR.const_i32(20),
-        IR.eqz(IR.cmp("lt", IR.const_i32(3), IR.const_i32(5))))],
+      [
+        IR.select(
+          IR.const_i32(10),
+          IR.const_i32(20),
+          IR.eqz(IR.cmp("lt", IR.const_i32(3), IR.const_i32(5))),
+        ),
+      ],
       { iterations: 1 },
     );
     expect(result[0]).toEqual(IR.const_i32(20));
   });
 
   test("default 2 iterations", () => {
-    const result = optimizeFunc(
-      [IR.select(IR.const_i32(10), IR.const_i32(20),
-        IR.eqz(IR.cmp("lt", IR.const_i32(3), IR.const_i32(5))))],
-    );
+    const result = optimizeFunc([
+      IR.select(
+        IR.const_i32(10),
+        IR.const_i32(20),
+        IR.eqz(IR.cmp("lt", IR.const_i32(3), IR.const_i32(5))),
+      ),
+    ]);
     expect(result[0]).toEqual(IR.const_i32(20));
   });
 });

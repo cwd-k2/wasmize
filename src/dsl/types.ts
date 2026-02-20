@@ -11,7 +11,10 @@ import type { WasmValType } from "../wasm/opcodes";
  */
 export class WasmRef<T extends WasmValType = WasmValType> {
   readonly _tag = "ref" as const;
-  constructor(readonly _idx: number, readonly _valType: T = "i32" as T) {}
+  constructor(
+    readonly _idx: number,
+    readonly _valType: T = "i32" as T,
+  ) {}
 }
 
 /**

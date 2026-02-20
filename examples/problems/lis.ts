@@ -27,14 +27,16 @@ export function problem13_lis() {
         yield* Ctrl.while(lo.lt(hi), function* () {
           yield* mid.set(lo.add(hi).div(2));
           yield* Ctrl.if(tails.load(mid).lt(val))
-            .then(function* () { yield* lo.set(mid.add(1)); })
-            .else(function* () { yield* hi.set(mid); });
+            .then(function* () {
+              yield* lo.set(mid.add(1));
+            })
+            .else(function* () {
+              yield* hi.set(mid);
+            });
         });
 
         yield* tails.store(lo, val);
-        yield* Ctrl.when(lo.eq(tails_len), () => [
-          tails_len.incrBy(1),
-        ]);
+        yield* Ctrl.when(lo.eq(tails_len), () => [tails_len.incrBy(1)]);
       });
 
       return tails_len;

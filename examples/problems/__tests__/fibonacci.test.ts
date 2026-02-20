@@ -12,7 +12,9 @@ describe("Fibonacci DP", () => {
     [20, 6765],
     [30, 832040],
   ])("fib(%i) = %i", async (n, expected) => {
-    const { exports: { fib } } = await instantiate(problem2_fib_dp());
+    const {
+      exports: { fib },
+    } = await instantiate(problem2_fib_dp());
 
     expect(fib(n)).toBe(expected);
   });

@@ -18,7 +18,9 @@ describe("Bounds checking", () => {
         return yield* arr.load(3);
       });
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     expect((run as Function)()).toBe(99);
   });
 
@@ -32,7 +34,9 @@ describe("Bounds checking", () => {
         return yield* arr.load(idx);
       });
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     // Valid access
     expect((run as Function)(0)).toBe(0);
     // Out-of-bounds should trap
@@ -50,7 +54,9 @@ describe("Bounds checking", () => {
         yield* arr.store(idx, 42);
       });
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     // Valid
     expect(() => (run as Function)(0)).not.toThrow();
     expect(() => (run as Function)(1)).not.toThrow();

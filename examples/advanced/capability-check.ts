@@ -1,8 +1,6 @@
 import { compile, Type, Mod, Mem } from "@/dsl/compiler";
 import { instantiate } from "@/test-helpers";
-import {
-  Features, scanFeatures, suggestTarget, describeFeature,
-} from "@/wasm/capabilities";
+import { Features, scanFeatures, suggestTarget, describeFeature } from "@/wasm/capabilities";
 import { compileToIR } from "@/dsl/interpreter";
 
 /**
@@ -47,14 +45,16 @@ export async function capabilityCheckExample() {
 
   // 5. Compile with Standard → should succeed
   const binary = compile(program, { target: Features.Standard });
-  const { exports: { increment } } = await instantiate(binary);
+  const {
+    exports: { increment },
+  } = await instantiate(binary);
 
   return {
-    required: [...required],                  // ["mvp", "mutable-globals"]
-    suggestedTarget: suggestion.name,         // "Standard"
-    descriptions,                             // feature descriptions
-    mvpError,                                 // error message about mutable-globals
-    increment1: (increment as Function)(),    // 1
-    increment2: (increment as Function)(),    // 2
+    required: [...required], // ["mvp", "mutable-globals"]
+    suggestedTarget: suggestion.name, // "Standard"
+    descriptions, // feature descriptions
+    mvpError, // error message about mutable-globals
+    increment1: (increment as Function)(), // 1
+    increment2: (increment as Function)(), // 2
   };
 }

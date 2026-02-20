@@ -6,13 +6,13 @@
 
 ## コマンド一覧
 
-| コマンド | 実行内容 | いつ使うか |
-|---------|---------|-----------|
-| `npm run dev` | Vite dev server 起動 | 開発中。ブラウザで全問題の動作を確認 |
-| `npm run build` | `tsc && vite build` | プロダクションビルドの確認 |
-| `npm run test` | `vitest run` | コード変更後のユニットテスト |
-| `npm run test:e2e` | `playwright test` | UI を含めたエンドツーエンドテスト |
-| `npm run typecheck` | `tsc --noEmit` | 型エラーの検出（ビルドなし） |
+| コマンド            | 実行内容             | いつ使うか                           |
+| ------------------- | -------------------- | ------------------------------------ |
+| `npm run dev`       | Vite dev server 起動 | 開発中。ブラウザで全問題の動作を確認 |
+| `npm run build`     | `tsc && vite build`  | プロダクションビルドの確認           |
+| `npm run test`      | `vitest run`         | コード変更後のユニットテスト         |
+| `npm run test:e2e`  | `playwright test`    | UI を含めたエンドツーエンドテスト    |
+| `npm run typecheck` | `tsc --noEmit`       | 型エラーの検出（ビルドなし）         |
 
 ---
 

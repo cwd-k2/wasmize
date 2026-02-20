@@ -19,12 +19,9 @@ export function boundsCheckedArray(
   const inner = Mem.i32Array(base);
 
   function* boundsCheck(idx: ExprInput): Generator<any, void, any> {
-    yield* Ctrl.when(
-      or_(lt(idx, 0), ge(idx, count)),
-      function* () {
-        yield* Ctrl.unreachable();
-      },
-    );
+    yield* Ctrl.when(or_(lt(idx, 0), ge(idx, count)), function* () {
+      yield* Ctrl.unreachable();
+    });
   }
 
   return {

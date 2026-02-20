@@ -15,48 +15,43 @@ function gameOfLifeWasm() {
   return compileWithWat<Exports>(function* () {
     yield* Mod.memory(2);
 
-    yield* Mod.exportFunc(
-      "step",
-      { w: Type.i32, h: Type.i32 },
-      function* (w, h) {
-        const x = yield* local(Type.i32);
-        const y = yield* local(Type.i32);
-        const count = yield* local(Type.i32);
-        const cell = yield* local(Type.i32);
-        const gridSize = yield* local(Type.i32);
-        const nx = yield* local(Type.i32);
-        const ny = yield* local(Type.i32);
+    yield* Mod.exportFunc("step", { w: Type.i32, h: Type.i32 }, function* (w, h) {
+      const x = yield* local(Type.i32);
+      const y = yield* local(Type.i32);
+      const count = yield* local(Type.i32);
+      const cell = yield* local(Type.i32);
+      const gridSize = yield* local(Type.i32);
+      const nx = yield* local(Type.i32);
+      const ny = yield* local(Type.i32);
 
-        yield* gridSize.set(w.mul(h));
-        const gridA = Mem.byteGrid(0, w);
-        const gridB = Mem.byteGrid(gridSize, w);
+      yield* gridSize.set(w.mul(h));
+      const gridA = Mem.byteGrid(0, w);
+      const gridB = Mem.byteGrid(gridSize, w);
 
-        // For each cell, count neighbors and compute next state
-        yield* Ctrl.range(y, h, function* () {
-          yield* Ctrl.range(x, w, function* () {
-            yield* count.set(0);
-            yield* cell.set(gridA.load(y, x));
+      // For each cell, count neighbors and compute next state
+      yield* Ctrl.range(y, h, function* () {
+        yield* Ctrl.range(x, w, function* () {
+          yield* count.set(0);
+          yield* cell.set(gridA.load(y, x));
 
-            // Count 8 neighbors — compile-time unrolled via Meta.neighbors8
-            for (const { dx, dy } of Meta.neighbors8) {
-              yield* ny.set(y.add(dy));
-              yield* nx.set(x.add(dx));
-              yield* Ctrl.when(
-                ny.ge(0).and(ny.lt(h)).and(nx.ge(0)).and(nx.lt(w)),
-                () => [count.incrBy(gridA.load(ny, nx))],
-              );
-            }
+          // Count 8 neighbors — compile-time unrolled via Meta.neighbors8
+          for (const { dx, dy } of Meta.neighbors8) {
+            yield* ny.set(y.add(dy));
+            yield* nx.set(x.add(dx));
+            yield* Ctrl.when(ny.ge(0).and(ny.lt(h)).and(nx.ge(0)).and(nx.lt(w)), () => [
+              count.incrBy(gridA.load(ny, nx)),
+            ]);
+          }
 
-            yield* aliveLogic(count, cell, gridB, y, x);
-          });
+          yield* aliveLogic(count, cell, gridB, y, x);
         });
+      });
 
-        // Copy gridB → gridA
-        yield* Ctrl.range(x, gridSize, function* () {
-          yield* Mem.store8(x, Mem.load8(x.add(gridSize)));
-        });
-      },
-    );
+      // Copy gridB → gridA
+      yield* Ctrl.range(x, gridSize, function* () {
+        yield* Mem.store8(x, Mem.load8(x.add(gridSize)));
+      });
+    });
 
     yield* Mod.exportFunc(
       "getCell",

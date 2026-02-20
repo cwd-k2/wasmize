@@ -10,7 +10,9 @@ describe("i32 unary ops", () => {
         return yield* Op.i32.clz(a);
       });
     });
-    const { exports: { clz } } = await instantiate(binary);
+    const {
+      exports: { clz },
+    } = await instantiate(binary);
     const f = clz as (a: number) => number;
     expect(f(1)).toBe(31);
     expect(f(0x80000000)).toBe(0);
@@ -23,7 +25,9 @@ describe("i32 unary ops", () => {
         return yield* Op.i32.ctz(a);
       });
     });
-    const { exports: { ctz } } = await instantiate(binary);
+    const {
+      exports: { ctz },
+    } = await instantiate(binary);
     const f = ctz as (a: number) => number;
     expect(f(1)).toBe(0);
     expect(f(2)).toBe(1);
@@ -36,7 +40,9 @@ describe("i32 unary ops", () => {
         return yield* Op.i32.popcnt(a);
       });
     });
-    const { exports: { popcnt } } = await instantiate(binary);
+    const {
+      exports: { popcnt },
+    } = await instantiate(binary);
     const f = popcnt as (a: number) => number;
     expect(f(0)).toBe(0);
     expect(f(7)).toBe(3); // 0b111
@@ -59,7 +65,7 @@ describe("i32 unary ops", () => {
     expect(rotl(1, 1)).toBe(2);
     expect(rotr(2, 1)).toBe(1);
     // rotl then rotr cancels out
-    expect(rotr(rotl(0xFF, 8), 8)).toBe(0xFF);
+    expect(rotr(rotl(0xff, 8), 8)).toBe(0xff);
   });
 });
 
@@ -81,9 +87,9 @@ describe("i64 full ops", () => {
     });
     const { exports } = await instantiate(binary);
     expect((exports.rem64 as Function)(10, 3)).toBe(1);
-    expect((exports.and64 as Function)(0xFF, 0x0F)).toBe(0x0F);
-    expect((exports.or64 as Function)(0xF0, 0x0F)).toBe(0xFF);
-    expect((exports.xor64 as Function)(0xFF, 0x0F)).toBe(0xF0);
+    expect((exports.and64 as Function)(0xff, 0x0f)).toBe(0x0f);
+    expect((exports.or64 as Function)(0xf0, 0x0f)).toBe(0xff);
+    expect((exports.xor64 as Function)(0xff, 0x0f)).toBe(0xf0);
   });
 
   test("i64 shift/rotate", async () => {
@@ -270,15 +276,11 @@ describe("Op.convert namespace", () => {
     const binary = compile(function* () {
       yield* Mod.exportFunc("demote", function* () {
         // f64(7.0) → demote to f32 → trunc to i32
-        return yield* Op.convert.i32_trunc_f32_s(
-          Op.convert.f32_demote_f64(Mem.f64(7.0))
-        );
+        return yield* Op.convert.i32_trunc_f32_s(Op.convert.f32_demote_f64(Mem.f64(7.0)));
       });
       yield* Mod.exportFunc("promote", function* () {
         // f32(5.0) → promote to f64 → trunc to i32
-        return yield* Op.truncI32(
-          Op.convert.f64_promote_f32(Mem.f32(5.0))
-        );
+        return yield* Op.truncI32(Op.convert.f64_promote_f32(Mem.f32(5.0)));
       });
     });
     const { exports } = await instantiate(binary);
@@ -290,12 +292,12 @@ describe("Op.convert namespace", () => {
     const binary = compile(function* () {
       yield* Mod.exportFunc("trunc64", function* () {
         // f64(42.9) → trunc to i64 → wrap to i32
-        return yield* Op.wrap(
-          Op.convert.i64_trunc_f64_s(Mem.f64(42.9))
-        );
+        return yield* Op.wrap(Op.convert.i64_trunc_f64_s(Mem.f64(42.9)));
       });
     });
-    const { exports: { trunc64 } } = await instantiate(binary);
+    const {
+      exports: { trunc64 },
+    } = await instantiate(binary);
     expect((trunc64 as Function)()).toBe(42);
   });
 
@@ -305,7 +307,9 @@ describe("Op.convert namespace", () => {
         return yield* Op.wrap(Op.convert.i64_extend_i32_u(x));
       });
     });
-    const { exports: { extend_u } } = await instantiate(binary);
+    const {
+      exports: { extend_u },
+    } = await instantiate(binary);
     // -1 as i32 = 0xFFFFFFFF, unsigned extend to i64, wrap back gets -1
     expect((extend_u as Function)(42)).toBe(42);
   });
@@ -314,15 +318,15 @@ describe("Op.convert namespace", () => {
     const binary = compile(function* () {
       yield* Mod.exportFunc("roundtrip", { x: Type.i32 }, function* (x) {
         // i32 → reinterpret as f32 → reinterpret back to i32
-        return yield* Op.convert.i32_reinterpret_f32(
-          Op.convert.f32_reinterpret_i32(x)
-        );
+        return yield* Op.convert.i32_reinterpret_f32(Op.convert.f32_reinterpret_i32(x));
       });
     });
-    const { exports: { roundtrip } } = await instantiate(binary);
+    const {
+      exports: { roundtrip },
+    } = await instantiate(binary);
     // Reinterpret round-trip preserves bits exactly
     expect((roundtrip as Function)(0)).toBe(0);
-    expect((roundtrip as Function)(0x3F800000)).toBe(0x3F800000); // 1.0 as float bits
+    expect((roundtrip as Function)(0x3f800000)).toBe(0x3f800000); // 1.0 as float bits
   });
 });
 
@@ -347,7 +351,7 @@ describe("narrow memory ops", () => {
     store16(0, 300);
     expect(load16u(0)).toBe(300);
     // Store a value that wraps in signed 16-bit: 0xFFFF = 65535 unsigned, -1 signed
-    store16(2, 0xFFFF);
+    store16(2, 0xffff);
     expect(load16u(2)).toBe(65535);
     expect(load16s(2)).toBe(-1);
   });
@@ -363,7 +367,7 @@ describe("narrow memory ops", () => {
       });
     });
     const { exports } = await instantiate(binary);
-    (exports.store8 as Function)(0, 0xFF); // -1 in signed byte
+    (exports.store8 as Function)(0, 0xff); // -1 in signed byte
     expect((exports.load8s as Function)(0)).toBe(-1);
     (exports.store8 as Function)(1, 127);
     expect((exports.load8s as Function)(1)).toBe(127);
@@ -395,11 +399,17 @@ describe("br_table", () => {
           yield* Ctrl.br(0);
         });
         return yield* Ctrl.if(Mem.load(0).eq(0))
-          .then(function* () { return yield* Mem.i32(99); })
-          .else(function* () { return yield* Mem.load(0); });
+          .then(function* () {
+            return yield* Mem.i32(99);
+          })
+          .else(function* () {
+            return yield* Mem.load(0);
+          });
       });
     });
-    const { exports: { dispatch } } = await instantiate(binary);
+    const {
+      exports: { dispatch },
+    } = await instantiate(binary);
     const f = dispatch as (x: number) => number;
     expect(f(0)).toBe(10);
     expect(f(1)).toBe(20);
@@ -416,7 +426,9 @@ describe("f32 const", () => {
         return yield* Op.convert.i32_trunc_f32_s(Mem.f32(42.7));
       });
     });
-    const { exports: { f32_const } } = await instantiate(binary);
+    const {
+      exports: { f32_const },
+    } = await instantiate(binary);
     expect((f32_const as Function)()).toBe(42);
   });
 });
@@ -428,7 +440,9 @@ describe("Op.toF32 shorthand", () => {
         return yield* Op.convert.i32_trunc_f32_s(Op.toF32(x));
       });
     });
-    const { exports: { roundtrip } } = await instantiate(binary);
+    const {
+      exports: { roundtrip },
+    } = await instantiate(binary);
     expect((roundtrip as Function)(42)).toBe(42);
   });
 });

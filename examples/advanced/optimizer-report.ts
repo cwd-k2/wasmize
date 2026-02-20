@@ -28,7 +28,9 @@ export async function optimizerReportExample() {
     });
   });
 
-  const { exports: { fib } } = await instantiate(binary);
+  const {
+    exports: { fib },
+  } = await instantiate(binary);
 
   return {
     // Function works correctly

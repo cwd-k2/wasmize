@@ -31,10 +31,7 @@ interface MetadataResult {
 /**
  * Compiles a program and returns structured IR metadata.
  */
-export function inspectIR(
-  program: WasmProgram,
-  options?: { optimize?: boolean },
-): IRResult {
+export function inspectIR(program: WasmProgram, options?: { optimize?: boolean }): IRResult {
   const { funcs, moduleOptions } = compileToIR(program, options);
   const exportMap = new Map<number, string>();
   for (const exp of moduleOptions.exports ?? []) {
@@ -105,3 +102,9 @@ export function traceBody<T extends FuncReturn>(
 ): FuncBody<T> {
   return () => withTrace(label, body(), collector);
 }
+
+// IR statistics
+export { type IRStats, analyzeFunc, analyzeModule, formatStats } from "./wasm/ir-stats";
+
+// Optimization report
+export { type OptimizationReport, compileWithReport, formatReport } from "./wasm/optimizer-report";

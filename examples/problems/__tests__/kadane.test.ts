@@ -9,9 +9,14 @@ describe("Kadane's Algorithm", () => {
     { arr: [-1, -2, -3], expected: -1 },
     { arr: [5, 4, -1, 7, 8], expected: 23 },
   ])("kadane($arr) = $expected", async ({ arr, expected }) => {
-    const { exports: { kadane }, mem } = await instantiate(problem3_kadane());
+    const {
+      exports: { kadane },
+      mem,
+    } = await instantiate(problem3_kadane());
     const base = 1024 / 4;
-    arr.forEach((v, i) => { mem![base + i] = v; });
+    arr.forEach((v, i) => {
+      mem![base + i] = v;
+    });
 
     expect(kadane(arr.length)).toBe(expected);
   });

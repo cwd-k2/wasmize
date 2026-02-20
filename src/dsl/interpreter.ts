@@ -1,10 +1,23 @@
 import type { IRNode } from "../wasm/ir";
 import { IR } from "../wasm/ir";
 import type { WasmValType } from "../wasm/opcodes";
-import type { FuncDef, ImportDef, ExportDef, GlobalDef, DataSegment, TableDef, ElementDef } from "../wasm/module";
+import type {
+  FuncDef,
+  ImportDef,
+  ExportDef,
+  GlobalDef,
+  DataSegment,
+  TableDef,
+  ElementDef,
+} from "../wasm/module";
 import { buildModule } from "../wasm/module";
 import { optimizeFunc, type OptimizerConfig } from "../wasm/optimize";
-import { validateFeatures, describeFeature, suggestTarget, type FeatureSet } from "../wasm/capabilities";
+import {
+  validateFeatures,
+  describeFeature,
+  suggestTarget,
+  type FeatureSet,
+} from "../wasm/capabilities";
 import type { WasmBinary } from "./types";
 import {
   ref,
@@ -320,9 +333,7 @@ export function compile<T = Record<string, unknown>>(
   if (options?.target) {
     const result = validateFeatures(funcs, options.target);
     if (!result.valid) {
-      const details = result.missing
-        .map((f) => `  - ${f}: ${describeFeature(f)}`)
-        .join("\n");
+      const details = result.missing.map((f) => `  - ${f}: ${describeFeature(f)}`).join("\n");
       const suggestion = suggestTarget(funcs);
       throw new Error(
         `Target does not support required features:\n${details}\nSuggested target: Features.${suggestion.name}`,
@@ -341,9 +352,5 @@ export function compileToIR(
   program: WasmProgram,
   options?: { optimize?: boolean; optimizerConfig?: OptimizerConfig },
 ) {
-  return collectAndInterpret(
-    program,
-    options?.optimize !== false,
-    options?.optimizerConfig,
-  );
+  return collectAndInterpret(program, options?.optimize !== false, options?.optimizerConfig);
 }

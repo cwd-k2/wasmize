@@ -16,57 +16,49 @@ function grayscaleWasm() {
     yield* Mod.memory(1);
 
     // grayscale: ITU-R BT.601 整数近似 gray = (77*R + 150*G + 29*B) >> 8
-    yield* Mod.exportFunc(
-      "grayscale",
-      { len: Type.i32 },
-      function* (len) {
-        const i = yield* local(Type.i32, 0);
-        const offset = yield* local(Type.i32);
-        const gray = yield* local(Type.i32);
+    yield* Mod.exportFunc("grayscale", { len: Type.i32 }, function* (len) {
+      const i = yield* local(Type.i32, 0);
+      const offset = yield* local(Type.i32);
+      const gray = yield* local(Type.i32);
 
-        yield* Ctrl.while(i.lt(len), function* () {
-          yield* offset.set(i.mul(4));
-          const px = RGBA.at(offset);
+      yield* Ctrl.while(i.lt(len), function* () {
+        yield* offset.set(i.mul(4));
+        const px = RGBA.at(offset);
 
-          yield* gray.set(
-            Meta.weightedSum([
-              { weight: 77, expr: px.r },
-              { weight: 150, expr: px.g },
-              { weight: 29, expr: px.b },
-            ]).shr(8),
-          );
+        yield* gray.set(
+          Meta.weightedSum([
+            { weight: 77, expr: px.r },
+            { weight: 150, expr: px.g },
+            { weight: 29, expr: px.b },
+          ]).shr(8),
+        );
 
-          for (const ch of ["r", "g", "b"] as const) {
-            yield* px[ch].set(gray);
-          }
+        for (const ch of ["r", "g", "b"] as const) {
+          yield* px[ch].set(gray);
+        }
 
-          yield* i.incrBy(1);
-        });
-      },
-    );
+        yield* i.incrBy(1);
+      });
+    });
 
     // brightness: 各 RGB チャンネル += delta, clamp(0, 255) via Op.max/Op.min
-    yield* Mod.exportFunc(
-      "brightness",
-      { len: Type.i32, delta: Type.i32 },
-      function* (len, delta) {
-        const i = yield* local(Type.i32, 0);
-        const offset = yield* local(Type.i32);
-        const ch = yield* local(Type.i32);
+    yield* Mod.exportFunc("brightness", { len: Type.i32, delta: Type.i32 }, function* (len, delta) {
+      const i = yield* local(Type.i32, 0);
+      const offset = yield* local(Type.i32);
+      const ch = yield* local(Type.i32);
 
-        yield* Ctrl.while(i.lt(len), function* () {
-          yield* offset.set(i.mul(4));
-          const px = RGBA.at(offset);
+      yield* Ctrl.while(i.lt(len), function* () {
+        yield* offset.set(i.mul(4));
+        const px = RGBA.at(offset);
 
-          for (const c of ["r", "g", "b"] as const) {
-            yield* ch.set(Op.min(Op.max(px[c].add(delta), 0), 255));
-            yield* px[c].set(ch);
-          }
+        for (const c of ["r", "g", "b"] as const) {
+          yield* ch.set(Op.min(Op.max(px[c].add(delta), 0), 255));
+          yield* px[c].set(ch);
+        }
 
-          yield* i.incrBy(1);
-        });
-      },
-    );
+        yield* i.incrBy(1);
+      });
+    });
   });
 }
 

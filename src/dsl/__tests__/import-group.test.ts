@@ -53,7 +53,9 @@ describe("Mod.importGroup", () => {
     let loggedValue = -1;
     const { exports } = await instantiate(binary, {
       env: {
-        log: (v: number) => { loggedValue = v; },
+        log: (v: number) => {
+          loggedValue = v;
+        },
       },
     });
 

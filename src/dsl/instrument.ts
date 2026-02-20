@@ -15,8 +15,13 @@ export interface InstructionProfile {
 /** Creates an empty instruction profile. */
 export function createProfile(): InstructionProfile {
   return {
-    decls: 0, params: 0, locals: 0,
-    stmts: 0, ifs: 0, loops: 0, blocks: 0,
+    decls: 0,
+    params: 0,
+    locals: 0,
+    stmts: 0,
+    ifs: 0,
+    loops: 0,
+    blocks: 0,
     total: 0,
   };
 }

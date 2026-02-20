@@ -23,9 +23,15 @@ const KERNELS = {
 
 // Kernel offsets: (dy, dx) pairs for 3x3 centered at (0,0)
 const KERNEL_OFFSETS = [
-  { dy: -1, dx: -1 }, { dy: -1, dx: 0 }, { dy: -1, dx: 1 },
-  { dy: 0, dx: -1 }, { dy: 0, dx: 0 }, { dy: 0, dx: 1 },
-  { dy: 1, dx: -1 }, { dy: 1, dx: 0 }, { dy: 1, dx: 1 },
+  { dy: -1, dx: -1 },
+  { dy: -1, dx: 0 },
+  { dy: -1, dx: 1 },
+  { dy: 0, dx: -1 },
+  { dy: 0, dx: 0 },
+  { dy: 0, dx: 1 },
+  { dy: 1, dx: -1 },
+  { dy: 1, dx: 0 },
+  { dy: 1, dx: 1 },
 ];
 
 function convolutionWasm(kernel: number[]) {
@@ -61,14 +67,17 @@ function convolutionWasm(kernel: number[]) {
                   kernel.map((weight, ki) => ({
                     weight,
                     expr: Mem.load8(
-                      y.add(KERNEL_OFFSETS[ki]!.dy)
+                      y
+                        .add(KERNEL_OFFSETS[ki]!.dy)
                         .mul(w)
                         .add(x.add(KERNEL_OFFSETS[ki]!.dx))
                         .mul(4)
                         .add(ci),
                     ),
                   })),
-                ).div(divisor).clamp(0, 255),
+                )
+                  .div(divisor)
+                  .clamp(0, 255),
               ),
               dstPx[c].set(ch),
             ]);

@@ -10,7 +10,9 @@ const ops = Array.from({ length: M }, () => [
   Math.floor(Math.random() * N),
 ]);
 
-const { exports: { uf_init, uf_union } } = await instantiate(problem15_union_find());
+const {
+  exports: { uf_init, uf_union },
+} = await instantiate(problem15_union_find());
 
 describe("union-find n=5000 m=20000", () => {
   bench("JS", () => {

@@ -10,18 +10,20 @@ describe("bench harness", () => {
       yield* Mod.exportFunc("sum", { n: Type.i32 }, function* (n) {
         const acc = yield* local(Type.i32);
         const i = yield* local(Type.i32);
-        yield* Ctrl.while(i.lt(n), () => [
-          acc.incrBy(Mem.i32Array().load(i)),
-          i.incrBy(1),
-        ]);
+        yield* Ctrl.while(i.lt(n), () => [acc.incrBy(Mem.i32Array().load(i)), i.incrBy(1)]);
         return acc;
       });
     });
 
-    const result = await bench(binary, "sum" as any, (mem) => {
-      for (let i = 0; i < 100; i++) mem[i] = i + 1;
-      return [100];
-    }, { warmup: 5, iterations: 20 });
+    const result = await bench(
+      binary,
+      "sum" as any,
+      (mem) => {
+        for (let i = 0; i < 100; i++) mem[i] = i + 1;
+        return [100];
+      },
+      { warmup: 5, iterations: 20 },
+    );
 
     expect(result.wasm.mean).toBeGreaterThan(0);
     expect(result.wasm.median).toBeGreaterThan(0);
@@ -36,26 +38,28 @@ describe("bench harness", () => {
       yield* Mod.exportFunc("sum", { n: Type.i32 }, function* (n) {
         const acc = yield* local(Type.i32);
         const i = yield* local(Type.i32);
-        yield* Ctrl.while(i.lt(n), () => [
-          acc.incrBy(Mem.i32Array().load(i)),
-          i.incrBy(1),
-        ]);
+        yield* Ctrl.while(i.lt(n), () => [acc.incrBy(Mem.i32Array().load(i)), i.incrBy(1)]);
         return acc;
       });
     });
 
-    const result = await bench(binary, "sum" as any, (mem) => {
-      for (let i = 0; i < 100; i++) mem[i] = i + 1;
-      return [100];
-    }, {
-      warmup: 5,
-      iterations: 20,
-      baseline: (n: number) => {
-        let sum = 0;
-        for (let i = 0; i < n; i++) sum += i + 1;
-        return sum;
+    const result = await bench(
+      binary,
+      "sum" as any,
+      (mem) => {
+        for (let i = 0; i < 100; i++) mem[i] = i + 1;
+        return [100];
       },
-    });
+      {
+        warmup: 5,
+        iterations: 20,
+        baseline: (n: number) => {
+          let sum = 0;
+          for (let i = 0; i < n; i++) sum += i + 1;
+          return sum;
+        },
+      },
+    );
 
     expect(result.wasm.mean).toBeGreaterThan(0);
     expect(result.js).toBeDefined();

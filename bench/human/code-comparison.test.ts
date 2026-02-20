@@ -41,16 +41,22 @@ function countJsControl(src: string): number {
 }
 
 function countDslControl(src: string): number {
-  const patterns = [/Ctrl\.if\b/g, /Ctrl\.loop\b/g, /Ctrl\.block\b/g, /Ctrl\.br_if\b/g, /Ctrl\.br\b(?!_)/g];
+  const patterns = [
+    /Ctrl\.if\b/g,
+    /Ctrl\.loop\b/g,
+    /Ctrl\.block\b/g,
+    /Ctrl\.br_if\b/g,
+    /Ctrl\.br\b(?!_)/g,
+  ];
   return patterns.reduce((sum, p) => sum + (src.match(p)?.length ?? 0), 0);
 }
 
 function countJsVars(src: string): number {
-  return (src.match(/\b(let|const)\s+\w+/g)?.length ?? 0);
+  return src.match(/\b(let|const)\s+\w+/g)?.length ?? 0;
 }
 
 function countDslVars(src: string): number {
-  return (src.match(/\b(param|local)\s*\(/g)?.length ?? 0);
+  return src.match(/\b(param|local)\s*\(/g)?.length ?? 0;
 }
 
 function analyzeJs(src: string): Metrics {
@@ -100,7 +106,10 @@ function extractJsFunc(fullSrc: string, funcName: string): string {
       if (ch === "{") depth++;
       if (ch === "}") depth--;
     }
-    if (depth === 0 && i > start) { end = i; break; }
+    if (depth === 0 && i > start) {
+      end = i;
+      break;
+    }
   }
   return lines.slice(start, end + 1).join("\n");
 }

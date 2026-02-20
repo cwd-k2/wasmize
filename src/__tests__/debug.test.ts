@@ -19,8 +19,12 @@ describe("inspectIR", () => {
 
   test("returns exports", () => {
     const result = inspectIR(function* () {
-      yield* Mod.exportFunc("foo", function* () { return 42; });
-      yield* Mod.exportFunc("bar", function* () { return 0; });
+      yield* Mod.exportFunc("foo", function* () {
+        return 42;
+      });
+      yield* Mod.exportFunc("bar", function* () {
+        return 0;
+      });
     });
     expect(result.exports).toHaveLength(2);
     expect(result.exports[0]!.name).toBe("foo");

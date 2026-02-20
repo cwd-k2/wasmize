@@ -37,7 +37,9 @@ describe("Str", () => {
           return yield* Str.len(hello.ptr);
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBe(5);
     });
 
@@ -52,7 +54,9 @@ describe("Str", () => {
           return yield* Str.len(empty.ptr);
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBe(0);
     });
   });
@@ -71,7 +75,9 @@ describe("Str", () => {
           return yield* Str.eq(s1.ptr, s2.ptr, s1.len);
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBe(1);
     });
 
@@ -88,7 +94,9 @@ describe("Str", () => {
           return yield* Str.eq(s1.ptr, s2.ptr, s1.len);
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBe(0);
     });
   });
@@ -107,7 +115,9 @@ describe("Str", () => {
           return yield* Str.cmp(s1.ptr, s2.ptr);
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBe(0);
     });
 
@@ -124,7 +134,9 @@ describe("Str", () => {
           return yield* Str.cmp(s1.ptr, s2.ptr);
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBeLessThan(0);
     });
 
@@ -141,7 +153,9 @@ describe("Str", () => {
           return yield* Str.cmp(s1.ptr, s2.ptr);
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBeGreaterThan(0);
     });
 
@@ -158,7 +172,9 @@ describe("Str", () => {
           return yield* Str.cmp(s1.ptr, s2.ptr);
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBeLessThan(0);
     });
   });

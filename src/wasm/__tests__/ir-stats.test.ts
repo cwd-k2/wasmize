@@ -14,48 +14,33 @@ describe("analyzeFunc", () => {
   });
 
   test("counts memory operations", () => {
-    const body = [
-      IR.store_i32(IR.const_i32(0), IR.load_i32(IR.const_i32(4))),
-    ];
+    const body = [IR.store_i32(IR.const_i32(0), IR.load_i32(IR.const_i32(4)))];
     const stats = analyzeFunc(body);
     expect(stats.memoryLoads).toBe(1);
     expect(stats.memoryStores).toBe(1);
   });
 
   test("counts branches", () => {
-    const body = [
-      IR.if_then_else(IR.const_i32(1), [IR.br(0)], [IR.nop()], "void"),
-    ];
+    const body = [IR.if_then_else(IR.const_i32(1), [IR.br(0)], [IR.nop()], "void")];
     const stats = analyzeFunc(body);
     expect(stats.branches).toBe(2); // if + br
   });
 
   test("counts calls", () => {
-    const body = [
-      IR.call(0, [IR.const_i32(1)]),
-      IR.call(1, []),
-    ];
+    const body = [IR.call(0, [IR.const_i32(1)]), IR.call(1, [])];
     const stats = analyzeFunc(body);
     expect(stats.calls).toBe(2);
   });
 
   test("counts local accesses", () => {
-    const body = [
-      IR.local_set(0, IR.local_get(1)),
-      IR.local_tee(2, IR.const_i32(0)),
-    ];
+    const body = [IR.local_set(0, IR.local_get(1)), IR.local_tee(2, IR.const_i32(0))];
     const stats = analyzeFunc(body);
     expect(stats.localAccesses).toBe(3); // set + get + tee
   });
 
   test("tracks max depth", () => {
     // depth 0: store_i32, depth 1: const_i32 (addr) + binop (val), depth 2: local_get + const_i32
-    const body = [
-      IR.store_i32(
-        IR.const_i32(0),
-        IR.binop("add", IR.local_get(0), IR.const_i32(1)),
-      ),
-    ];
+    const body = [IR.store_i32(IR.const_i32(0), IR.binop("add", IR.local_get(0), IR.const_i32(1)))];
     const stats = analyzeFunc(body);
     expect(stats.maxDepth).toBe(2);
   });
@@ -83,7 +68,9 @@ describe("analyzeModule", () => {
     const funcs: FuncDef[] = [
       { params: [], results: [], locals: [], body: [IR.const_i32(1)] },
       {
-        params: [], results: ["i32"], locals: [],
+        params: [],
+        results: ["i32"],
+        locals: [],
         body: [IR.binop("add", IR.const_i32(1), IR.const_i32(2))],
       },
     ];

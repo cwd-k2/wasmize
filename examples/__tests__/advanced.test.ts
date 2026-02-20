@@ -38,7 +38,9 @@ describe("Advanced features", () => {
       const { sort, mem } = await stdlibSort();
 
       const data = [5, 3, 8, 1, 9, 2];
-      data.forEach((v, i) => { mem[i] = v; });
+      data.forEach((v, i) => {
+        mem[i] = v;
+      });
 
       sort(0, data.length - 1, 0); // cmpIdx=0: ascending
 
@@ -50,7 +52,9 @@ describe("Advanced features", () => {
       const { sort, mem } = await stdlibSort();
 
       const data = [5, 3, 8, 1, 9, 2];
-      data.forEach((v, i) => { mem[i] = v; });
+      data.forEach((v, i) => {
+        mem[i] = v;
+      });
 
       sort(0, data.length - 1, 1); // cmpIdx=1: descending
 

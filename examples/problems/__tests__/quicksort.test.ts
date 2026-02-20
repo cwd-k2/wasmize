@@ -4,10 +4,15 @@ import { instantiate } from "@/test-helpers";
 
 describe("Quicksort", () => {
   test("sorts a small array", async () => {
-    const { exports: { quicksort }, mem } = await instantiate(problem11_quicksort());
+    const {
+      exports: { quicksort },
+      mem,
+    } = await instantiate(problem11_quicksort());
 
     const arr = [5, 3, 8, 1, 2, 7, 4, 6];
-    arr.forEach((v, i) => { mem![i] = v; });
+    arr.forEach((v, i) => {
+      mem![i] = v;
+    });
 
     quicksort(0, arr.length - 1);
 
@@ -16,10 +21,15 @@ describe("Quicksort", () => {
   });
 
   test("already sorted", async () => {
-    const { exports: { quicksort }, mem } = await instantiate(problem11_quicksort());
+    const {
+      exports: { quicksort },
+      mem,
+    } = await instantiate(problem11_quicksort());
 
     const arr = [1, 2, 3, 4, 5];
-    arr.forEach((v, i) => { mem![i] = v; });
+    arr.forEach((v, i) => {
+      mem![i] = v;
+    });
 
     quicksort(0, arr.length - 1);
 
@@ -28,7 +38,10 @@ describe("Quicksort", () => {
   });
 
   test("single element", async () => {
-    const { exports: { quicksort }, mem } = await instantiate(problem11_quicksort());
+    const {
+      exports: { quicksort },
+      mem,
+    } = await instantiate(problem11_quicksort());
 
     mem![0] = 42;
     quicksort(0, 0);
@@ -36,10 +49,15 @@ describe("Quicksort", () => {
   });
 
   test("reverse sorted", async () => {
-    const { exports: { quicksort }, mem } = await instantiate(problem11_quicksort());
+    const {
+      exports: { quicksort },
+      mem,
+    } = await instantiate(problem11_quicksort());
 
     const arr = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
-    arr.forEach((v, i) => { mem![i] = v; });
+    arr.forEach((v, i) => {
+      mem![i] = v;
+    });
 
     quicksort(0, arr.length - 1);
 

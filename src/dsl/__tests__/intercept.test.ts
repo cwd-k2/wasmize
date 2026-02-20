@@ -3,8 +3,13 @@ import { compile } from "../compiler";
 import { param, local, Type, Mod, Mem, Ctrl } from "../primitives";
 import { instantiate } from "../../test-helpers";
 import {
-  intercept, interceptIR, withTrace, interceptModule,
-  composeIntercepts, interceptFilter, interceptWhen,
+  intercept,
+  interceptIR,
+  withTrace,
+  interceptModule,
+  composeIntercepts,
+  interceptFilter,
+  interceptWhen,
 } from "../intercept";
 import type { TraceEntry } from "../intercept";
 import { IR } from "../../wasm/ir";
@@ -58,7 +63,9 @@ describe("intercept", () => {
       yield* Mod.export("add", fn);
     });
 
-    const { exports: { add } } = await instantiate(binary);
+    const {
+      exports: { add },
+    } = await instantiate(binary);
     expect((add as Function)(10, 32)).toBe(42);
   });
 
@@ -69,8 +76,12 @@ describe("intercept", () => {
           (function* () {
             const x = yield* param(Type.i32);
             return yield* Ctrl.if(x)
-              .then(function* () { return yield* Mem.i32(1); })
-              .else(function* () { return yield* Mem.i32(0); });
+              .then(function* () {
+                return yield* Mem.i32(1);
+              })
+              .else(function* () {
+                return yield* Mem.i32(0);
+              });
           })(),
           (instr) => instr,
         );
@@ -78,7 +89,9 @@ describe("intercept", () => {
       yield* Mod.export("test", fn);
     });
 
-    const { exports: { test: testFn } } = await instantiate(binary);
+    const {
+      exports: { test: testFn },
+    } = await instantiate(binary);
     expect((testFn as Function)(5)).toBe(1);
     expect((testFn as Function)(0)).toBe(0);
   });
@@ -106,7 +119,9 @@ describe("interceptIR", () => {
       yield* Mod.export("test", fn);
     });
 
-    const { exports: { test: testFn } } = await instantiate(binary);
+    const {
+      exports: { test: testFn },
+    } = await instantiate(binary);
     expect((testFn as Function)()).toBe(42);
   });
 
@@ -131,7 +146,9 @@ describe("interceptIR", () => {
       yield* Mod.export("inc", fn);
     });
 
-    const { exports: { inc } } = await instantiate(binary);
+    const {
+      exports: { inc },
+    } = await instantiate(binary);
     expect((inc as Function)(5)).toBe(6);
     // The stmt (local_set) should be transformed; the decl (param) should not
     expect(transformCallCount).toBeGreaterThan(0);
@@ -169,7 +186,9 @@ describe("withTrace", () => {
     expect(types).toContain("stmt"); // the local_set
 
     // Verify the binary still works
-    const { exports: { add } } = await instantiate(binary);
+    const {
+      exports: { add },
+    } = await instantiate(binary);
     expect((add as Function)(3, 4)).toBe(7);
   });
 
@@ -213,16 +232,13 @@ describe("interceptModule", () => {
     };
 
     const binary = compile(function* () {
-      yield* interceptModule(
-        innerProgram(),
-        (instr) => {
-          if (instr._type === "export") {
-            exportNames.push(instr.name);
-            return { ...instr, name: "renamed_" + instr.name };
-          }
-          return instr;
-        },
-      );
+      yield* interceptModule(innerProgram(), (instr) => {
+        if (instr._type === "export") {
+          exportNames.push(instr.name);
+          return { ...instr, name: "renamed_" + instr.name };
+        }
+        return instr;
+      });
     });
 
     expect(exportNames).toEqual(["original"]);
@@ -247,7 +263,9 @@ describe("interceptModule", () => {
       );
     });
 
-    const { exports: { triple } } = await instantiate(binary);
+    const {
+      exports: { triple },
+    } = await instantiate(binary);
     expect((triple as Function)(7)).toBe(21);
   });
 });
@@ -263,14 +281,22 @@ describe("composeIntercepts", () => {
             const a = yield* param(Type.i32);
             return a;
           })(),
-          (instr) => { log.push("t1"); return instr; },
-          (instr) => { log.push("t2"); return instr; },
+          (instr) => {
+            log.push("t1");
+            return instr;
+          },
+          (instr) => {
+            log.push("t2");
+            return instr;
+          },
         );
       });
       yield* Mod.export("f", fn);
     });
 
-    const { exports: { f } } = await instantiate(binary);
+    const {
+      exports: { f },
+    } = await instantiate(binary);
     expect((f as Function)(42)).toBe(42);
     // Both transforms applied to the decl instruction
     expect(log).toContain("t1");
@@ -300,7 +326,9 @@ describe("interceptFilter", () => {
       yield* Mod.export("f", fn);
     });
 
-    const { exports: { f } } = await instantiate(binary);
+    const {
+      exports: { f },
+    } = await instantiate(binary);
     expect((f as Function)()).toBe(42);
   });
 
@@ -318,7 +346,9 @@ describe("interceptFilter", () => {
       yield* Mod.export("f", fn);
     });
 
-    const { exports: { f } } = await instantiate(binary);
+    const {
+      exports: { f },
+    } = await instantiate(binary);
     // Param decl survived even though shouldDrop returns true for all
     expect((f as Function)(7)).toBe(7);
   });
@@ -335,8 +365,12 @@ describe("interceptWhen", () => {
           })(),
           (instr) => instr._type === "stmt",
           (instr) => {
-            if (instr._type === "stmt" && instr.node.op === "local_set" &&
-                instr.node.val.op === "const_i32" && instr.node.val.v === 10) {
+            if (
+              instr._type === "stmt" &&
+              instr.node.op === "local_set" &&
+              instr.node.val.op === "const_i32" &&
+              instr.node.val.v === 10
+            ) {
               return { ...instr, node: { ...instr.node, val: IR.const_i32(20) } };
             }
             return instr;
@@ -347,7 +381,9 @@ describe("interceptWhen", () => {
       yield* Mod.export("f", fn);
     });
 
-    const { exports: { f } } = await instantiate(binary);
+    const {
+      exports: { f },
+    } = await instantiate(binary);
     expect((f as Function)()).toBe(20);
   });
 });

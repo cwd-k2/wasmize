@@ -42,11 +42,13 @@ export async function interceptTraceExample() {
     });
   });
 
-  const { exports: { fib } } = await instantiate(binary);
+  const {
+    exports: { fib },
+  } = await instantiate(binary);
 
   return {
     // Fibonacci works correctly
-    fib5: fib(5),   // 5
+    fib5: fib(5), // 5
     fib10: fib(10), // 55
 
     // Trace: each instruction yielded during compilation

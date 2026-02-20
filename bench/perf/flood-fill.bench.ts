@@ -3,9 +3,13 @@ import { problem12_flood_fill } from "../../examples/problems/flood-fill";
 import { instantiate } from "@/test-helpers";
 import { jsFloodFill } from "../js-impls";
 
-const W = 64, H = 64;
+const W = 64,
+  H = 64;
 
-const { exports: { flood_fill }, mem } = await instantiate(problem12_flood_fill());
+const {
+  exports: { flood_fill },
+  mem,
+} = await instantiate(problem12_flood_fill());
 
 describe("flood-fill 64x64", () => {
   bench("JS", () => {

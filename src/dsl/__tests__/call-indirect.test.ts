@@ -29,7 +29,9 @@ describe("call_indirect", () => {
       );
     });
 
-    const { exports: { dispatch } } = await instantiate(binary);
+    const {
+      exports: { dispatch },
+    } = await instantiate(binary);
     const fn = dispatch as Function;
     expect(fn(0, 3, 4)).toBe(7);
     expect(fn(1, 3, 4)).toBe(12);
@@ -48,13 +50,9 @@ describe("call_indirect", () => {
 
       const table = yield* Mod.table([storeAt0, storeAt4]);
 
-      yield* Mod.exportFunc(
-        "run",
-        { op: Type.i32, val: Type.i32 },
-        function* (op, val) {
-          yield* table.callVoid(op, val);
-        },
-      );
+      yield* Mod.exportFunc("run", { op: Type.i32, val: Type.i32 }, function* (op, val) {
+        yield* table.callVoid(op, val);
+      });
 
       yield* Mod.exportFunc("read", { addr: Type.i32 }, function* (addr) {
         return yield* Mem.load(addr);

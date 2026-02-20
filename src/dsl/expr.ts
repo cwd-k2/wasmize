@@ -40,9 +40,7 @@ export type ExprInput = Expr | ChainableExpr<WasmValType> | ThenBuilder;
  * yield* Mod.export("myFunc", myFunc);       // export (FuncRef-compatible)
  * ```
  */
-export interface CallableFunc<
-  Params extends readonly WasmValType[] = WasmValType[],
-> {
+export interface CallableFunc<Params extends readonly WasmValType[] = WasmValType[]> {
   (...args: { [K in keyof Params]: ExprInput } & ExprInput[]): FuncGen<WasmVal>;
   void(...args: { [K in keyof Params]: ExprInput } & ExprInput[]): FuncGen<void>;
   readonly _tag: "func";
@@ -62,7 +60,10 @@ export interface CallableFunc<
  * ```
  */
 export class ChainableExpr<T extends WasmValType = "i32"> {
-  constructor(private readonly _inner: Expr, readonly _type: T = "i32" as T) {}
+  constructor(
+    private readonly _inner: Expr,
+    readonly _type: T = "i32" as T,
+  ) {}
 
   [Symbol.iterator](): Generator<FuncInstruction, WasmVal, any> {
     return resolve(this._inner);
@@ -188,36 +189,44 @@ export class ChainableExpr<T extends WasmValType = "i32"> {
   toF64(): ChainableExpr<"f64"> {
     if (this._type === "f64") return this as unknown as ChainableExpr<"f64">;
     const kind: ConvertKind =
-      this._type === "i32" ? "f64_convert_i32_s" :
-      this._type === "i64" ? "f64_convert_i64_s" :
-      /* f32 */ "f64_promote_f32";
+      this._type === "i32"
+        ? "f64_convert_i32_s"
+        : this._type === "i64"
+          ? "f64_convert_i64_s"
+          : /* f32 */ "f64_promote_f32";
     return new ChainableExpr(makeConvert(kind)(this._inner), "f64");
   }
   /** Converts to i32. Dispatches to the appropriate Wasm conversion based on source type. */
   toI32(): ChainableExpr<"i32"> {
     if (this._type === "i32") return this as unknown as ChainableExpr<"i32">;
     const kind: ConvertKind =
-      this._type === "f64" ? "i32_trunc_f64_s" :
-      this._type === "f32" ? "i32_trunc_f32_s" :
-      /* i64 */ "i32_wrap_i64";
+      this._type === "f64"
+        ? "i32_trunc_f64_s"
+        : this._type === "f32"
+          ? "i32_trunc_f32_s"
+          : /* i64 */ "i32_wrap_i64";
     return new ChainableExpr(makeConvert(kind)(this._inner), "i32");
   }
   /** Converts to i64. Dispatches to the appropriate Wasm conversion based on source type. */
   toI64(): ChainableExpr<"i64"> {
     if (this._type === "i64") return this as unknown as ChainableExpr<"i64">;
     const kind: ConvertKind =
-      this._type === "i32" ? "i64_extend_i32_s" :
-      this._type === "f64" ? "i64_trunc_f64_s" :
-      /* f32 */ "i64_trunc_f32_s";
+      this._type === "i32"
+        ? "i64_extend_i32_s"
+        : this._type === "f64"
+          ? "i64_trunc_f64_s"
+          : /* f32 */ "i64_trunc_f32_s";
     return new ChainableExpr(makeConvert(kind)(this._inner), "i64");
   }
   /** Converts to f32. Dispatches to the appropriate Wasm conversion based on source type. */
   toF32(): ChainableExpr<"f32"> {
     if (this._type === "f32") return this as unknown as ChainableExpr<"f32">;
     const kind: ConvertKind =
-      this._type === "i32" ? "f32_convert_i32_s" :
-      this._type === "f64" ? "f32_demote_f64" :
-      /* i64 */ "f32_convert_i64_s";
+      this._type === "i32"
+        ? "f32_convert_i32_s"
+        : this._type === "f64"
+          ? "f32_demote_f64"
+          : /* i64 */ "f32_convert_i64_s";
     return new ChainableExpr(makeConvert(kind)(this._inner), "f32");
   }
 
@@ -237,12 +246,25 @@ export class ChainableExpr<T extends WasmValType = "i32"> {
         const vMax = yield* resolve(max);
         if (isFloat) {
           // f32/f64 have native min/max instructions
-          const clamped = IR.binop("min", IR.binop("max", vSelf._node, vMin._node, type), vMax._node, type);
+          const clamped = IR.binop(
+            "min",
+            IR.binop("max", vSelf._node, vMin._node, type),
+            vMax._node,
+            type,
+          );
           return val(clamped);
         } else {
           // i32/i64: use select + cmp
-          const aboveMin = IR.select(vSelf._node, vMin._node, IR.cmp("gt", vSelf._node, vMin._node, type));
-          const belowMax = IR.select(aboveMin, vMax._node, IR.cmp("lt", aboveMin, vMax._node, type));
+          const aboveMin = IR.select(
+            vSelf._node,
+            vMin._node,
+            IR.cmp("gt", vSelf._node, vMin._node, type),
+          );
+          const belowMax = IR.select(
+            aboveMin,
+            vMax._node,
+            IR.cmp("lt", aboveMin, vMax._node, type),
+          );
           return val(belowMax);
         }
       })(this._inner),
@@ -262,29 +284,24 @@ export class ChainableExpr<T extends WasmValType = "i32"> {
  * - `WasmVal` → returned as-is
  * - `FuncGen<WasmVal>` → driven via `yield*`
  */
-export function* resolve(
-  expr: ExprInput,
-): Generator<FuncInstruction, WasmVal, any> {
+export function* resolve(expr: ExprInput): Generator<FuncInstruction, WasmVal, any> {
   if (typeof expr === "number") return val(IR.const_i32(expr));
   if (expr instanceof ChainableExpr) return yield* expr;
   if (expr instanceof ThenBuilder) return yield* expr;
   if (expr instanceof WasmRef) return val(IR.local_get(expr._idx));
   if ("_tag" in expr && expr._tag === "val") return expr as WasmVal;
-  return yield* (expr as FuncGen<WasmVal>);
+  return yield* expr as FuncGen<WasmVal>;
 }
 
 // --- CallableFunc factory ---
 
 export function callableFunc(idx: number): CallableFunc {
   const ref: FuncRef = { _tag: "func", _idx: idx };
-  return Object.assign(
-    (...args: ExprInput[]): FuncGen<WasmVal> => call(ref, ...args),
-    {
-      _tag: "func" as const,
-      _idx: idx,
-      void: (...args: ExprInput[]): FuncGen<void> => call_(ref, ...args),
-    },
-  );
+  return Object.assign((...args: ExprInput[]): FuncGen<WasmVal> => call(ref, ...args), {
+    _tag: "func" as const,
+    _idx: idx,
+    void: (...args: ExprInput[]): FuncGen<void> => call_(ref, ...args),
+  });
 }
 
 // --- Expression primitives ---
@@ -337,7 +354,10 @@ export const ge_u = makeCmp("ge_u");
 
 // --- Typed binop/cmp factories ---
 
-export function makeBinopTyped(kind: BinopKind, type: WasmValType): (a: ExprInput, b: ExprInput) => FuncGen<WasmVal> {
+export function makeBinopTyped(
+  kind: BinopKind,
+  type: WasmValType,
+): (a: ExprInput, b: ExprInput) => FuncGen<WasmVal> {
   return (a, b) =>
     (function* () {
       const va = yield* resolve(a);
@@ -346,7 +366,10 @@ export function makeBinopTyped(kind: BinopKind, type: WasmValType): (a: ExprInpu
     })();
 }
 
-export function makeCmpTyped(kind: CmpKind, type: WasmValType): (a: ExprInput, b: ExprInput) => FuncGen<WasmVal> {
+export function makeCmpTyped(
+  kind: CmpKind,
+  type: WasmValType,
+): (a: ExprInput, b: ExprInput) => FuncGen<WasmVal> {
   return (a, b) =>
     (function* () {
       const va = yield* resolve(a);
@@ -373,11 +396,7 @@ export function makeConvert(kind: ConvertKind): (a: ExprInput) => FuncGen<WasmVa
 
 // --- Select primitive ---
 
-export function select_(
-  cond: ExprInput,
-  ifTrue: ExprInput,
-  ifFalse: ExprInput,
-): FuncGen<WasmVal> {
+export function select_(cond: ExprInput, ifTrue: ExprInput, ifFalse: ExprInput): FuncGen<WasmVal> {
   return (function* () {
     const vc = yield* resolve(cond);
     const va = yield* resolve(ifTrue);
@@ -403,16 +422,18 @@ export function tee(r: WasmRef, value: ExprInput): FuncGen<WasmVal> {
   })();
 }
 
-function call(
-  funcref: FuncRef,
-  ...args: ExprInput[]
-): FuncGen<WasmVal> {
+function call(funcref: FuncRef, ...args: ExprInput[]): FuncGen<WasmVal> {
   return (function* () {
     const resolved = [];
     for (const a of args) {
       resolved.push(yield* resolve(a));
     }
-    return val(IR.call(funcref._idx, resolved.map((r) => r._node)));
+    return val(
+      IR.call(
+        funcref._idx,
+        resolved.map((r) => r._node),
+      ),
+    );
   })();
 }
 
@@ -424,7 +445,10 @@ function call_(funcref: FuncRef, ...args: ExprInput[]): FuncGen<void> {
     }
     yield {
       _type: "stmt",
-      node: IR.call(funcref._idx, resolved.map((r) => r._node)),
+      node: IR.call(
+        funcref._idx,
+        resolved.map((r) => r._node),
+      ),
     };
   })();
 }

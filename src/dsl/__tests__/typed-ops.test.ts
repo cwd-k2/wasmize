@@ -10,7 +10,9 @@ describe("i32 unsigned ops", () => {
         return yield* Op.div_u(a, b);
       });
     });
-    const { exports: { div_u } } = await instantiate(binary);
+    const {
+      exports: { div_u },
+    } = await instantiate(binary);
     const f = div_u as (a: number, b: number) => number;
     expect(f(10, 3)).toBe(3);
     // 0xFFFFFFFF unsigned = 4294967295, / 2 = 2147483647
@@ -23,7 +25,9 @@ describe("i32 unsigned ops", () => {
         return yield* Op.rem_u(a, b);
       });
     });
-    const { exports: { rem_u } } = await instantiate(binary);
+    const {
+      exports: { rem_u },
+    } = await instantiate(binary);
     const f = rem_u as (a: number, b: number) => number;
     expect(f(10, 3)).toBe(1);
     // 0xFFFFFFFF % 2 = 1
@@ -36,7 +40,9 @@ describe("i32 unsigned ops", () => {
         return yield* Op.shr_u(a, b);
       });
     });
-    const { exports: { shr_u } } = await instantiate(binary);
+    const {
+      exports: { shr_u },
+    } = await instantiate(binary);
     const f = shr_u as (a: number, b: number) => number;
     // -1 (0xFFFFFFFF) >>> 1 = 0x7FFFFFFF = 2147483647
     expect(f(-1, 1)).toBe(2147483647);
@@ -82,7 +88,9 @@ describe("i64 arithmetic", () => {
         return yield* Op.wrap(sum);
       });
     });
-    const { exports: { i64_ops } } = await instantiate(binary);
+    const {
+      exports: { i64_ops },
+    } = await instantiate(binary);
     const f = i64_ops as (a: number, b: number) => number;
     expect(f(100, 200)).toBe(300);
   });
@@ -107,7 +115,9 @@ describe("i64 arithmetic", () => {
         return yield* Op.wrap(Op.i64.div(Op.extend(a), Op.extend(b)));
       });
     });
-    const { exports: { div64 } } = await instantiate(binary);
+    const {
+      exports: { div64 },
+    } = await instantiate(binary);
     expect((div64 as Function)(42, 6)).toBe(7);
   });
 });
@@ -119,7 +129,9 @@ describe("i64 eqz", () => {
         return yield* Op.i64.eqz(Op.extend(a));
       });
     });
-    const { exports: { eqz64 } } = await instantiate(binary);
+    const {
+      exports: { eqz64 },
+    } = await instantiate(binary);
     const f = eqz64 as (a: number) => number;
     expect(f(0)).toBe(1);
     expect(f(1)).toBe(0);
@@ -163,7 +175,9 @@ describe("f64 unary", () => {
         return yield* Op.truncI32(Op.f64.neg(Mem.f64(5.0)));
       });
     });
-    const { exports: { f64_neg } } = await instantiate(binary);
+    const {
+      exports: { f64_neg },
+    } = await instantiate(binary);
     expect((f64_neg as Function)()).toBe(-5);
   });
 
@@ -173,7 +187,9 @@ describe("f64 unary", () => {
         return yield* Op.truncI32(Op.f64.abs(Mem.f64(-7.0)));
       });
     });
-    const { exports: { f64_abs } } = await instantiate(binary);
+    const {
+      exports: { f64_abs },
+    } = await instantiate(binary);
     expect((f64_abs as Function)()).toBe(7);
   });
 });
@@ -185,7 +201,9 @@ describe("conversions", () => {
         return yield* Op.wrap(Op.extend(x));
       });
     });
-    const { exports: { roundtrip } } = await instantiate(binary);
+    const {
+      exports: { roundtrip },
+    } = await instantiate(binary);
     expect((roundtrip as Function)(42)).toBe(42);
     expect((roundtrip as Function)(-1)).toBe(-1);
   });
@@ -196,7 +214,9 @@ describe("conversions", () => {
         return yield* Op.truncI32(Op.toF64(x));
       });
     });
-    const { exports: { roundtrip } } = await instantiate(binary);
+    const {
+      exports: { roundtrip },
+    } = await instantiate(binary);
     expect((roundtrip as Function)(42)).toBe(42);
     expect((roundtrip as Function)(-100)).toBe(-100);
   });
@@ -208,7 +228,9 @@ describe("conversions", () => {
         return yield* Op.truncI32(Op.f64.add(Mem.f64(3.7), Mem.f64(2.1)));
       });
     });
-    const { exports: { calc } } = await instantiate(binary);
+    const {
+      exports: { calc },
+    } = await instantiate(binary);
     expect((calc as Function)()).toBe(5);
   });
 });
@@ -261,7 +283,9 @@ describe("system", () => {
         return yield* Mem.size();
       });
     });
-    const { exports: { memSize } } = await instantiate(binary);
+    const {
+      exports: { memSize },
+    } = await instantiate(binary);
     expect((memSize as Function)()).toBe(2);
   });
 
@@ -274,7 +298,9 @@ describe("system", () => {
         return yield* Op.add(prev, cur); // 1 + 4 = 5
       });
     });
-    const { exports: { growAndCheck } } = await instantiate(binary);
+    const {
+      exports: { growAndCheck },
+    } = await instantiate(binary);
     expect((growAndCheck as Function)()).toBe(5);
   });
 
@@ -284,7 +310,9 @@ describe("system", () => {
         yield* Ctrl.unreachable();
       });
     });
-    const { exports: { trap } } = await instantiate(binary);
+    const {
+      exports: { trap },
+    } = await instantiate(binary);
     expect(() => (trap as Function)()).toThrow();
   });
 });
@@ -297,7 +325,9 @@ describe("f64 const", () => {
         return yield* Op.truncI32(Mem.f64(3.14159));
       });
     });
-    const { exports: { pi_trunc } } = await instantiate(binary);
+    const {
+      exports: { pi_trunc },
+    } = await instantiate(binary);
     expect((pi_trunc as Function)()).toBe(3);
   });
 });
@@ -310,7 +340,9 @@ describe("i64 const", () => {
         return yield* Op.wrap(v);
       });
     });
-    const { exports: { i64const } } = await instantiate(binary);
+    const {
+      exports: { i64const },
+    } = await instantiate(binary);
     expect((i64const as Function)()).toBe(300);
   });
 });
@@ -320,12 +352,18 @@ describe("if block type inference", () => {
     const binary = compile(function* () {
       yield* Mod.exportFunc("if_i64", { x: Type.i32 }, function* (x) {
         const result = yield* Ctrl.if(x.gt(0))
-          .then(function* () { return yield* Mem.i64(100); })
-          .else(function* () { return yield* Mem.i64(0); });
+          .then(function* () {
+            return yield* Mem.i64(100);
+          })
+          .else(function* () {
+            return yield* Mem.i64(0);
+          });
         return yield* Op.wrap(result);
       });
     });
-    const { exports: { if_i64 } } = await instantiate(binary);
+    const {
+      exports: { if_i64 },
+    } = await instantiate(binary);
     expect((if_i64 as Function)(1)).toBe(100);
     expect((if_i64 as Function)(0)).toBe(0);
   });
@@ -334,12 +372,18 @@ describe("if block type inference", () => {
     const binary = compile(function* () {
       yield* Mod.exportFunc("if_f64", { x: Type.i32 }, function* (x) {
         const result = yield* Ctrl.if(x.gt(0))
-          .then(function* () { return yield* Mem.f64(3.14); })
-          .else(function* () { return yield* Mem.f64(0.0); });
+          .then(function* () {
+            return yield* Mem.f64(3.14);
+          })
+          .else(function* () {
+            return yield* Mem.f64(0.0);
+          });
         return yield* Op.truncI32(result);
       });
     });
-    const { exports: { if_f64 } } = await instantiate(binary);
+    const {
+      exports: { if_f64 },
+    } = await instantiate(binary);
     expect((if_f64 as Function)(1)).toBe(3);
     expect((if_f64 as Function)(0)).toBe(0);
   });
@@ -356,7 +400,9 @@ describe("function return type inference", () => {
         return yield* Op.wrap(fn());
       });
     });
-    const { exports: { test: testFn } } = await instantiate(binary);
+    const {
+      exports: { test: testFn },
+    } = await instantiate(binary);
     expect((testFn as Function)()).toBe(42);
   });
 
@@ -369,7 +415,9 @@ describe("function return type inference", () => {
         return yield* Op.truncI32(fn());
       });
     });
-    const { exports: { test: testFn } } = await instantiate(binary);
+    const {
+      exports: { test: testFn },
+    } = await instantiate(binary);
     expect((testFn as Function)()).toBe(7);
   });
 });

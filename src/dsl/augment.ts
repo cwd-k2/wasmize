@@ -91,17 +91,11 @@ declare module "./types" {
 // Runtime helpers — type safety is enforced by the `declare module` block above.
 // Return types are intentionally `any` to avoid TS fighting with generic prototype assignments.
 function binop(kind: string, ref: WasmRef, b: ExprInput): any {
-  return new ChainableExpr(
-    makeBinopTyped(kind as any, ref._valType)(ref, b),
-    ref._valType,
-  );
+  return new ChainableExpr(makeBinopTyped(kind as any, ref._valType)(ref, b), ref._valType);
 }
 
 function cmp(kind: string, ref: WasmRef, b: ExprInput): any {
-  return new ChainableExpr(
-    makeCmpTyped(kind as any, ref._valType)(ref, b),
-    "i32",
-  );
+  return new ChainableExpr(makeCmpTyped(kind as any, ref._valType)(ref, b), "i32");
 }
 
 function mutate(kind: string, ref: WasmRef, b: ExprInput): any {
@@ -117,64 +111,133 @@ WasmRef.prototype.tee = function (this: WasmRef, value: ExprInput) {
 };
 
 // Arithmetic (all numeric types)
-WasmRef.prototype.add = function (this: WasmRef, b: ExprInput) { return binop("add", this, b); };
-WasmRef.prototype.sub = function (this: WasmRef, b: ExprInput) { return binop("sub", this, b); };
-WasmRef.prototype.mul = function (this: WasmRef, b: ExprInput) { return binop("mul", this, b); };
-WasmRef.prototype.div = function (this: WasmRef, b: ExprInput) { return binop("div", this, b); };
-WasmRef.prototype.rem = function (this: WasmRef, b: ExprInput) { return binop("rem", this, b); };
+WasmRef.prototype.add = function (this: WasmRef, b: ExprInput) {
+  return binop("add", this, b);
+};
+WasmRef.prototype.sub = function (this: WasmRef, b: ExprInput) {
+  return binop("sub", this, b);
+};
+WasmRef.prototype.mul = function (this: WasmRef, b: ExprInput) {
+  return binop("mul", this, b);
+};
+WasmRef.prototype.div = function (this: WasmRef, b: ExprInput) {
+  return binop("div", this, b);
+};
+WasmRef.prototype.rem = function (this: WasmRef, b: ExprInput) {
+  return binop("rem", this, b);
+};
 
 // Comparison (all numeric types → i32)
-WasmRef.prototype.eq = function (this: WasmRef, b: ExprInput) { return cmp("eq", this, b); };
-WasmRef.prototype.ne = function (this: WasmRef, b: ExprInput) { return cmp("ne", this, b); };
-WasmRef.prototype.lt = function (this: WasmRef, b: ExprInput) { return cmp("lt", this, b); };
-WasmRef.prototype.gt = function (this: WasmRef, b: ExprInput) { return cmp("gt", this, b); };
-WasmRef.prototype.le = function (this: WasmRef, b: ExprInput) { return cmp("le", this, b); };
-WasmRef.prototype.ge = function (this: WasmRef, b: ExprInput) { return cmp("ge", this, b); };
+WasmRef.prototype.eq = function (this: WasmRef, b: ExprInput) {
+  return cmp("eq", this, b);
+};
+WasmRef.prototype.ne = function (this: WasmRef, b: ExprInput) {
+  return cmp("ne", this, b);
+};
+WasmRef.prototype.lt = function (this: WasmRef, b: ExprInput) {
+  return cmp("lt", this, b);
+};
+WasmRef.prototype.gt = function (this: WasmRef, b: ExprInput) {
+  return cmp("gt", this, b);
+};
+WasmRef.prototype.le = function (this: WasmRef, b: ExprInput) {
+  return cmp("le", this, b);
+};
+WasmRef.prototype.ge = function (this: WasmRef, b: ExprInput) {
+  return cmp("ge", this, b);
+};
 
 // Bitwise (integer types only at TS level)
-WasmRef.prototype.and = function (this: WasmRef, b: ExprInput) { return binop("and", this, b); };
-WasmRef.prototype.or = function (this: WasmRef, b: ExprInput) { return binop("or", this, b); };
-WasmRef.prototype.xor = function (this: WasmRef, b: ExprInput) { return binop("xor", this, b); };
-WasmRef.prototype.shl = function (this: WasmRef, b: ExprInput) { return binop("shl", this, b); };
-WasmRef.prototype.shr = function (this: WasmRef, b: ExprInput) { return binop("shr", this, b); };
+WasmRef.prototype.and = function (this: WasmRef, b: ExprInput) {
+  return binop("and", this, b);
+};
+WasmRef.prototype.or = function (this: WasmRef, b: ExprInput) {
+  return binop("or", this, b);
+};
+WasmRef.prototype.xor = function (this: WasmRef, b: ExprInput) {
+  return binop("xor", this, b);
+};
+WasmRef.prototype.shl = function (this: WasmRef, b: ExprInput) {
+  return binop("shl", this, b);
+};
+WasmRef.prototype.shr = function (this: WasmRef, b: ExprInput) {
+  return binop("shr", this, b);
+};
 
 // In-place mutation — all numeric types
-WasmRef.prototype.incrBy = function (this: WasmRef, b: ExprInput) { return mutate("add", this, b); };
-WasmRef.prototype.decrBy = function (this: WasmRef, b: ExprInput) { return mutate("sub", this, b); };
-WasmRef.prototype.mulBy = function (this: WasmRef, b: ExprInput) { return mutate("mul", this, b); };
-WasmRef.prototype.divBy = function (this: WasmRef, b: ExprInput) { return mutate("div", this, b); };
+WasmRef.prototype.incrBy = function (this: WasmRef, b: ExprInput) {
+  return mutate("add", this, b);
+};
+WasmRef.prototype.decrBy = function (this: WasmRef, b: ExprInput) {
+  return mutate("sub", this, b);
+};
+WasmRef.prototype.mulBy = function (this: WasmRef, b: ExprInput) {
+  return mutate("mul", this, b);
+};
+WasmRef.prototype.divBy = function (this: WasmRef, b: ExprInput) {
+  return mutate("div", this, b);
+};
 
 // In-place mutation — integer only
-WasmRef.prototype.remBy = function (this: WasmRef, b: ExprInput) { return mutate("rem", this, b); };
-WasmRef.prototype.andBy = function (this: WasmRef, b: ExprInput) { return mutate("and", this, b); };
-WasmRef.prototype.orBy = function (this: WasmRef, b: ExprInput) { return mutate("or", this, b); };
-WasmRef.prototype.xorBy = function (this: WasmRef, b: ExprInput) { return mutate("xor", this, b); };
-WasmRef.prototype.shlBy = function (this: WasmRef, b: ExprInput) { return mutate("shl", this, b); };
-WasmRef.prototype.shrBy = function (this: WasmRef, b: ExprInput) { return mutate("shr", this, b); };
+WasmRef.prototype.remBy = function (this: WasmRef, b: ExprInput) {
+  return mutate("rem", this, b);
+};
+WasmRef.prototype.andBy = function (this: WasmRef, b: ExprInput) {
+  return mutate("and", this, b);
+};
+WasmRef.prototype.orBy = function (this: WasmRef, b: ExprInput) {
+  return mutate("or", this, b);
+};
+WasmRef.prototype.xorBy = function (this: WasmRef, b: ExprInput) {
+  return mutate("xor", this, b);
+};
+WasmRef.prototype.shlBy = function (this: WasmRef, b: ExprInput) {
+  return mutate("shl", this, b);
+};
+WasmRef.prototype.shrBy = function (this: WasmRef, b: ExprInput) {
+  return mutate("shr", this, b);
+};
 
 // --- Unary operations ---
 
 /** Runtime helper for unary operations. Type safety is enforced by `declare module` above. */
 function unary(kind: string, ref: WasmRef): any {
-  return new ChainableExpr(
-    makeUnary(kind as any, ref._valType)(ref),
-    ref._valType,
-  );
+  return new ChainableExpr(makeUnary(kind as any, ref._valType)(ref), ref._valType);
 }
 
 // Float unary
-WasmRef.prototype.neg = function (this: WasmRef) { return unary("neg", this); };
-WasmRef.prototype.abs = function (this: WasmRef) { return unary("abs", this); };
-WasmRef.prototype.sqrt = function (this: WasmRef) { return unary("sqrt", this); };
-WasmRef.prototype.ceil = function (this: WasmRef) { return unary("ceil", this); };
-WasmRef.prototype.floor = function (this: WasmRef) { return unary("floor", this); };
-WasmRef.prototype.trunc = function (this: WasmRef) { return unary("trunc", this); };
-WasmRef.prototype.nearest = function (this: WasmRef) { return unary("nearest", this); };
+WasmRef.prototype.neg = function (this: WasmRef) {
+  return unary("neg", this);
+};
+WasmRef.prototype.abs = function (this: WasmRef) {
+  return unary("abs", this);
+};
+WasmRef.prototype.sqrt = function (this: WasmRef) {
+  return unary("sqrt", this);
+};
+WasmRef.prototype.ceil = function (this: WasmRef) {
+  return unary("ceil", this);
+};
+WasmRef.prototype.floor = function (this: WasmRef) {
+  return unary("floor", this);
+};
+WasmRef.prototype.trunc = function (this: WasmRef) {
+  return unary("trunc", this);
+};
+WasmRef.prototype.nearest = function (this: WasmRef) {
+  return unary("nearest", this);
+};
 
 // Int unary
-WasmRef.prototype.clz = function (this: WasmRef) { return unary("clz", this); };
-WasmRef.prototype.ctz = function (this: WasmRef) { return unary("ctz", this); };
-WasmRef.prototype.popcnt = function (this: WasmRef) { return unary("popcnt", this); };
+WasmRef.prototype.clz = function (this: WasmRef) {
+  return unary("clz", this);
+};
+WasmRef.prototype.ctz = function (this: WasmRef) {
+  return unary("ctz", this);
+};
+WasmRef.prototype.popcnt = function (this: WasmRef) {
+  return unary("popcnt", this);
+};
 WasmRef.prototype.eqz = function (this: WasmRef): any {
   const type = this._valType;
   return new ChainableExpr(
@@ -198,11 +261,25 @@ const CONVERT_TABLE: Record<WasmValType, Record<WasmValType, ConvertKind | null>
 
 function convertTo(ref: WasmRef, target: WasmValType): any {
   const kind = CONVERT_TABLE[target][ref._valType];
-  if (!kind) return new ChainableExpr((function* () { return val(IR.local_get(ref._idx)); })(), target);
+  if (!kind)
+    return new ChainableExpr(
+      (function* () {
+        return val(IR.local_get(ref._idx));
+      })(),
+      target,
+    );
   return new ChainableExpr(makeConvert(kind)(ref), target);
 }
 
-WasmRef.prototype.toF64 = function (this: WasmRef) { return convertTo(this, "f64"); };
-WasmRef.prototype.toI32 = function (this: WasmRef) { return convertTo(this, "i32"); };
-WasmRef.prototype.toI64 = function (this: WasmRef) { return convertTo(this, "i64"); };
-WasmRef.prototype.toF32 = function (this: WasmRef) { return convertTo(this, "f32"); };
+WasmRef.prototype.toF64 = function (this: WasmRef) {
+  return convertTo(this, "f64");
+};
+WasmRef.prototype.toI32 = function (this: WasmRef) {
+  return convertTo(this, "i32");
+};
+WasmRef.prototype.toI64 = function (this: WasmRef) {
+  return convertTo(this, "i64");
+};
+WasmRef.prototype.toF32 = function (this: WasmRef) {
+  return convertTo(this, "f32");
+};

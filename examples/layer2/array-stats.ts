@@ -22,9 +22,7 @@ export async function arrayStats() {
         const i = yield* local(Type.i32);
         const acc = yield* local(Type.i32, init);
 
-        yield* Ctrl.for(i, startIdx, i.lt(len), i.add(1), () => [
-          combine(acc, arr.load(i)),
-        ]);
+        yield* Ctrl.for(i, startIdx, i.lt(len), i.add(1), () => [combine(acc, arr.load(i))]);
 
         return acc;
       },

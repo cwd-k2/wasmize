@@ -53,8 +53,8 @@ export function compileWithReport<T = Record<string, unknown>>(
     reductions: {
       nodes: nodeDiff,
       nodesPct: before.totalNodes > 0 ? (nodeDiff / before.totalNodes) * 100 : 0,
-      memoryOps: (before.memoryLoads + before.memoryStores) -
-                 (after.memoryLoads + after.memoryStores),
+      memoryOps:
+        before.memoryLoads + before.memoryStores - (after.memoryLoads + after.memoryStores),
       branches: before.branches - after.branches,
     },
   };
@@ -64,7 +64,7 @@ export function compileWithReport<T = Record<string, unknown>>(
 
 /** Formats an optimization report as a human-readable string. */
 export function formatReport(report: OptimizationReport): string {
-  const pct = (n: number) => n >= 0 ? `-${n.toFixed(1)}%` : `+${Math.abs(n).toFixed(1)}%`;
+  const pct = (n: number) => (n >= 0 ? `-${n.toFixed(1)}%` : `+${Math.abs(n).toFixed(1)}%`);
   const lines = [
     `Optimization Report (${report.passes.length} passes, ${report.iterations} iterations)`,
     `  Nodes:    ${report.before.totalNodes} → ${report.after.totalNodes} (${pct(report.reductions.nodesPct)})`,

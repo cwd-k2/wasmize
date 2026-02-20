@@ -5,7 +5,9 @@ import { jsHanoi } from "../js-impls";
 
 const N = 20;
 
-const { exports: { hanoi } } = await instantiate(problem1_hanoi());
+const {
+  exports: { hanoi },
+} = await instantiate(problem1_hanoi());
 
 describe("hanoi n=20", () => {
   bench("JS", () => {

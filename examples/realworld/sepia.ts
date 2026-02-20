@@ -21,53 +21,51 @@ type Exports = {
 // Sepia matrix scaled by 256 for fixed-point integer arithmetic
 const SEPIA_MATRIX = [
   [101, 197, 48], // R coefficients
-  [89, 176, 43],  // G coefficients
-  [70, 137, 34],  // B coefficients
+  [89, 176, 43], // G coefficients
+  [70, 137, 34], // B coefficients
 ];
 
 function sepiaWasm() {
   return compileWithWat<Exports>(function* () {
     yield* Mod.memory(1);
 
-    yield* Mod.exportFunc(
-      "sepia",
-      { len: Type.i32 },
-      function* (len) {
-        const i = yield* local(Type.i32, 0);
-        const offset = yield* local(Type.i32);
-        // Save input RGB to avoid write-after-read hazard (in-place transform)
-        const r = yield* local(Type.i32);
-        const g = yield* local(Type.i32);
-        const b = yield* local(Type.i32);
-        const ch = yield* local(Type.i32);
+    yield* Mod.exportFunc("sepia", { len: Type.i32 }, function* (len) {
+      const i = yield* local(Type.i32, 0);
+      const offset = yield* local(Type.i32);
+      // Save input RGB to avoid write-after-read hazard (in-place transform)
+      const r = yield* local(Type.i32);
+      const g = yield* local(Type.i32);
+      const b = yield* local(Type.i32);
+      const ch = yield* local(Type.i32);
 
-        yield* Ctrl.while(i.lt(len), function* () {
-          yield* offset.set(i.mul(4));
-          const px = RGBA.at(offset);
+      yield* Ctrl.while(i.lt(len), function* () {
+        yield* offset.set(i.mul(4));
+        const px = RGBA.at(offset);
 
-          // Read input RGB before overwriting
-          yield* r.set(px.r);
-          yield* g.set(px.g);
-          yield* b.set(px.b);
+        // Read input RGB before overwriting
+        yield* r.set(px.r);
+        yield* g.set(px.g);
+        yield* b.set(px.b);
 
-          // Apply sepia matrix: each output channel is a weighted sum of input RGB
-          const rgb = [r, g, b];
-          yield* Meta.each([0, 1, 2], (outCh) => [
-            ch.set(
-              Meta.weightedSum(
-                SEPIA_MATRIX[outCh]!.map((w, inCh) => ({
-                  weight: w,
-                  expr: rgb[inCh]!,
-                })),
-              ).shr(8).clamp(0, 255),
-            ),
-            px[["r", "g", "b"][outCh] as "r" | "g" | "b"].set(ch),
-          ]);
+        // Apply sepia matrix: each output channel is a weighted sum of input RGB
+        const rgb = [r, g, b];
+        yield* Meta.each([0, 1, 2], (outCh) => [
+          ch.set(
+            Meta.weightedSum(
+              SEPIA_MATRIX[outCh]!.map((w, inCh) => ({
+                weight: w,
+                expr: rgb[inCh]!,
+              })),
+            )
+              .shr(8)
+              .clamp(0, 255),
+          ),
+          px[["r", "g", "b"][outCh] as "r" | "g" | "b"].set(ch),
+        ]);
 
-          yield* i.incrBy(1);
-        });
-      },
-    );
+        yield* i.incrBy(1);
+      });
+    });
   });
 }
 

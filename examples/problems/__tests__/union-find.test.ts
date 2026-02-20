@@ -4,8 +4,9 @@ import { instantiate } from "@/test-helpers";
 
 describe("Union-Find", () => {
   test("basic union and find", async () => {
-    const { exports: { uf_init, uf_union, uf_find, uf_count } } =
-      await instantiate(problem15_union_find());
+    const {
+      exports: { uf_init, uf_union, uf_find, uf_count },
+    } = await instantiate(problem15_union_find());
 
     uf_init(5);
     expect(uf_count()).toBe(5);
@@ -23,8 +24,9 @@ describe("Union-Find", () => {
   });
 
   test("all in one set", async () => {
-    const { exports: { uf_init, uf_union, uf_count } } =
-      await instantiate(problem15_union_find());
+    const {
+      exports: { uf_init, uf_union, uf_count },
+    } = await instantiate(problem15_union_find());
 
     uf_init(10);
     for (let i = 0; i < 9; i++) uf_union(i, i + 1);
@@ -32,8 +34,9 @@ describe("Union-Find", () => {
   });
 
   test("duplicate union is idempotent", async () => {
-    const { exports: { uf_init, uf_union, uf_count } } =
-      await instantiate(problem15_union_find());
+    const {
+      exports: { uf_init, uf_union, uf_count },
+    } = await instantiate(problem15_union_find());
 
     uf_init(3);
     uf_union(0, 1);

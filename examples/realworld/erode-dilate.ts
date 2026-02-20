@@ -17,9 +17,15 @@ type Exports = {
 
 // 3x3 kernel offsets including center
 const KERNEL_3X3 = [
-  { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
-  { dx: -1, dy: 0 },  { dx: 0, dy: 0 },  { dx: 1, dy: 0 },
-  { dx: -1, dy: 1 },  { dx: 0, dy: 1 },  { dx: 1, dy: 1 },
+  { dx: -1, dy: -1 },
+  { dx: 0, dy: -1 },
+  { dx: 1, dy: -1 },
+  { dx: -1, dy: 0 },
+  { dx: 0, dy: 0 },
+  { dx: 1, dy: 0 },
+  { dx: -1, dy: 1 },
+  { dx: 0, dy: 1 },
+  { dx: 1, dy: 1 },
 ];
 
 function erodeDilateWasm() {
@@ -27,68 +33,60 @@ function erodeDilateWasm() {
     yield* Mod.memory(4);
 
     // Erode: all 9 cells in 3x3 must be 1
-    yield* Mod.exportFunc(
-      "erode",
-      { w: Type.i32, h: Type.i32 },
-      function* (w, h) {
-        const x = yield* local(Type.i32);
-        const y = yield* local(Type.i32);
-        const allOnes = yield* local(Type.i32);
-        const gridSize = yield* local(Type.i32);
+    yield* Mod.exportFunc("erode", { w: Type.i32, h: Type.i32 }, function* (w, h) {
+      const x = yield* local(Type.i32);
+      const y = yield* local(Type.i32);
+      const allOnes = yield* local(Type.i32);
+      const gridSize = yield* local(Type.i32);
 
-        yield* gridSize.set(w.mul(h));
-        const src = Mem.byteGrid(0, w);
-        const dst = Mem.byteGrid(gridSize, w);
+      yield* gridSize.set(w.mul(h));
+      const src = Mem.byteGrid(0, w);
+      const dst = Mem.byteGrid(gridSize, w);
 
-        // Clear output
-        yield* Ctrl.range(x, gridSize, () => [Mem.store8(x.add(gridSize), 0)]);
+      // Clear output
+      yield* Ctrl.range(x, gridSize, () => [Mem.store8(x.add(gridSize), 0)]);
 
-        // Process interior (skip 1-pixel border)
-        yield* Ctrl.range(y, 1, h.sub(1), function* () {
-          yield* Ctrl.range(x, 1, w.sub(1), function* () {
-            yield* allOnes.set(1);
+      // Process interior (skip 1-pixel border)
+      yield* Ctrl.range(y, 1, h.sub(1), function* () {
+        yield* Ctrl.range(x, 1, w.sub(1), function* () {
+          yield* allOnes.set(1);
 
-            for (const { dx, dy } of KERNEL_3X3) {
-              yield* allOnes.andBy(src.load(y.add(dy), x.add(dx)));
-            }
+          for (const { dx, dy } of KERNEL_3X3) {
+            yield* allOnes.andBy(src.load(y.add(dy), x.add(dx)));
+          }
 
-            yield* dst.store(y, x, allOnes);
-          });
+          yield* dst.store(y, x, allOnes);
         });
-      },
-    );
+      });
+    });
 
     // Dilate: any of 9 cells in 3x3 is 1
-    yield* Mod.exportFunc(
-      "dilate",
-      { w: Type.i32, h: Type.i32 },
-      function* (w, h) {
-        const x = yield* local(Type.i32);
-        const y = yield* local(Type.i32);
-        const anyOne = yield* local(Type.i32);
-        const gridSize = yield* local(Type.i32);
+    yield* Mod.exportFunc("dilate", { w: Type.i32, h: Type.i32 }, function* (w, h) {
+      const x = yield* local(Type.i32);
+      const y = yield* local(Type.i32);
+      const anyOne = yield* local(Type.i32);
+      const gridSize = yield* local(Type.i32);
 
-        yield* gridSize.set(w.mul(h));
-        const src = Mem.byteGrid(0, w);
-        const dst = Mem.byteGrid(gridSize, w);
+      yield* gridSize.set(w.mul(h));
+      const src = Mem.byteGrid(0, w);
+      const dst = Mem.byteGrid(gridSize, w);
 
-        // Clear output
-        yield* Ctrl.range(x, gridSize, () => [Mem.store8(x.add(gridSize), 0)]);
+      // Clear output
+      yield* Ctrl.range(x, gridSize, () => [Mem.store8(x.add(gridSize), 0)]);
 
-        // Process interior (skip 1-pixel border)
-        yield* Ctrl.range(y, 1, h.sub(1), function* () {
-          yield* Ctrl.range(x, 1, w.sub(1), function* () {
-            yield* anyOne.set(0);
+      // Process interior (skip 1-pixel border)
+      yield* Ctrl.range(y, 1, h.sub(1), function* () {
+        yield* Ctrl.range(x, 1, w.sub(1), function* () {
+          yield* anyOne.set(0);
 
-            for (const { dx, dy } of KERNEL_3X3) {
-              yield* anyOne.orBy(src.load(y.add(dy), x.add(dx)));
-            }
+          for (const { dx, dy } of KERNEL_3X3) {
+            yield* anyOne.orBy(src.load(y.add(dy), x.add(dx)));
+          }
 
-            yield* dst.store(y, x, anyOne);
-          });
+          yield* dst.store(y, x, anyOne);
         });
-      },
-    );
+      });
+    });
   });
 }
 

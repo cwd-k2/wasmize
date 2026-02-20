@@ -23,7 +23,9 @@ describe("withBoundsCheck", () => {
       yield* Mod.export("test", fn);
     });
 
-    const { exports: { test: testFn } } = await instantiate(binary);
+    const {
+      exports: { test: testFn },
+    } = await instantiate(binary);
     expect((testFn as Function)(0)).toBe(42);
     expect((testFn as Function)(100)).toBe(42);
   });
@@ -43,7 +45,9 @@ describe("withBoundsCheck", () => {
       yield* Mod.export("store", fn);
     });
 
-    const { exports: { store } } = await instantiate(binary);
+    const {
+      exports: { store },
+    } = await instantiate(binary);
     // Valid access within bounds
     expect(() => (store as Function)(0)).not.toThrow();
     // Out-of-bounds access should trap
@@ -69,7 +73,9 @@ describe("withBoundsCheck", () => {
       yield* Mod.export("load", fn);
     });
 
-    const { exports: { load } } = await instantiate(binary);
+    const {
+      exports: { load },
+    } = await instantiate(binary);
     // Valid access
     expect((load as Function)(0)).toBe(0);
     // OOB load traps
@@ -88,7 +94,9 @@ describe("withBoundsCheck", () => {
       yield* Mod.export("test", fn);
     });
 
-    const { exports: { test: testFn } } = await instantiate(binary);
+    const {
+      exports: { test: testFn },
+    } = await instantiate(binary);
     // Access at offset 1000 is within Wasm 1-page memory (65536 bytes)
     expect((testFn as Function)(1000)).toBe(42);
   });

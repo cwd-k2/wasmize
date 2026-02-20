@@ -5,7 +5,10 @@ import { jsQuicksort } from "../js-impls";
 
 const LEN = 10_000;
 
-const { exports: { quicksort }, mem } = await instantiate(problem11_quicksort());
+const {
+  exports: { quicksort },
+  mem,
+} = await instantiate(problem11_quicksort());
 
 function makeRandom(n: number): number[] {
   return Array.from({ length: n }, () => Math.floor(Math.random() * n));

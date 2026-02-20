@@ -48,10 +48,7 @@ export const sortI32: StdlibFunc = {
         yield* pivot.set(arr.load(hi));
         yield* i.set(lo);
         yield* Ctrl.for(j, lo, j.lt(hi), j.add(1), () => [
-          Ctrl.when(arr.load(j).le(pivot), () => [
-            arr.swap(i, j, tmp),
-            i.incrBy(1),
-          ]),
+          Ctrl.when(arr.load(j).le(pivot), () => [arr.swap(i, j, tmp), i.incrBy(1)]),
         ]);
         yield* arr.swap(i, hi, tmp);
 
@@ -76,9 +73,7 @@ export const sortI32: StdlibFunc = {
  * @param comparators - Array of comparator FuncRefs (i32, i32) -> i32
  * @returns ModuleGen yielding a sortWith(lo, hi, cmpIndex) callable
  */
-export function sortWith(
-  comparators: FuncRef[],
-): ModuleGen<CallableFunc> {
+export function sortWith(comparators: FuncRef[]): ModuleGen<CallableFunc> {
   return (function* () {
     const table = yield* Mod.table(comparators);
 
@@ -112,10 +107,7 @@ export function sortWith(
           yield* Ctrl.for(j, lo, j.lt(hi), j.add(1), function* () {
             // Use call_indirect for comparison: cmp(arr[j], pivot) <= 0
             const cmpResult = yield* table.call(cmpIdx, arr.load(j), pivot);
-            yield* Ctrl.when(le(cmpResult, 0), () => [
-              arr.swap(i, j, tmp),
-              i.incrBy(1),
-            ]);
+            yield* Ctrl.when(le(cmpResult, 0), () => [arr.swap(i, j, tmp), i.incrBy(1)]);
           });
           yield* arr.swap(i, hi, tmp);
 

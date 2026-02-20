@@ -16,16 +16,14 @@ export async function stdlibSort() {
     yield* Mod.memory(1);
 
     // 昇順コンパレータ
-    const ascCmp = yield* Mod.func(
-      { a: Type.i32, b: Type.i32 },
-      function* (a, b) { return yield* a.sub(b); },
-    );
+    const ascCmp = yield* Mod.func({ a: Type.i32, b: Type.i32 }, function* (a, b) {
+      return yield* a.sub(b);
+    });
 
     // 降順コンパレータ
-    const descCmp = yield* Mod.func(
-      { a: Type.i32, b: Type.i32 },
-      function* (a, b) { return yield* b.sub(a); },
-    );
+    const descCmp = yield* Mod.func({ a: Type.i32, b: Type.i32 }, function* (a, b) {
+      return yield* b.sub(a);
+    });
 
     // sortWith: テーブル + call_indirect ベースの quicksort
     const sort = yield* sortWith([ascCmp, descCmp]);

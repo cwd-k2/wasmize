@@ -20,10 +20,7 @@ export function problem15_union_find() {
     const uf_init = yield* Mod.func({ n: Type.i32 }, function* (n) {
       const i = yield* local(Type.i32);
 
-      yield* Ctrl.range(i, n, () => [
-        parent.store(i, i),
-        rank.store(i, 0),
-      ]);
+      yield* Ctrl.range(i, n, () => [parent.store(i, i), rank.store(i, 0)]);
       yield* Mem.store(COUNT_ADDR, n);
     });
 

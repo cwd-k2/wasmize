@@ -29,10 +29,17 @@ describe("0/1 Knapsack", () => {
       expected: 50, // items 1+2
     },
   ])("knapsack($cap, $weights) = $expected", async ({ weights, values, cap, expected }) => {
-    const { exports: { knapsack }, mem } = await instantiate(problem10_knapsack());
+    const {
+      exports: { knapsack },
+      mem,
+    } = await instantiate(problem10_knapsack());
 
-    weights.forEach((w, i) => { mem![i] = w; }); // offset 0
-    values.forEach((v, i) => { mem![4096 / 4 + i] = v; }); // offset 4096
+    weights.forEach((w, i) => {
+      mem![i] = w;
+    }); // offset 0
+    values.forEach((v, i) => {
+      mem![4096 / 4 + i] = v;
+    }); // offset 4096
 
     expect(knapsack(weights.length, cap)).toBe(expected);
   });

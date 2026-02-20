@@ -42,8 +42,12 @@ describe("withProfiling", () => {
             const n = yield* param(Type.i32);
             const i = yield* local(Type.i32);
             yield* Ctrl.if(n)
-              .then(function* () { yield* i.set(yield* Mem.i32(1)); })
-              .else(function* () { yield* i.set(yield* Mem.i32(0)); });
+              .then(function* () {
+                yield* i.set(yield* Mem.i32(1));
+              })
+              .else(function* () {
+                yield* i.set(yield* Mem.i32(0));
+              });
             // Ctrl.while yields a "block" at top level (loop is in sub-body)
             yield* Ctrl.while(i.lt(n), function* () {
               yield* i.incrBy(1);
@@ -80,7 +84,9 @@ describe("withProfiling", () => {
       yield* Mod.export("double", fn);
     });
 
-    const { exports: { double } } = await instantiate(binary);
+    const {
+      exports: { double },
+    } = await instantiate(binary);
     expect((double as Function)(21)).toBe(42);
     expect(profile.total).toBeGreaterThan(0);
   });

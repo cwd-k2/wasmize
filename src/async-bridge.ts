@@ -47,7 +47,7 @@ export class AsyncBridge<T = Record<string, unknown>> {
     ...args: T[K] extends (...a: infer A) => any ? A : never[]
   ): Promise<T[K] extends (...a: any[]) => infer R ? R : unknown> {
     const { instance } = await WebAssembly.instantiate(this.binary, this.imports);
-    const fn = (instance.exports[exportName] as Function);
+    const fn = instance.exports[exportName] as Function;
     const memory = instance.exports.memory as WebAssembly.Memory;
 
     // Reset phase counter

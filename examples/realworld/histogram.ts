@@ -29,57 +29,49 @@ function histogramWasm() {
     const cdfArr = Mem.i32Array(CDF_OFFSET);
 
     // histogram: count occurrences of each byte value (grayscale input)
-    yield* Mod.exportFunc(
-      "histogram",
-      { len: Type.i32 },
-      function* (len) {
-        const i = yield* local(Type.i32, 0);
-        const val = yield* local(Type.i32);
+    yield* Mod.exportFunc("histogram", { len: Type.i32 }, function* (len) {
+      const i = yield* local(Type.i32, 0);
+      const val = yield* local(Type.i32);
 
-        // Clear histogram buckets
-        yield* Ctrl.range(i, 256, () => [hist.store(i, 0)]);
+      // Clear histogram buckets
+      yield* Ctrl.range(i, 256, () => [hist.store(i, 0)]);
 
-        // Count each pixel value
-        yield* i.set(0);
-        yield* Ctrl.while(i.lt(len), function* () {
-          yield* val.set(Mem.load8(i));
-          yield* hist.at(val).incrBy(1);
-          yield* i.incrBy(1);
-        });
-      },
-    );
+      // Count each pixel value
+      yield* i.set(0);
+      yield* Ctrl.while(i.lt(len), function* () {
+        yield* val.set(Mem.load8(i));
+        yield* hist.at(val).incrBy(1);
+        yield* i.incrBy(1);
+      });
+    });
 
     // histogramRgba: compute grayscale from RGBA, then histogram
-    yield* Mod.exportFunc(
-      "histogramRgba",
-      { len: Type.i32 },
-      function* (len) {
-        const i = yield* local(Type.i32, 0);
-        const offset = yield* local(Type.i32);
-        const gray = yield* local(Type.i32);
+    yield* Mod.exportFunc("histogramRgba", { len: Type.i32 }, function* (len) {
+      const i = yield* local(Type.i32, 0);
+      const offset = yield* local(Type.i32);
+      const gray = yield* local(Type.i32);
 
-        // Clear histogram buckets
-        yield* Ctrl.range(i, 256, () => [hist.store(i, 0)]);
+      // Clear histogram buckets
+      yield* Ctrl.range(i, 256, () => [hist.store(i, 0)]);
 
-        // For each RGBA pixel: grayscale → bucket
-        yield* i.set(0);
-        yield* Ctrl.while(i.lt(len), function* () {
-          yield* offset.set(i.mul(4));
-          const px = RGBA.at(offset);
+      // For each RGBA pixel: grayscale → bucket
+      yield* i.set(0);
+      yield* Ctrl.while(i.lt(len), function* () {
+        yield* offset.set(i.mul(4));
+        const px = RGBA.at(offset);
 
-          yield* gray.set(
-            Meta.weightedSum([
-              { weight: 77, expr: px.r },
-              { weight: 150, expr: px.g },
-              { weight: 29, expr: px.b },
-            ]).shr(8),
-          );
+        yield* gray.set(
+          Meta.weightedSum([
+            { weight: 77, expr: px.r },
+            { weight: 150, expr: px.g },
+            { weight: 29, expr: px.b },
+          ]).shr(8),
+        );
 
-          yield* hist.at(gray).incrBy(1);
-          yield* i.incrBy(1);
-        });
-      },
-    );
+        yield* hist.at(gray).incrBy(1);
+        yield* i.incrBy(1);
+      });
+    });
 
     // cdf: prefix sum over histogram → cumulative distribution function
     yield* Mod.exportFunc("cdf", function* () {

@@ -59,7 +59,9 @@ describe("Struct", () => {
           return yield* Point.get(0, "x").add(Point.get(0, "y"));
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBe(30);
     });
 
@@ -73,7 +75,9 @@ describe("Struct", () => {
           return yield* Point.get(100, "x");
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBe(42);
     });
 
@@ -88,7 +92,9 @@ describe("Struct", () => {
           return yield* Record.get(0, "value");
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBeCloseTo(3.14);
     });
   });
@@ -112,7 +118,9 @@ describe("Struct", () => {
           return yield* points.get(2, "x").add(points.get(0, "y"));
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBe(50);
     });
 
@@ -130,7 +138,9 @@ describe("Struct", () => {
           return yield* items.get(idx, "value");
         });
       });
-      const { exports: { getVal } } = await instantiate(binary);
+      const {
+        exports: { getVal },
+      } = await instantiate(binary);
       expect((getVal as Function)(0)).toBe(100);
       expect((getVal as Function)(1)).toBe(200);
       expect((getVal as Function)(2)).toBe(300);
@@ -159,10 +169,15 @@ describe("Struct", () => {
           yield* Pix.set(0, "b", 64);
           yield* Pix.set(0, "a", 32);
           // r + g + b + a
-          return yield* Pix.get(0, "r").add(Pix.get(0, "g")).add(Pix.get(0, "b")).add(Pix.get(0, "a"));
+          return yield* Pix.get(0, "r")
+            .add(Pix.get(0, "g"))
+            .add(Pix.get(0, "b"))
+            .add(Pix.get(0, "a"));
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBe(255 + 128 + 64 + 32);
     });
 
@@ -177,7 +192,9 @@ describe("Struct", () => {
           return yield* S.get(0, "a").add(S.get(0, "b"));
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBe(3000);
     });
 
@@ -200,7 +217,9 @@ describe("Struct", () => {
           return yield* p.x.add(p.y);
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBe(30);
     });
 
@@ -217,7 +236,9 @@ describe("Struct", () => {
           return yield* Counter.get(0, "value");
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBe(18);
     });
 
@@ -234,7 +255,9 @@ describe("Struct", () => {
           return yield* S.get(0, "v");
         });
       });
-      const { exports: { run } } = await instantiate(binary);
+      const {
+        exports: { run },
+      } = await instantiate(binary);
       expect((run as Function)()).toBe(240); // (100 - 20) * 3
     });
   });

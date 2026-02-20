@@ -30,10 +30,7 @@ export function problem9_lcs() {
               yield* dp.store(i, j, dp.load(i.sub(1), j.sub(1)).add(1));
             })
             .else(function* () {
-              yield* dp.store(
-                i, j,
-                Op.max(dp.load(i.sub(1), j), dp.load(i, j.sub(1))),
-              );
+              yield* dp.store(i, j, Op.max(dp.load(i.sub(1), j), dp.load(i, j.sub(1))));
             });
         });
       });

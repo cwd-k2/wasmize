@@ -1,11 +1,5 @@
 import type { IRNode } from "../wasm/ir";
-import type {
-  FuncGen,
-  FuncInstruction,
-  FuncReturn,
-  ModuleGen,
-  ModuleInstruction,
-} from "./types";
+import type { FuncGen, FuncInstruction, FuncReturn, ModuleGen, ModuleInstruction } from "./types";
 
 /**
  * Trace entry collected by {@link withTrace}.
@@ -78,8 +72,7 @@ export function* composeIntercepts<T extends FuncReturn>(
   gen: FuncGen<T>,
   ...transforms: Array<(instr: FuncInstruction) => FuncInstruction>
 ): FuncGen<T> {
-  const combined = (instr: FuncInstruction) =>
-    transforms.reduce((acc, t) => t(acc), instr);
+  const combined = (instr: FuncInstruction) => transforms.reduce((acc, t) => t(acc), instr);
   return yield* intercept(gen, combined);
 }
 
@@ -113,9 +106,7 @@ export function* interceptWhen<T extends FuncReturn>(
   predicate: (instr: FuncInstruction) => boolean,
   transform: (instr: FuncInstruction) => FuncInstruction,
 ): FuncGen<T> {
-  return yield* intercept(gen, (instr) =>
-    predicate(instr) ? transform(instr) : instr,
-  );
+  return yield* intercept(gen, (instr) => (predicate(instr) ? transform(instr) : instr));
 }
 
 /**

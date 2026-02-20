@@ -108,9 +108,19 @@ export function visitChildren(node: IRNode, visit: (n: IRNode) => IRNode): IRNod
     case "call":
       return IR.call(node.idx, node.args.map(visit));
     case "call_indirect":
-      return IR.call_indirect(node.typeIdx, node.tableIdx, node.args.map(visit), visit(node.indexExpr));
+      return IR.call_indirect(
+        node.typeIdx,
+        node.tableIdx,
+        node.args.map(visit),
+        visit(node.indexExpr),
+      );
     case "if":
-      return IR.if_then_else(visit(node.cond), node.then.map(visit), node.else.map(visit), node.type);
+      return IR.if_then_else(
+        visit(node.cond),
+        node.then.map(visit),
+        node.else.map(visit),
+        node.type,
+      );
     case "loop":
       return IR.loop(node.body.map(visit));
     case "block":
@@ -133,7 +143,7 @@ function isPow2(n: number): boolean {
 
 function log2(n: number): number {
   let r = 0;
-  while ((1 << r) < n) r++;
+  while (1 << r < n) r++;
   return r;
 }
 
@@ -146,15 +156,19 @@ function irEqual(a: IRNode, b: IRNode): boolean {
 }
 
 function isIntZero(node: IRNode, type: WasmValType): boolean {
-  return type === "i32" ? (node.op === "const_i32" && node.v === 0)
-    : type === "i64" ? (node.op === "const_i64" && node.v === 0)
-    : false;
+  return type === "i32"
+    ? node.op === "const_i32" && node.v === 0
+    : type === "i64"
+      ? node.op === "const_i64" && node.v === 0
+      : false;
 }
 
 function isIntOne(node: IRNode, type: WasmValType): boolean {
-  return type === "i32" ? (node.op === "const_i32" && node.v === 1)
-    : type === "i64" ? (node.op === "const_i64" && node.v === 1)
-    : false;
+  return type === "i32"
+    ? node.op === "const_i32" && node.v === 1
+    : type === "i64"
+      ? node.op === "const_i64" && node.v === 1
+      : false;
 }
 
 function intConst(type: WasmValType, v: number): IRNode {
@@ -173,7 +187,10 @@ function ctz32(v: number): number {
   if (v === 0) return 32;
   let n = 0;
   v = v | 0;
-  while ((v & 1) === 0) { v >>>= 1; n++; }
+  while ((v & 1) === 0) {
+    v >>>= 1;
+    n++;
+  }
   return n;
 }
 
@@ -195,83 +212,135 @@ function roundTiesToEven(v: number): number {
 function foldUnary(kind: UnaryKind, v: number, type: WasmValType): number | null {
   if (type === "i32") {
     switch (kind) {
-      case "clz": return Math.clz32(v);
-      case "ctz": return ctz32(v);
-      case "popcnt": return popcnt32(v);
-      default: return null;
+      case "clz":
+        return Math.clz32(v);
+      case "ctz":
+        return ctz32(v);
+      case "popcnt":
+        return popcnt32(v);
+      default:
+        return null;
     }
   }
   if (type === "f64") {
     switch (kind) {
-      case "neg": return -v;
-      case "abs": return Math.abs(v);
-      case "sqrt": return v >= 0 || isNaN(v) ? Math.sqrt(v) : NaN;
-      case "ceil": return Math.ceil(v);
-      case "floor": return Math.floor(v);
-      case "trunc": return Math.trunc(v);
-      case "nearest": return roundTiesToEven(v);
-      default: return null;
+      case "neg":
+        return -v;
+      case "abs":
+        return Math.abs(v);
+      case "sqrt":
+        return v >= 0 || isNaN(v) ? Math.sqrt(v) : NaN;
+      case "ceil":
+        return Math.ceil(v);
+      case "floor":
+        return Math.floor(v);
+      case "trunc":
+        return Math.trunc(v);
+      case "nearest":
+        return roundTiesToEven(v);
+      default:
+        return null;
     }
   }
   if (type === "f32") {
     switch (kind) {
-      case "neg": return -v;
-      case "abs": return Math.abs(v);
-      case "sqrt": return Math.fround(Math.sqrt(v));
-      case "ceil": return Math.fround(Math.ceil(v));
-      case "floor": return Math.fround(Math.floor(v));
-      case "trunc": return Math.fround(Math.trunc(v));
-      case "nearest": return Math.fround(roundTiesToEven(v));
-      default: return null;
+      case "neg":
+        return -v;
+      case "abs":
+        return Math.abs(v);
+      case "sqrt":
+        return Math.fround(Math.sqrt(v));
+      case "ceil":
+        return Math.fround(Math.ceil(v));
+      case "floor":
+        return Math.fround(Math.floor(v));
+      case "trunc":
+        return Math.fround(Math.trunc(v));
+      case "nearest":
+        return Math.fround(roundTiesToEven(v));
+      default:
+        return null;
     }
   }
   return null;
 }
 
 const invertCmp: Partial<Record<CmpKind, CmpKind>> = {
-  lt: "ge", ge: "lt", gt: "le", le: "gt", eq: "ne", ne: "eq",
-  lt_u: "ge_u", ge_u: "lt_u", gt_u: "le_u", le_u: "gt_u",
+  lt: "ge",
+  ge: "lt",
+  gt: "le",
+  le: "gt",
+  eq: "ne",
+  ne: "eq",
+  lt_u: "ge_u",
+  ge_u: "lt_u",
+  gt_u: "le_u",
+  le_u: "gt_u",
 };
 
 function foldBinop(kind: BinopKind, a: number, b: number): number | null {
   switch (kind) {
-    case "add": return toI32(a + b);
-    case "sub": return toI32(a - b);
-    case "mul": return toI32(Math.imul(a, b));
-    case "div": return b !== 0 ? toI32(a / b) : null;
-    case "rem": return b !== 0 ? toI32(a % b) : null;
-    case "div_u": return b !== 0 ? ((a >>> 0) / (b >>> 0)) | 0 : null;
-    case "rem_u": return b !== 0 ? ((a >>> 0) % (b >>> 0)) | 0 : null;
-    case "and": return a & b;
-    case "or": return a | b;
-    case "xor": return a ^ b;
-    case "shl": return a << (b & 31);
-    case "shr": return a >> (b & 31);
-    case "shr_u": return (a >>> (b & 31)) | 0;
+    case "add":
+      return toI32(a + b);
+    case "sub":
+      return toI32(a - b);
+    case "mul":
+      return toI32(Math.imul(a, b));
+    case "div":
+      return b !== 0 ? toI32(a / b) : null;
+    case "rem":
+      return b !== 0 ? toI32(a % b) : null;
+    case "div_u":
+      return b !== 0 ? ((a >>> 0) / (b >>> 0)) | 0 : null;
+    case "rem_u":
+      return b !== 0 ? ((a >>> 0) % (b >>> 0)) | 0 : null;
+    case "and":
+      return a & b;
+    case "or":
+      return a | b;
+    case "xor":
+      return a ^ b;
+    case "shl":
+      return a << (b & 31);
+    case "shr":
+      return a >> (b & 31);
+    case "shr_u":
+      return (a >>> (b & 31)) | 0;
     case "rotl": {
       const s = b & 31;
-      return ((a << s) | (a >>> (32 - s))) | 0;
+      return (a << s) | (a >>> (32 - s)) | 0;
     }
     case "rotr": {
       const s = b & 31;
-      return ((a >>> s) | (a << (32 - s))) | 0;
+      return (a >>> s) | (a << (32 - s)) | 0;
     }
-    default: return null;
+    default:
+      return null;
   }
 }
 
 function foldCmp(kind: CmpKind, a: number, b: number): number {
   switch (kind) {
-    case "eq": return a === b ? 1 : 0;
-    case "ne": return a !== b ? 1 : 0;
-    case "lt": return a < b ? 1 : 0;
-    case "gt": return a > b ? 1 : 0;
-    case "le": return a <= b ? 1 : 0;
-    case "ge": return a >= b ? 1 : 0;
-    case "lt_u": return (a >>> 0) < (b >>> 0) ? 1 : 0;
-    case "gt_u": return (a >>> 0) > (b >>> 0) ? 1 : 0;
-    case "le_u": return (a >>> 0) <= (b >>> 0) ? 1 : 0;
-    case "ge_u": return (a >>> 0) >= (b >>> 0) ? 1 : 0;
+    case "eq":
+      return a === b ? 1 : 0;
+    case "ne":
+      return a !== b ? 1 : 0;
+    case "lt":
+      return a < b ? 1 : 0;
+    case "gt":
+      return a > b ? 1 : 0;
+    case "le":
+      return a <= b ? 1 : 0;
+    case "ge":
+      return a >= b ? 1 : 0;
+    case "lt_u":
+      return a >>> 0 < b >>> 0 ? 1 : 0;
+    case "gt_u":
+      return a >>> 0 > b >>> 0 ? 1 : 0;
+    case "le_u":
+      return a >>> 0 <= b >>> 0 ? 1 : 0;
+    case "ge_u":
+      return a >>> 0 >= b >>> 0 ? 1 : 0;
   }
 }
 
@@ -308,8 +377,15 @@ const blockSimplification: OptimizerPass = {
         const body = eliminateDeadCode(node.body);
         if (body.length === 1) {
           const s = body[0]!;
-          if (s.op !== "if" && s.op !== "loop" && s.op !== "block" && s.op !== "seq"
-            && s.op !== "br" && s.op !== "br_if" && s.op !== "br_table")
+          if (
+            s.op !== "if" &&
+            s.op !== "loop" &&
+            s.op !== "block" &&
+            s.op !== "seq" &&
+            s.op !== "br" &&
+            s.op !== "br_if" &&
+            s.op !== "br_table"
+          )
             return s;
         }
         return IR.block(body);
@@ -386,31 +462,25 @@ const constantFolding: OptimizerPass = {
       }
       case "convert": {
         const v = node.val;
-        if (node.kind === "i32_wrap_i64" && v.op === "const_i64")
-          return IR.const_i32(toI32(v.v));
-        if (node.kind === "i64_extend_i32_s" && v.op === "const_i32")
-          return IR.const_i64(v.v);
+        if (node.kind === "i32_wrap_i64" && v.op === "const_i64") return IR.const_i32(toI32(v.v));
+        if (node.kind === "i64_extend_i32_s" && v.op === "const_i32") return IR.const_i64(v.v);
         if (node.kind === "i64_extend_i32_u" && v.op === "const_i32")
           return IR.const_i64(v.v >>> 0);
-        if (node.kind === "f64_convert_i32_s" && v.op === "const_i32")
-          return IR.const_f64(v.v);
+        if (node.kind === "f64_convert_i32_s" && v.op === "const_i32") return IR.const_f64(v.v);
         if (node.kind === "f64_convert_i32_u" && v.op === "const_i32")
           return IR.const_f64(v.v >>> 0);
         if (node.kind === "f32_convert_i32_s" && v.op === "const_i32")
           return IR.const_f32(Math.fround(v.v));
-        if (node.kind === "f64_promote_f32" && v.op === "const_f32")
-          return IR.const_f64(v.v);
+        if (node.kind === "f64_promote_f32" && v.op === "const_f32") return IR.const_f64(v.v);
         if (node.kind === "f32_demote_f64" && v.op === "const_f64")
           return IR.const_f32(Math.fround(v.v));
         if (node.kind === "i32_trunc_f64_s" && v.op === "const_f64") {
           const t = Math.trunc(v.v);
-          if (Number.isFinite(t) && t >= -2147483648 && t <= 2147483647)
-            return IR.const_i32(t);
+          if (Number.isFinite(t) && t >= -2147483648 && t <= 2147483647) return IR.const_i32(t);
         }
         if (node.kind === "i32_trunc_f32_s" && v.op === "const_f32") {
           const t = Math.trunc(v.v);
-          if (Number.isFinite(t) && t >= -2147483648 && t <= 2147483647)
-            return IR.const_i32(t);
+          if (Number.isFinite(t) && t >= -2147483648 && t <= 2147483647) return IR.const_i32(t);
         }
         return node;
       }
@@ -433,8 +503,7 @@ const constantFolding: OptimizerPass = {
       case "i32_trunc_f64_s": {
         if (node.val.op === "const_f64") {
           const t = Math.trunc(node.val.v);
-          if (Number.isFinite(t) && t >= -2147483648 && t <= 2147483647)
-            return IR.const_i32(t);
+          if (Number.isFinite(t) && t >= -2147483648 && t <= 2147483647) return IR.const_i32(t);
         }
         return node;
       }
@@ -466,7 +535,8 @@ const identityElimination: OptimizerPass = {
         if (isIntZero(node.b, type)) return intConst(type, 0);
         if (isIntZero(node.a, type)) return intConst(type, 0);
         break;
-      case "or": case "xor":
+      case "or":
+      case "xor":
         if (isIntZero(node.b, type)) return node.a;
         if (isIntZero(node.a, type)) return node.b;
         break;
@@ -474,7 +544,9 @@ const identityElimination: OptimizerPass = {
         if (isIntZero(node.b, type)) return intConst(type, 0);
         if (isIntZero(node.a, type)) return intConst(type, 0);
         break;
-      case "shl": case "shr": case "shr_u":
+      case "shl":
+      case "shr":
+      case "shr_u":
         if (isIntZero(node.b, type)) return node.a;
         break;
     }

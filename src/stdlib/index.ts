@@ -19,3 +19,8 @@ export interface StdlibFunc {
 export function use(fn: StdlibFunc): ModuleGen<CallableFunc> {
   return Mod.func(fn.body) as ModuleGen<CallableFunc>;
 }
+
+// Individual stdlib functions
+export { memcpy, memset, memcmp } from "./mem";
+export { pow, clamp, abs, lerp } from "./math";
+export { sortI32, sortWith } from "./sort";

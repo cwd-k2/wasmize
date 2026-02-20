@@ -7,18 +7,14 @@ test("全5問題が PASS する", async ({ page }) => {
   await expect(page.locator(".status-pass")).toHaveCount(15, { timeout: 10000 });
 
   // サマリーに All Problems Passed が表示される
-  await expect(page.locator(".summary-title")).toContainText(
-    "All Problems Passed",
-  );
+  await expect(page.locator(".summary-title")).toContainText("All Problems Passed");
 });
 
 test("Realworld Demos セクションが表示される", async ({ page }) => {
   await page.goto("/");
 
   // セクション見出しが表示される
-  await expect(page.locator(".section-heading")).toContainText(
-    "Realworld Demos",
-  );
+  await expect(page.locator(".section-heading")).toContainText("Realworld Demos");
 
   // 4つのデモカードが表示される
   await expect(page.locator(".demo-card")).toHaveCount(4, { timeout: 15000 });
@@ -38,13 +34,9 @@ test("CRC32 デモがリアルタイム計算する", async ({ page }) => {
   await expect(input).toBeVisible({ timeout: 15000 });
 
   // デフォルト値 "123456789" の CRC32 結果
-  await expect(page.locator('[data-id="crc-result"]')).toContainText(
-    "CBF43926",
-  );
+  await expect(page.locator('[data-id="crc-result"]')).toContainText("CBF43926");
 
   // テキストを変更して結果が更新される
   await input.fill("test");
-  await expect(page.locator('[data-id="crc-result"]')).toContainText(
-    "D87F7E0C",
-  );
+  await expect(page.locator('[data-id="crc-result"]')).toContainText("D87F7E0C");
 });

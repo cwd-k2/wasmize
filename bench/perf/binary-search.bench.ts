@@ -8,12 +8,19 @@ const LOOPS = 1000;
 const arr = Array.from({ length: LEN }, (_, i) => i * 3);
 const targets = Array.from({ length: LOOPS }, () => Math.floor(Math.random() * LEN) * 3);
 
-const { exports: { search_batch }, mem } = await instantiate(problem5_binary_search());
-arr.forEach((v, i) => { mem![i] = v; });
+const {
+  exports: { search_batch },
+  mem,
+} = await instantiate(problem5_binary_search());
+arr.forEach((v, i) => {
+  mem![i] = v;
+});
 
 // Store targets after the sorted array for batch Wasm search
 const TBASE = LEN;
-targets.forEach((v, i) => { mem![TBASE + i] = v; });
+targets.forEach((v, i) => {
+  mem![TBASE + i] = v;
+});
 
 describe("binary-search 10k × 1000", () => {
   bench("JS", () => {

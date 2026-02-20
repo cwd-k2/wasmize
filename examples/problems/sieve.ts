@@ -11,26 +11,20 @@ export function problem7_sieve() {
       const count = yield* local(Type.i32, 0);
 
       // Bulk init: write 0x01010101 in i32 chunks (4x fewer iterations)
-      yield* Ctrl.for(i, 0, i.le(n.div(4)), i.add(1), () => [
-        Mem.store(i.mul(4), 0x01010101),
-      ]);
+      yield* Ctrl.for(i, 0, i.le(n.div(4)), i.add(1), () => [Mem.store(i.mul(4), 0x01010101)]);
       yield* Mem.store8(0, 0);
       yield* Mem.store8(1, 0);
 
       // Sieve: for p from 2 while p*p <= n
       yield* Ctrl.for(i, 2, i.mul(i).le(n), i.add(1), () => [
         Ctrl.when(Mem.load8(i).eq(1), () => [
-          Ctrl.for(j, i.mul(i), j.le(n), j.add(i), () => [
-            Mem.store8(j, 0),
-          ]),
+          Ctrl.for(j, i.mul(i), j.le(n), j.add(i), () => [Mem.store8(j, 0)]),
         ]),
       ]);
 
       // Count primes
       yield* Ctrl.for(i, 2, i.le(n), i.add(1), () => [
-        Ctrl.when(Mem.load8(i).eq(1), () => [
-          count.incrBy(1),
-        ]),
+        Ctrl.when(Mem.load8(i).eq(1), () => [count.incrBy(1)]),
       ]);
 
       return count;

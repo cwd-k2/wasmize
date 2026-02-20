@@ -12,8 +12,13 @@ describe("Binary Search", () => {
     { target: 50, expected: -1 },
     { target: 12, expected: 3 },
   ])("search($target) = $expected", async ({ target, expected }) => {
-    const { exports: { binary_search }, mem } = await instantiate(problem5_binary_search());
-    arr.forEach((v, i) => { mem![i] = v; });
+    const {
+      exports: { binary_search },
+      mem,
+    } = await instantiate(problem5_binary_search());
+    arr.forEach((v, i) => {
+      mem![i] = v;
+    });
 
     expect(binary_search(arr.length, target)).toBe(expected);
   });

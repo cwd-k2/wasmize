@@ -26,19 +26,9 @@ export function problem14_nqueens() {
               d2bit.set(i32(1).shl(row.sub(col).add(n.sub(1)))),
 
               Ctrl.when(
-                cols.and(bit).eq(0)
-                  .and(diag1.and(d1bit).eq(0))
-                  .and(diag2.and(d2bit).eq(0)),
+                cols.and(bit).eq(0).and(diag1.and(d1bit).eq(0)).and(diag2.and(d2bit).eq(0)),
                 () => [
-                  count.incrBy(
-                    self(
-                      n,
-                      row.add(1),
-                      cols.or(bit),
-                      diag1.or(d1bit),
-                      diag2.or(d2bit),
-                    ),
-                  ),
+                  count.incrBy(self(n, row.add(1), cols.or(bit), diag1.or(d1bit), diag2.or(d2bit))),
                 ],
               ),
             ]);

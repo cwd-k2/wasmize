@@ -155,10 +155,9 @@ describe("CallableFunc<Params>", () => {
 
   test("Mod.func with params infers arity", () => {
     function* _assertArity() {
-      const add = yield* Mod.func(
-        { a: Type.i32, b: Type.i32 },
-        function* (a, b) { return yield* a.add(b); },
-      );
+      const add = yield* Mod.func({ a: Type.i32, b: Type.i32 }, function* (a, b) {
+        return yield* a.add(b);
+      });
       // Return type is a callable
       void add;
     }

@@ -30,34 +30,46 @@ const ALIGN_SIZE: Record<FieldType, { size: number; align: number }> = {
   u16: { size: 2, align: 2 },
 };
 
-interface FieldInfo<T extends FieldType = FieldType> {
+export interface FieldInfo<T extends FieldType = FieldType> {
   offset: number;
   type: T;
 }
 
-type FieldSpec = Record<string, FieldType>;
+export type FieldSpec = Record<string, FieldType>;
 
 // --- IR-level load/store helpers (FieldType-aware) ---
 
 function loadIR(addr: IRNode, type: FieldType): IRNode {
   switch (type) {
-    case "i32": return IR.load_i32(addr);
-    case "i64": return IR.load_i64(addr);
-    case "f32": return IR.mem_load("f32_load", addr);
-    case "f64": return IR.load_f64(addr);
-    case "u8": return IR.load_i32_8u(addr);
-    case "u16": return IR.mem_load("i32_load16_u", addr);
+    case "i32":
+      return IR.load_i32(addr);
+    case "i64":
+      return IR.load_i64(addr);
+    case "f32":
+      return IR.mem_load("f32_load", addr);
+    case "f64":
+      return IR.load_f64(addr);
+    case "u8":
+      return IR.load_i32_8u(addr);
+    case "u16":
+      return IR.mem_load("i32_load16_u", addr);
   }
 }
 
 function storeIR(addr: IRNode, value: IRNode, type: FieldType): IRNode {
   switch (type) {
-    case "i32": return IR.store_i32(addr, value);
-    case "i64": return IR.store_i64(addr, value);
-    case "f32": return IR.mem_store("f32_store", addr, value);
-    case "f64": return IR.store_f64(addr, value);
-    case "u8": return IR.store_i32_8(addr, value);
-    case "u16": return IR.mem_store("i32_store16", addr, value);
+    case "i32":
+      return IR.store_i32(addr, value);
+    case "i64":
+      return IR.store_i64(addr, value);
+    case "f32":
+      return IR.mem_store("f32_store", addr, value);
+    case "f64":
+      return IR.store_f64(addr, value);
+    case "u8":
+      return IR.store_i32_8(addr, value);
+    case "u16":
+      return IR.mem_store("i32_store16", addr, value);
   }
 }
 
@@ -117,21 +129,41 @@ export class FieldAccessor<T extends WasmValType = WasmValType> extends Chainabl
     })(this._addr);
   }
 
-  incrBy(v: ExprInput): FuncGen<void> { return this._mutate("add", v); }
-  decrBy(v: ExprInput): FuncGen<void> { return this._mutate("sub", v); }
-  mulBy(v: ExprInput): FuncGen<void> { return this._mutate("mul", v); }
-  divBy(v: ExprInput): FuncGen<void> { return this._mutate("div", v); }
-  remBy(v: ExprInput): FuncGen<void> { return this._mutate("rem", v); }
-  andBy(v: ExprInput): FuncGen<void> { return this._mutate("and", v); }
-  orBy(v: ExprInput): FuncGen<void> { return this._mutate("or", v); }
-  xorBy(v: ExprInput): FuncGen<void> { return this._mutate("xor", v); }
-  shlBy(v: ExprInput): FuncGen<void> { return this._mutate("shl", v); }
-  shrBy(v: ExprInput): FuncGen<void> { return this._mutate("shr", v); }
+  incrBy(v: ExprInput): FuncGen<void> {
+    return this._mutate("add", v);
+  }
+  decrBy(v: ExprInput): FuncGen<void> {
+    return this._mutate("sub", v);
+  }
+  mulBy(v: ExprInput): FuncGen<void> {
+    return this._mutate("mul", v);
+  }
+  divBy(v: ExprInput): FuncGen<void> {
+    return this._mutate("div", v);
+  }
+  remBy(v: ExprInput): FuncGen<void> {
+    return this._mutate("rem", v);
+  }
+  andBy(v: ExprInput): FuncGen<void> {
+    return this._mutate("and", v);
+  }
+  orBy(v: ExprInput): FuncGen<void> {
+    return this._mutate("or", v);
+  }
+  xorBy(v: ExprInput): FuncGen<void> {
+    return this._mutate("xor", v);
+  }
+  shlBy(v: ExprInput): FuncGen<void> {
+    return this._mutate("shl", v);
+  }
+  shrBy(v: ExprInput): FuncGen<void> {
+    return this._mutate("shr", v);
+  }
 }
 
 // --- StructAccessor: proxy-based object-style field access ---
 
-type StructAccessor<F extends FieldSpec> = {
+export type StructAccessor<F extends FieldSpec> = {
   readonly [K in keyof F]: FieldAccessor<FieldResultType<F[K]>>;
 };
 
@@ -152,13 +184,13 @@ function makeAccessor<F extends FieldSpec>(
 
 // --- Struct interfaces ---
 
-interface StructArray<F extends FieldSpec> {
+export interface StructArray<F extends FieldSpec> {
   get<K extends keyof F & string>(index: ExprInput, field: K): ChainableExpr<FieldResultType<F[K]>>;
   set<K extends keyof F & string>(index: ExprInput, field: K, value: ExprInput): FuncGen<void>;
   at(index: ExprInput): StructAccessor<F>;
 }
 
-interface StructType<F extends FieldSpec> {
+export interface StructType<F extends FieldSpec> {
   readonly size: number;
   readonly fields: { [K in keyof F]: FieldInfo<F[K]> };
 
@@ -173,23 +205,35 @@ interface StructType<F extends FieldSpec> {
 
 function loadTyped(addr: ExprInput, type: FieldType): ChainableExpr<any> {
   switch (type) {
-    case "i32": return Mem.load(addr);
-    case "i64": return Mem.loadI64(addr);
-    case "f32": return Mem.loadF32(addr);
-    case "f64": return Mem.loadF64(addr);
-    case "u8": return Mem.load8(addr);
-    case "u16": return Mem.load16u(addr);
+    case "i32":
+      return Mem.load(addr);
+    case "i64":
+      return Mem.loadI64(addr);
+    case "f32":
+      return Mem.loadF32(addr);
+    case "f64":
+      return Mem.loadF64(addr);
+    case "u8":
+      return Mem.load8(addr);
+    case "u16":
+      return Mem.load16u(addr);
   }
 }
 
 function storeTyped(addr: ExprInput, value: ExprInput, type: FieldType): FuncGen<void> {
   switch (type) {
-    case "i32": return Mem.store(addr, value);
-    case "i64": return Mem.storeI64(addr, value);
-    case "f32": return Mem.storeF32(addr, value);
-    case "f64": return Mem.storeF64(addr, value);
-    case "u8": return Mem.store8(addr, value);
-    case "u16": return Mem.store16(addr, value);
+    case "i32":
+      return Mem.store(addr, value);
+    case "i64":
+      return Mem.storeI64(addr, value);
+    case "f32":
+      return Mem.storeF32(addr, value);
+    case "f64":
+      return Mem.storeF64(addr, value);
+    case "u8":
+      return Mem.store8(addr, value);
+    case "u16":
+      return Mem.store16(addr, value);
   }
 }
 
@@ -225,7 +269,10 @@ export function Struct<F extends FieldSpec>(spec: F): StructType<F> {
     size: structSize,
     fields,
 
-    get<K extends keyof F & string>(base: ExprInput, field: K): ChainableExpr<FieldResultType<F[K]>> {
+    get<K extends keyof F & string>(
+      base: ExprInput,
+      field: K,
+    ): ChainableExpr<FieldResultType<F[K]>> {
       const f = (fields as any)[field] as FieldInfo<F[K]>;
       return loadTyped(fieldAddr(base, field), f.type);
     },
@@ -250,12 +297,19 @@ export function Struct<F extends FieldSpec>(spec: F): StructType<F> {
       }
 
       return {
-        get<K extends keyof F & string>(index: ExprInput, field: K): ChainableExpr<FieldResultType<F[K]>> {
+        get<K extends keyof F & string>(
+          index: ExprInput,
+          field: K,
+        ): ChainableExpr<FieldResultType<F[K]>> {
           const f = (fields as any)[field] as FieldInfo<F[K]>;
           return loadTyped(elementAddr(index, field), f.type);
         },
 
-        set<K extends keyof F & string>(index: ExprInput, field: K, value: ExprInput): FuncGen<void> {
+        set<K extends keyof F & string>(
+          index: ExprInput,
+          field: K,
+          value: ExprInput,
+        ): FuncGen<void> {
           const f = (fields as any)[field] as FieldInfo<F[K]>;
           return storeTyped(elementAddr(index, field), value, f.type);
         },

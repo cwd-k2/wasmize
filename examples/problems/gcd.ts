@@ -19,11 +19,7 @@ export function problem6_gcd_array() {
       yield* Ctrl.for(i, 1, i.lt(len), i.add(1), function* () {
         yield* a.set(result);
         yield* b.set(arr.load(i));
-        yield* Ctrl.while(b.ne(0), () => [
-          t.set(b),
-          b.set(a.rem(b)),
-          a.set(t),
-        ]);
+        yield* Ctrl.while(b.ne(0), () => [t.set(b), b.set(a.rem(b)), a.set(t)]);
         yield* result.set(a);
       });
 

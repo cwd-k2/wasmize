@@ -26,25 +26,15 @@ function emptyStats(): IRStats {
   };
 }
 
-const loadOps = new Set([
-  "load_i32", "load_i32_8u", "load_i64", "load_f64", "mem_load",
-]);
+const loadOps = new Set(["load_i32", "load_i32_8u", "load_i64", "load_f64", "mem_load"]);
 
-const storeOps = new Set([
-  "store_i32", "store_i32_8", "store_i64", "store_f64", "mem_store",
-]);
+const storeOps = new Set(["store_i32", "store_i32_8", "store_i64", "store_f64", "mem_store"]);
 
-const branchOps = new Set([
-  "if", "br", "br_if", "br_table",
-]);
+const branchOps = new Set(["if", "br", "br_if", "br_table"]);
 
-const callOps = new Set([
-  "call", "call_indirect",
-]);
+const callOps = new Set(["call", "call_indirect"]);
 
-const localOps = new Set([
-  "local_get", "local_set", "local_tee",
-]);
+const localOps = new Set(["local_get", "local_set", "local_tee"]);
 
 function countNode(node: IRNode, stats: IRStats, depth: number): void {
   stats.totalNodes++;
@@ -105,8 +95,7 @@ export function formatStats(stats: IRStats): string {
     `Local accesses: ${stats.localAccesses}`,
   ];
 
-  const sorted = Object.entries(stats.nodesByOp)
-    .sort(([, a], [, b]) => b - a);
+  const sorted = Object.entries(stats.nodesByOp).sort(([, a], [, b]) => b - a);
   if (sorted.length > 0) {
     lines.push("Nodes by op:");
     for (const [op, count] of sorted) {

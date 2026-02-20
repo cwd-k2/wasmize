@@ -82,12 +82,8 @@ function renderGrayscale(container: HTMLElement, demo: GrayscaleDemo) {
     </div>
   `;
 
-  const originalCanvas = container.querySelector(
-    '[data-id="original"]',
-  ) as HTMLCanvasElement;
-  const processedCanvas = container.querySelector(
-    '[data-id="processed"]',
-  ) as HTMLCanvasElement;
+  const originalCanvas = container.querySelector('[data-id="original"]') as HTMLCanvasElement;
+  const processedCanvas = container.querySelector('[data-id="processed"]') as HTMLCanvasElement;
   const origCtx = originalCanvas.getContext("2d")!;
   const procCtx = processedCanvas.getContext("2d")!;
 
@@ -165,9 +161,7 @@ function renderGameOfLife(container: HTMLElement, demo: GameOfLifeDemo) {
     </div>
   `;
 
-  const canvas = container.querySelector(
-    '[data-id="life"]',
-  ) as HTMLCanvasElement;
+  const canvas = container.querySelector('[data-id="life"]') as HTMLCanvasElement;
   const ctx = canvas.getContext("2d")!;
   let animId: number | null = null;
 
@@ -249,12 +243,8 @@ function renderCRC32(container: HTMLElement, demo: CRC32Demo) {
     </div>
   `;
 
-  const input = container.querySelector(
-    '[data-id="crc-input"]',
-  ) as HTMLInputElement;
-  const result = container.querySelector(
-    '[data-id="crc-result"]',
-  ) as HTMLElement;
+  const input = container.querySelector('[data-id="crc-input"]') as HTMLInputElement;
+  const result = container.querySelector('[data-id="crc-result"]') as HTMLElement;
 
   function update() {
     const data = new TextEncoder().encode(input.value);
@@ -280,9 +270,7 @@ function renderParticles(container: HTMLElement, demo: ParticlesDemo) {
     </div>
   `;
 
-  const canvas = container.querySelector(
-    '[data-id="particles"]',
-  ) as HTMLCanvasElement;
+  const canvas = container.querySelector('[data-id="particles"]') as HTMLCanvasElement;
   const ctx = canvas.getContext("2d")!;
   let animId: number | null = null;
 

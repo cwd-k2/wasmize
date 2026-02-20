@@ -25,19 +25,15 @@ function particlesWasm() {
     yield* Mod.memory(Math.max(alloc.requiredPages, 1));
 
     // step: x += vx*dt, y += vy*dt
-    yield* Mod.exportFunc(
-      "step",
-      { n: Type.i32, dt: Type.f64 },
-      function* (n, dt) {
-        const i = yield* local(Type.i32);
+    yield* Mod.exportFunc("step", { n: Type.i32, dt: Type.f64 }, function* (n, dt) {
+      const i = yield* local(Type.i32);
 
-        yield* Ctrl.range(i, n, function* () {
-          const p = particles.at(i);
-          yield* p.x.set(p.x.add(p.vx.mul(dt)));
-          yield* p.y.set(p.y.add(p.vy.mul(dt)));
-        });
-      },
-    );
+      yield* Ctrl.range(i, n, function* () {
+        const p = particles.at(i);
+        yield* p.x.set(p.x.add(p.vx.mul(dt)));
+        yield* p.y.set(p.y.add(p.vy.mul(dt)));
+      });
+    });
 
     // applyGravity: vx += gx, vy += gy
     yield* Mod.exportFunc(
@@ -55,42 +51,38 @@ function particlesWasm() {
     );
 
     // bounce: 壁反射 — 完全弾性反射（速度反転 + 位置クランプ）
-    yield* Mod.exportFunc(
-      "bounce",
-      { n: Type.i32, w: Type.f64, h: Type.f64 },
-      function* (n, w, h) {
-        const i = yield* local(Type.i32);
-        const x = yield* local(Type.f64);
-        const y = yield* local(Type.f64);
+    yield* Mod.exportFunc("bounce", { n: Type.i32, w: Type.f64, h: Type.f64 }, function* (n, w, h) {
+      const i = yield* local(Type.i32);
+      const x = yield* local(Type.f64);
+      const y = yield* local(Type.f64);
 
-        yield* Ctrl.range(i, n, function* () {
-          const p = particles.at(i);
+      yield* Ctrl.range(i, n, function* () {
+        const p = particles.at(i);
 
-          const axes = [
-            { pos: "x", vel: "vx", coord: x, bound: w },
-            { pos: "y", vel: "vy", coord: y, bound: h },
-          ] as const;
+        const axes = [
+          { pos: "x", vel: "vx", coord: x, bound: w },
+          { pos: "y", vel: "vy", coord: y, bound: h },
+        ] as const;
 
-          for (const { pos, vel, coord, bound } of axes) {
-            yield* coord.set(p[pos]);
+        for (const { pos, vel, coord, bound } of axes) {
+          yield* coord.set(p[pos]);
 
-            // min wall: coord < 0
-            yield* Ctrl.when(coord.lt(f64(0)), function* () {
-              yield* p[pos].set(coord.neg());
-              yield* p[vel].set(p[vel].neg());
-            });
+          // min wall: coord < 0
+          yield* Ctrl.when(coord.lt(f64(0)), function* () {
+            yield* p[pos].set(coord.neg());
+            yield* p[vel].set(p[vel].neg());
+          });
 
-            yield* coord.set(p[pos]); // reload after potential modification
+          yield* coord.set(p[pos]); // reload after potential modification
 
-            // max wall: coord > bound
-            yield* Ctrl.when(coord.gt(bound), function* () {
-              yield* p[pos].set(bound.mul(f64(2)).sub(coord));
-              yield* p[vel].set(p[vel].neg());
-            });
-          }
-        });
-      },
-    );
+          // max wall: coord > bound
+          yield* Ctrl.when(coord.gt(bound), function* () {
+            yield* p[pos].set(bound.mul(f64(2)).sub(coord));
+            yield* p[vel].set(p[vel].neg());
+          });
+        }
+      });
+    });
   });
 
   return { binary, particles, alloc };

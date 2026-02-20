@@ -33,10 +33,7 @@ export function problem8_matmul() {
 
           yield* Ctrl.range(k, n, () => [
             // A[i][k] * B[k][j] — stride-based addressing eliminates k*n mul
-            sum.incrBy(
-              Mem.load(iRowA.add(k.mul(4)))
-                .mul(Mem.load(bStride.add(jColB))),
-            ),
+            sum.incrBy(Mem.load(iRowA.add(k.mul(4))).mul(Mem.load(bStride.add(jColB)))),
             bStride.incrBy(n4),
           ]);
 

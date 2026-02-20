@@ -11,12 +11,7 @@ export function jsFib(n: number): number {
   return dp[n];
 }
 
-export function jsHanoi(
-  n: number,
-  from: number,
-  to: number,
-  aux: number,
-): number {
+export function jsHanoi(n: number, from: number, to: number, aux: number): number {
   if (n <= 0) return 0;
   const c1 = jsHanoi(n - 1, from, aux, to);
   const c2 = jsHanoi(n - 1, aux, to, from);
@@ -53,7 +48,7 @@ export function jsBinarySearch(arr: number[], target: number): number {
   let lo = 0;
   let hi = arr.length - 1;
   while (lo <= hi) {
-    const mid = (lo + hi) / 2 | 0;
+    const mid = ((lo + hi) / 2) | 0;
     if (arr[mid] === target) return mid;
     if (arr[mid] < target) lo = mid + 1;
     else hi = mid - 1;
@@ -62,7 +57,11 @@ export function jsBinarySearch(arr: number[], target: number): number {
 }
 
 export function jsGcd(a: number, b: number): number {
-  while (b !== 0) { const t = b; b = a % b; a = t; }
+  while (b !== 0) {
+    const t = b;
+    b = a % b;
+    a = t;
+  }
   return a;
 }
 
@@ -75,7 +74,8 @@ export function jsGcdArray(arr: number[]): number {
 export function jsSieve(n: number): number {
   const flags = new Uint8Array(n + 1);
   flags.fill(1);
-  flags[0] = 0; flags[1] = 0;
+  flags[0] = 0;
+  flags[1] = 0;
   for (let i = 2; i * i <= n; i++) {
     if (flags[i]) for (let j = i * i; j <= n; j += i) flags[j] = 0;
   }
@@ -88,19 +88,20 @@ export function jsMatmul(A: number[], B: number[], n: number): number[] {
   const C = new Array(n * n).fill(0);
   for (let i = 0; i < n; i++)
     for (let j = 0; j < n; j++)
-      for (let k = 0; k < n; k++)
-        C[i * n + j] += A[i * n + k] * B[k * n + j];
+      for (let k = 0; k < n; k++) C[i * n + j] += A[i * n + k] * B[k * n + j];
   return C;
 }
 
 export function jsLcs(a: number[], b: number[]): number {
-  const m = a.length, n = b.length;
+  const m = a.length,
+    n = b.length;
   const dp = new Int32Array((m + 1) * (n + 1));
   for (let i = 1; i <= m; i++)
     for (let j = 1; j <= n; j++)
-      dp[i * (n + 1) + j] = a[i - 1] === b[j - 1]
-        ? dp[(i - 1) * (n + 1) + (j - 1)] + 1
-        : Math.max(dp[(i - 1) * (n + 1) + j], dp[i * (n + 1) + (j - 1)]);
+      dp[i * (n + 1) + j] =
+        a[i - 1] === b[j - 1]
+          ? dp[(i - 1) * (n + 1) + (j - 1)] + 1
+          : Math.max(dp[(i - 1) * (n + 1) + j], dp[i * (n + 1) + (j - 1)]);
   return dp[m * (n + 1) + n];
 }
 
@@ -138,18 +139,29 @@ export function jsQuicksort(arr: number[]): void {
 }
 
 export function jsFloodFill(
-  grid: number[], W: number, H: number,
-  sx: number, sy: number, target: number, fill: number,
+  grid: number[],
+  W: number,
+  H: number,
+  sx: number,
+  sy: number,
+  target: number,
+  fill: number,
 ): number {
   if (grid[sy * W + sx] !== target) return 0;
   const queue: [number, number][] = [[sx, sy]];
   grid[sy * W + sx] = fill;
   let count = 1;
-  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const dirs = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ];
   while (queue.length > 0) {
     const [cx, cy] = queue.shift()!;
     for (const [dx, dy] of dirs) {
-      const nx = cx + dx, ny = cy + dy;
+      const nx = cx + dx,
+        ny = cy + dy;
       if (nx >= 0 && nx < W && ny >= 0 && ny < H && grid[ny * W + nx] === target) {
         grid[ny * W + nx] = fill;
         queue.push([nx, ny]);
@@ -163,10 +175,12 @@ export function jsFloodFill(
 export function jsLis(arr: number[]): number {
   const tails: number[] = [];
   for (const x of arr) {
-    let lo = 0, hi = tails.length;
+    let lo = 0,
+      hi = tails.length;
     while (lo < hi) {
       const mid = (lo + hi) >> 1;
-      if (tails[mid] < x) lo = mid + 1; else hi = mid;
+      if (tails[mid] < x) lo = mid + 1;
+      else hi = mid;
     }
     tails[lo] = x;
   }
@@ -206,11 +220,15 @@ export class JsUnionFind {
     return x;
   }
   union(u: number, v: number): void {
-    const ru = this.find(u), rv = this.find(v);
+    const ru = this.find(u),
+      rv = this.find(v);
     if (ru === rv) return;
     if (this.rank[ru] < this.rank[rv]) this.parent[ru] = rv;
     else if (this.rank[ru] > this.rank[rv]) this.parent[rv] = ru;
-    else { this.parent[rv] = ru; this.rank[ru]++; }
+    else {
+      this.parent[rv] = ru;
+      this.rank[ru]++;
+    }
     this.count--;
   }
 }

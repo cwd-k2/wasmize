@@ -20,7 +20,9 @@ describe("compileWithReport", () => {
     expect(report.iterations).toBeGreaterThan(0);
     expect(typeof report.reductions.nodesPct).toBe("number");
 
-    const { exports: { add } } = await instantiate(binary);
+    const {
+      exports: { add },
+    } = await instantiate(binary);
     expect((add as Function)(3, 4)).toBe(7);
   });
 
@@ -36,7 +38,9 @@ describe("compileWithReport", () => {
     // After optimization, const folding should reduce nodes
     expect(report.before.totalNodes).toBeGreaterThanOrEqual(report.after.totalNodes);
 
-    const { exports: { val } } = await instantiate(binary);
+    const {
+      exports: { val },
+    } = await instantiate(binary);
     expect((val as Function)()).toBe(5);
   });
 });
@@ -45,12 +49,24 @@ describe("formatReport", () => {
   test("produces readable output", () => {
     const output = formatReport({
       before: {
-        totalNodes: 45, nodesByOp: {}, maxDepth: 3,
-        memoryLoads: 4, memoryStores: 4, branches: 3, calls: 0, localAccesses: 10,
+        totalNodes: 45,
+        nodesByOp: {},
+        maxDepth: 3,
+        memoryLoads: 4,
+        memoryStores: 4,
+        branches: 3,
+        calls: 0,
+        localAccesses: 10,
       },
       after: {
-        totalNodes: 38, nodesByOp: {}, maxDepth: 3,
-        memoryLoads: 4, memoryStores: 4, branches: 2, calls: 0, localAccesses: 8,
+        totalNodes: 38,
+        nodesByOp: {},
+        maxDepth: 3,
+        memoryLoads: 4,
+        memoryStores: 4,
+        branches: 2,
+        calls: 0,
+        localAccesses: 8,
       },
       passes: ["constant-folding", "identity-elimination"],
       iterations: 2,

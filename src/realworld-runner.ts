@@ -41,31 +41,14 @@ export interface ParticlesDemo {
   step: (n: number, dt: number) => void;
   applyGravity: (n: number, gx: number, gy: number) => void;
   bounce: (n: number, w: number, h: number) => void;
-  setParticle: (
-    i: number,
-    x: number,
-    y: number,
-    vx: number,
-    vy: number,
-  ) => void;
-  getParticle: (
-    i: number,
-  ) => { x: number; y: number; vx: number; vy: number };
+  setParticle: (i: number, x: number, y: number, vx: number, vy: number) => void;
+  getParticle: (i: number) => { x: number; y: number; vx: number; vy: number };
 }
 
-export type RealworldDemo =
-  | GrayscaleDemo
-  | GameOfLifeDemo
-  | CRC32Demo
-  | ParticlesDemo;
+export type RealworldDemo = GrayscaleDemo | GameOfLifeDemo | CRC32Demo | ParticlesDemo;
 
 export async function runRealworldDemos(): Promise<RealworldDemo[]> {
-  const [g, c, gol, p] = await Promise.all([
-    grayscale(),
-    crc32(),
-    gameOfLife(),
-    particles(),
-  ]);
+  const [g, c, gol, p] = await Promise.all([grayscale(), crc32(), gameOfLife(), particles()]);
 
   return [
     {

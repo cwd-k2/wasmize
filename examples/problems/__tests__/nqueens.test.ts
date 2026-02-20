@@ -11,7 +11,9 @@ describe("N-Queens Count", () => {
     [10, 724],
     [12, 14200],
   ])("nqueens(%i) = %i", async (n, expected) => {
-    const { exports: { nqueens } } = await instantiate(problem14_nqueens());
+    const {
+      exports: { nqueens },
+    } = await instantiate(problem14_nqueens());
 
     expect(nqueens(n)).toBe(expected);
   });

@@ -3,7 +3,14 @@ import { compileWithWat } from "@/debug";
 
 export function problem12_flood_fill() {
   return compileWithWat<{
-    flood_fill: (W: number, H: number, sx: number, sy: number, target: number, fill: number) => number;
+    flood_fill: (
+      W: number,
+      H: number,
+      sx: number,
+      sy: number,
+      target: number,
+      fill: number,
+    ) => number;
   }>(function* () {
     yield* Mod.memory(4);
 
@@ -23,9 +30,7 @@ export function problem12_flood_fill() {
         const q = yield* Queue(qbase);
 
         // If start cell != target, return 0
-        return yield* Ctrl.if(
-          Mem.load(sy.mul(W).add(sx).mul(4)).ne(target),
-        )
+        return yield* Ctrl.if(Mem.load(sy.mul(W).add(sx).mul(4)).ne(target))
           .then(function* () {
             return 0;
           })
@@ -42,10 +47,10 @@ export function problem12_flood_fill() {
               yield* q.dequeue(cy);
 
               const dirs = [
-                { dx: 1, dy: 0, check: () => nx.lt(W) },     // Right
-                { dx: -1, dy: 0, check: () => nx.ge(0) },    // Left
-                { dx: 0, dy: 1, check: () => ny.lt(H) },     // Down
-                { dx: 0, dy: -1, check: () => ny.ge(0) },    // Up
+                { dx: 1, dy: 0, check: () => nx.lt(W) }, // Right
+                { dx: -1, dy: 0, check: () => nx.ge(0) }, // Left
+                { dx: 0, dy: 1, check: () => ny.lt(H) }, // Down
+                { dx: 0, dy: -1, check: () => ny.ge(0) }, // Up
               ];
 
               for (const { dx, dy, check } of dirs) {

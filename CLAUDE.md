@@ -4,13 +4,13 @@ Generator ベースの DSL で定義したアルゴリズムを Wasm バイナ�
 
 ## Commands
 
-| Script | Command |
-|--------|---------|
-| `npm run dev` | Vite dev server |
-| `npm run build` | `tsc && vite build` |
-| `npm run test` | `vitest run`（ユニットテスト） |
-| `npm run test:e2e` | `playwright test`（E2E） |
-| `npm run typecheck` | `tsc --noEmit` |
+| Script              | Command                        |
+| ------------------- | ------------------------------ |
+| `npm run dev`       | Vite dev server                |
+| `npm run build`     | `tsc && vite build`            |
+| `npm run test`      | `vitest run`（ユニットテスト） |
+| `npm run test:e2e`  | `playwright test`（E2E）       |
+| `npm run typecheck` | `tsc --noEmit`                 |
 
 ## Directory Structure
 
@@ -117,12 +117,14 @@ docs/                   # 技術ドキュメント
 Generator DSL は JS ランタイム上で実行されるため、JS/TS はチューリング完全なプリプロセッサとして機能する。JS の制御構造やオブジェクト指向機能はコンパイル時に展開され、実行時の Wasm には現れない。
 
 **コンパイル時展開パターン:**
+
 - Config 配列 + `for...of`: 同一パターンの N 方向展開（flood-fill 4 方向、Game of Life 8 近傍）
 - ファクトリ関数: 共通 body を関数化し、差分をコールバックで注入（array-stats の reduceFunc）
 - 文字列キー軸抽象化: Struct フィールドを `p[fieldName]` で動的アクセス（particles 壁反射）
 - チャンネルループ: `for (const ch of ["r", "g", "b"] as const)` で RGB 3 チャンネルを処理（grayscale, sepia）
 
 **OOP-style コンパイル時ヘルパ（メモリ抽象の 3 層構造）:**
+
 - **Layer 1 (Raw)**: `Mem.load/store` — 手動アドレス計算
 - **Layer 2 (構造化)**: `Mem.byteGrid(base, cols)`, `Mem.i32Array2D(base, cols)` — ストライド計算隠蔽
 - **Layer 3 (ドメイン特化)**: `RGBA.at(offset)` — ピクセル操作、`Queue(base)` — BFS キュー

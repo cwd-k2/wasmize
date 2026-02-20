@@ -34,8 +34,16 @@ export const Str = {
     return new ChainableExpr(
       (function* () {
         // Save initial ptr value to compute length later
-        const start: WasmRef = yield { _type: "decl", kind: "local", valType: "i32" } as FuncInstruction;
-        const p: WasmRef = yield { _type: "decl", kind: "local", valType: "i32" } as FuncInstruction;
+        const start: WasmRef = yield {
+          _type: "decl",
+          kind: "local",
+          valType: "i32",
+        } as FuncInstruction;
+        const p: WasmRef = yield {
+          _type: "decl",
+          kind: "local",
+          valType: "i32",
+        } as FuncInstruction;
 
         const vp = yield* resolve(ptr);
         yield { _type: "stmt", node: IR.local_set(start._idx, vp._node) } as FuncInstruction;
@@ -51,7 +59,13 @@ export const Str = {
                 const vLoad = yield* Mem.load8(p);
                 const vCond = yield* resolve(eq(vLoad, 0));
                 yield { _type: "stmt", node: IR.br_if(1, vCond._node) } as FuncInstruction;
-                yield { _type: "stmt", node: IR.local_set(p._idx, IR.binop("add", IR.local_get(p._idx), IR.const_i32(1))) } as FuncInstruction;
+                yield {
+                  _type: "stmt",
+                  node: IR.local_set(
+                    p._idx,
+                    IR.binop("add", IR.local_get(p._idx), IR.const_i32(1)),
+                  ),
+                } as FuncInstruction;
                 yield { _type: "stmt", node: IR.br(0) } as FuncInstruction;
               },
             };
@@ -70,9 +84,20 @@ export const Str = {
   eq(a: ExprInput, b: ExprInput, len: ExprInput): ChainableExpr<"i32"> {
     return new ChainableExpr(
       (function* () {
-        const i: WasmRef = yield { _type: "decl", kind: "local", valType: "i32" } as FuncInstruction;
-        const result: WasmRef = yield { _type: "decl", kind: "local", valType: "i32" } as FuncInstruction;
-        yield { _type: "stmt", node: IR.local_set(result._idx, IR.const_i32(1)) } as FuncInstruction;
+        const i: WasmRef = yield {
+          _type: "decl",
+          kind: "local",
+          valType: "i32",
+        } as FuncInstruction;
+        const result: WasmRef = yield {
+          _type: "decl",
+          kind: "local",
+          valType: "i32",
+        } as FuncInstruction;
+        yield {
+          _type: "stmt",
+          node: IR.local_set(result._idx, IR.const_i32(1)),
+        } as FuncInstruction;
         yield { _type: "stmt", node: IR.local_set(i._idx, IR.const_i32(0)) } as FuncInstruction;
 
         yield {
@@ -92,11 +117,20 @@ export const Str = {
                   _type: "if" as const,
                   cond: neq._node,
                   then_: function* () {
-                    yield { _type: "stmt", node: IR.local_set(result._idx, IR.const_i32(0)) } as FuncInstruction;
+                    yield {
+                      _type: "stmt",
+                      node: IR.local_set(result._idx, IR.const_i32(0)),
+                    } as FuncInstruction;
                     yield { _type: "stmt", node: IR.br(2) } as FuncInstruction;
                   },
                 } as FuncInstruction;
-                yield { _type: "stmt", node: IR.local_set(i._idx, IR.binop("add", IR.local_get(i._idx), IR.const_i32(1))) } as FuncInstruction;
+                yield {
+                  _type: "stmt",
+                  node: IR.local_set(
+                    i._idx,
+                    IR.binop("add", IR.local_get(i._idx), IR.const_i32(1)),
+                  ),
+                } as FuncInstruction;
                 yield { _type: "stmt", node: IR.br(0) } as FuncInstruction;
               },
             };
@@ -114,9 +148,21 @@ export const Str = {
   cmp(a: ExprInput, b: ExprInput): ChainableExpr<"i32"> {
     return new ChainableExpr(
       (function* () {
-        const i: WasmRef = yield { _type: "decl", kind: "local", valType: "i32" } as FuncInstruction;
-        const ca: WasmRef = yield { _type: "decl", kind: "local", valType: "i32" } as FuncInstruction;
-        const cb: WasmRef = yield { _type: "decl", kind: "local", valType: "i32" } as FuncInstruction;
+        const i: WasmRef = yield {
+          _type: "decl",
+          kind: "local",
+          valType: "i32",
+        } as FuncInstruction;
+        const ca: WasmRef = yield {
+          _type: "decl",
+          kind: "local",
+          valType: "i32",
+        } as FuncInstruction;
+        const cb: WasmRef = yield {
+          _type: "decl",
+          kind: "local",
+          valType: "i32",
+        } as FuncInstruction;
         yield { _type: "stmt", node: IR.local_set(i._idx, IR.const_i32(0)) } as FuncInstruction;
 
         yield {
@@ -126,14 +172,26 @@ export const Str = {
               _type: "loop" as const,
               body: function* () {
                 const loadA = yield* Mem.load8(add(a, i));
-                yield { _type: "stmt", node: IR.local_set(ca._idx, loadA._node) } as FuncInstruction;
+                yield {
+                  _type: "stmt",
+                  node: IR.local_set(ca._idx, loadA._node),
+                } as FuncInstruction;
                 const loadB = yield* Mem.load8(add(b, i));
-                yield { _type: "stmt", node: IR.local_set(cb._idx, loadB._node) } as FuncInstruction;
+                yield {
+                  _type: "stmt",
+                  node: IR.local_set(cb._idx, loadB._node),
+                } as FuncInstruction;
                 const diff = yield* resolve(ne(ca, cb));
                 yield { _type: "stmt", node: IR.br_if(1, diff._node) } as FuncInstruction;
                 const ended = yield* resolve(eq(ca, 0));
                 yield { _type: "stmt", node: IR.br_if(1, ended._node) } as FuncInstruction;
-                yield { _type: "stmt", node: IR.local_set(i._idx, IR.binop("add", IR.local_get(i._idx), IR.const_i32(1))) } as FuncInstruction;
+                yield {
+                  _type: "stmt",
+                  node: IR.local_set(
+                    i._idx,
+                    IR.binop("add", IR.local_get(i._idx), IR.const_i32(1)),
+                  ),
+                } as FuncInstruction;
                 yield { _type: "stmt", node: IR.br(0) } as FuncInstruction;
               },
             };

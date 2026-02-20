@@ -3,13 +3,9 @@ import { visitChildren } from "../wasm/optimizer-passes";
 import { interceptIR } from "./intercept";
 import type { FuncGen, FuncReturn } from "./types";
 
-const storeOps = new Set([
-  "store_i32", "store_i32_8", "store_i64", "store_f64", "mem_store",
-]);
+const storeOps = new Set(["store_i32", "store_i32_8", "store_i64", "store_f64", "mem_store"]);
 
-const loadOps = new Set([
-  "load_i32", "load_i32_8u", "load_i64", "load_f64", "mem_load",
-]);
+const loadOps = new Set(["load_i32", "load_i32_8u", "load_i64", "load_f64", "mem_load"]);
 
 function getAddr(node: IRNode): IRNode | null {
   if ("addr" in node) return (node as { addr: IRNode }).addr;
@@ -21,12 +17,7 @@ function wrapWithGuard(node: IRNode, maxBytes: number): IRNode {
   if (!addr) return node;
   // if (addr >= maxBytes) unreachable; <original>
   return IR.seq([
-    IR.if_then_else(
-      IR.cmp("ge_u", addr, IR.const_i32(maxBytes)),
-      [IR.unreachable()],
-      [],
-      "void",
-    ),
+    IR.if_then_else(IR.cmp("ge_u", addr, IR.const_i32(maxBytes)), [IR.unreachable()], [], "void"),
     node,
   ]);
 }

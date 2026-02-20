@@ -8,9 +8,16 @@ const CAP = 1000;
 const weights = Array.from({ length: N }, () => Math.floor(Math.random() * 50) + 1);
 const values = Array.from({ length: N }, () => Math.floor(Math.random() * 100) + 1);
 
-const { exports: { knapsack }, mem } = await instantiate(problem10_knapsack());
-weights.forEach((w, i) => { mem![i] = w; });
-values.forEach((v, i) => { mem![4096 / 4 + i] = v; });
+const {
+  exports: { knapsack },
+  mem,
+} = await instantiate(problem10_knapsack());
+weights.forEach((w, i) => {
+  mem![i] = w;
+});
+values.forEach((v, i) => {
+  mem![4096 / 4 + i] = v;
+});
 
 describe("knapsack n=200 W=1000", () => {
   bench("JS", () => {

@@ -65,7 +65,9 @@ describe("AsyncBridge", () => {
     });
 
     const bridge = new AsyncBridge(binary);
-    await expect((bridge as any).run("fail")).rejects.toThrow("No handler registered for effect tag 99");
+    await expect((bridge as any).run("fail")).rejects.toThrow(
+      "No handler registered for effect tag 99",
+    );
   });
 
   test("works with no effects (direct return)", async () => {

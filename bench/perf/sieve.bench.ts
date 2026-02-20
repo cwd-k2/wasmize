@@ -5,7 +5,9 @@ import { jsSieve } from "../js-impls";
 
 const N = 100_000;
 
-const { exports: { sieve } } = await instantiate(problem7_sieve());
+const {
+  exports: { sieve },
+} = await instantiate(problem7_sieve());
 
 describe("sieve n=100000", () => {
   bench("JS", () => {

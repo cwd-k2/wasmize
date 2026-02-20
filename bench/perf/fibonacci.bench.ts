@@ -5,7 +5,9 @@ import { jsFib } from "../js-impls";
 
 const N = 35;
 
-const { exports: { fib } } = await instantiate(problem2_fib_dp());
+const {
+  exports: { fib },
+} = await instantiate(problem2_fib_dp());
 
 describe("fibonacci n=35", () => {
   bench("JS", () => {

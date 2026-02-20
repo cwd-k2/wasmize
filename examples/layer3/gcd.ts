@@ -9,21 +9,13 @@ import { local, Type, Ctrl } from "@/dsl/primitives";
  * local(Type.i32, param) で型付きローカルにコピーする。
  */
 export async function gcd() {
-  return wasmFunc(
-    { a: "i32", b: "i32" },
-    "i32",
-    function* (a, b) {
-      const x = yield* local(Type.i32, a);
-      const y = yield* local(Type.i32, b);
-      const t = yield* local(Type.i32);
+  return wasmFunc({ a: "i32", b: "i32" }, "i32", function* (a, b) {
+    const x = yield* local(Type.i32, a);
+    const y = yield* local(Type.i32, b);
+    const t = yield* local(Type.i32);
 
-      yield* Ctrl.while(y.ne(0), () => [
-        t.set(y),
-        y.set(x.rem(y)),
-        x.set(t),
-      ]);
+    yield* Ctrl.while(y.ne(0), () => [t.set(y), y.set(x.rem(y)), x.set(t)]);
 
-      return x;
-    },
-  );
+    return x;
+  });
 }
