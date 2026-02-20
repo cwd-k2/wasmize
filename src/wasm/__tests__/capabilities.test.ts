@@ -6,6 +6,9 @@ import {
   scanFeatures,
   validateFeatures,
   Features,
+  describeFeature,
+  suggestTarget,
+  customFeatureSet,
   type WasmFeature,
 } from "../capabilities";
 
@@ -85,6 +88,29 @@ describe("scanFeatures", () => {
     ];
     const features = scanFeatures(funcs);
     expect(features.has("mutable-globals")).toBe(true);
+  });
+
+  test("call_indirect adds reference-types", () => {
+    const funcs = makeFuncs({
+      body: [IR.call_indirect(0, 0, [IR.const_i32(1)], IR.const_i32(0))],
+    });
+    const features = scanFeatures(funcs as any);
+    expect(features.has("reference-types")).toBe(true);
+  });
+
+  test("nested call_indirect is detected", () => {
+    const funcs = makeFuncs({
+      body: [
+        IR.if_then_else(
+          IR.const_i32(1),
+          [IR.drop(IR.call_indirect(0, 0, [], IR.const_i32(0)))],
+          [],
+          "void",
+        ),
+      ],
+    });
+    const features = scanFeatures(funcs as any);
+    expect(features.has("reference-types")).toBe(true);
   });
 });
 
@@ -178,6 +204,46 @@ describe("Features presets", () => {
   });
 });
 
+describe("describeFeature", () => {
+  test("returns description for each feature", () => {
+    expect(describeFeature("mvp")).toContain("baseline");
+    expect(describeFeature("mutable-globals")).toContain("Chrome 74+");
+    expect(describeFeature("reference-types")).toContain("funcref");
+  });
+});
+
+describe("suggestTarget", () => {
+  test("suggests MVP for simple program", () => {
+    const funcs = makeFuncs({ body: [IR.const_i32(42)] });
+    const result = suggestTarget(funcs as any);
+    expect(result.name).toBe("MVP");
+  });
+
+  test("suggests Standard for mutable-globals", () => {
+    const funcs = makeFuncs({ body: [IR.global_set(0, IR.const_i32(1))] });
+    const result = suggestTarget(funcs as any);
+    expect(result.name).toBe("Standard");
+  });
+
+  test("suggests All for reference-types", () => {
+    const funcs = makeFuncs({
+      body: [IR.call_indirect(0, 0, [IR.const_i32(1)], IR.const_i32(0))],
+    });
+    const result = suggestTarget(funcs as any);
+    expect(result.name).toBe("All");
+  });
+});
+
+describe("customFeatureSet", () => {
+  test("creates feature set with specified features", () => {
+    const fs = customFeatureSet("mvp", "simd");
+    expect(fs.has("mvp")).toBe(true);
+    expect(fs.has("simd")).toBe(true);
+    expect(fs.has("gc")).toBe(false);
+    expect(fs.features.size).toBe(2);
+  });
+});
+
 describe("compile with target", () => {
   test("MVP target accepts MVP program", async () => {
     const { compile } = await import("../../dsl/compiler");
@@ -205,5 +271,21 @@ describe("compile with target", () => {
         });
       });
     }).not.toThrow();
+  });
+
+  test("error message includes feature description and suggestion", async () => {
+    const { compile } = await import("../../dsl/compiler");
+    const { Mod, Mem, Type } = await import("../../dsl/primitives");
+
+    expect(() => {
+      compile(function* () {
+        yield* Mod.memory(1);
+        const g = yield* Mod.global(Type.i32, 0);
+        yield* Mod.exportFunc("test", {}, function* () {
+          yield* g.set(yield* Mem.i32(1));
+          return yield* g.get();
+        });
+      }, { target: Features.MVP });
+    }).toThrow(/Suggested target: Features\.Standard/);
   });
 });

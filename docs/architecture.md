@@ -668,6 +668,9 @@ ydant の `keyed()` パターンを移植した co-routine proxy。Generator の
 | `interceptIR(gen, transform)` | `stmt` の `IRNode` のみ変換（便利ラッパー） |
 | `withTrace(label, gen, collector)` | 非破壊的にトレース情報を収集 |
 | `interceptModule(gen, transform)` | `ModuleInstruction` レベルの変換 |
+| `composeIntercepts(gen, ...transforms)` | 複数変換を左→右でチェイン |
+| `interceptFilter(gen, shouldDrop)` | stmt をドロップ（decl はスキップ不可） |
+| `interceptWhen(gen, predicate, transform)` | 条件付き変換 |
 
 ### 核心パターン
 
@@ -686,6 +689,14 @@ function* intercept<T extends FuncReturn>(
 ```
 
 **重要**: `response` の転送が不可欠。`decl` は `WasmRef` を、値付き `if` は `WasmVal` を返す。
+
+### 派生ツール
+
+| ファイル | 関数 | 用途 |
+|---------|------|------|
+| `instrument.ts` | `createProfile()`, `withProfiling(gen, profile)` | コンパイル時命令カウント（zero-overhead） |
+| `guard.ts` | `withBoundsCheck(gen, maxBytes)` | メモリ境界ガード（OOB で unreachable トラップ） |
+| `debug.ts` | `traceBody(label, collector, body)` | 関数 body をトレース付きでラップ |
 
 ---
 
@@ -711,11 +722,30 @@ const Features = {
 
 ### IR Feature Scanner
 
-`scanFeatures(funcs)` が IR ツリーを `visitChildren`（optimizer-passes.ts と共有）で走査し、使用されている feature を `Set<WasmFeature>` として返す。現在の検出対象:
+`scanFeatures(funcs)` が IR ツリーを `visitChildren`（optimizer-passes.ts と共有）で走査し、使用されている feature を `Set<WasmFeature>` として返す。検出対象:
 
 - `global_set` → `"mutable-globals"`
 - `func.results.length > 1` → `"multi-value"`
+- `convert` ノードの sign-extension 系 kind → `"sign-extension"`
+- `call_indirect` → `"reference-types"`
 - 将来: SIMD, bulk-memory, tail-call 等の IR ノード追加時に自動拡張
+
+### ユーティリティ
+
+| 関数 | 用途 |
+|------|------|
+| `describeFeature(f)` | human-readable な feature 説明 + ブラウザ対応状況 |
+| `suggestTarget(funcs)` | 最小限のプリセット（MVP/Standard/All）を推薦 |
+| `customFeatureSet(...features)` | カスタム FeatureSet 生成 |
+
+### IR 統計・最適化レポート
+
+| ファイル | 関数 | 用途 |
+|---------|------|------|
+| `ir-stats.ts` | `analyzeFunc(body)`, `analyzeModule(funcs)` | IR 統計分析（ノード数, 深度, メモリ操作等） |
+| `ir-stats.ts` | `formatStats(stats)` | 統計の人間可読出力 |
+| `optimizer-report.ts` | `compileWithReport(program, options?)` | 最適化前後の統計比較 + バイナリ出力 |
+| `optimizer-report.ts` | `formatReport(report)` | レポートのサマリー表示 |
 
 ### compile() との統合
 

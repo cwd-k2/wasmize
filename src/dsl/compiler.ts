@@ -67,3 +67,13 @@ export {
   type ModuleGen,
   type WasmProgram,
 } from "./types";
+export {
+  intercept,
+  interceptIR,
+  withTrace,
+  interceptModule,
+  composeIntercepts,
+  interceptFilter,
+  interceptWhen,
+  type TraceEntry,
+} from "./intercept";

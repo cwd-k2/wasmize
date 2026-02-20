@@ -4,7 +4,7 @@ import type { WasmValType } from "../wasm/opcodes";
 import type { FuncDef, ImportDef, ExportDef, GlobalDef, DataSegment, TableDef, ElementDef } from "../wasm/module";
 import { buildModule } from "../wasm/module";
 import { optimizeFunc, type OptimizerConfig } from "../wasm/optimize";
-import { validateFeatures, type FeatureSet } from "../wasm/capabilities";
+import { validateFeatures, describeFeature, suggestTarget, type FeatureSet } from "../wasm/capabilities";
 import type { WasmBinary } from "./types";
 import {
   ref,
@@ -320,8 +320,12 @@ export function compile<T = Record<string, unknown>>(
   if (options?.target) {
     const result = validateFeatures(funcs, options.target);
     if (!result.valid) {
+      const details = result.missing
+        .map((f) => `  - ${f}: ${describeFeature(f)}`)
+        .join("\n");
+      const suggestion = suggestTarget(funcs);
       throw new Error(
-        `Target does not support required features: ${result.missing.join(", ")}`,
+        `Target does not support required features:\n${details}\nSuggested target: Features.${suggestion.name}`,
       );
     }
   }

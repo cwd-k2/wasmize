@@ -2,7 +2,10 @@ import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { param, local, Type, Mod, Mem, Ctrl } from "../primitives";
 import { instantiate } from "../../test-helpers";
-import { intercept, interceptIR, withTrace, interceptModule } from "../intercept";
+import {
+  intercept, interceptIR, withTrace, interceptModule,
+  composeIntercepts, interceptFilter, interceptWhen,
+} from "../intercept";
 import type { TraceEntry } from "../intercept";
 import { IR } from "../../wasm/ir";
 
@@ -246,5 +249,105 @@ describe("interceptModule", () => {
 
     const { exports: { triple } } = await instantiate(binary);
     expect((triple as Function)(7)).toBe(21);
+  });
+});
+
+describe("composeIntercepts", () => {
+  test("chains multiple transforms left to right", async () => {
+    const log: string[] = [];
+
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        return yield* composeIntercepts(
+          (function* () {
+            const a = yield* param(Type.i32);
+            return a;
+          })(),
+          (instr) => { log.push("t1"); return instr; },
+          (instr) => { log.push("t2"); return instr; },
+        );
+      });
+      yield* Mod.export("f", fn);
+    });
+
+    const { exports: { f } } = await instantiate(binary);
+    expect((f as Function)(42)).toBe(42);
+    // Both transforms applied to the decl instruction
+    expect(log).toContain("t1");
+    expect(log).toContain("t2");
+  });
+});
+
+describe("interceptFilter", () => {
+  test("drops matching stmt instructions", async () => {
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        const x = yield* local(Type.i32);
+        yield* interceptFilter(
+          (function* () {
+            // This store should be dropped
+            yield* Mem.store(0, Mem.i32(99));
+            // This set should remain
+            yield* x.set(yield* Mem.i32(42));
+          })(),
+          (instr) => {
+            if (instr._type === "stmt" && instr.node.op === "store_i32") return true;
+            return false;
+          },
+        );
+        return x;
+      });
+      yield* Mod.export("f", fn);
+    });
+
+    const { exports: { f } } = await instantiate(binary);
+    expect((f as Function)()).toBe(42);
+  });
+
+  test("never drops decl instructions", async () => {
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        return yield* interceptFilter(
+          (function* () {
+            const a = yield* param(Type.i32);
+            return a;
+          })(),
+          () => true, // try to drop everything
+        );
+      });
+      yield* Mod.export("f", fn);
+    });
+
+    const { exports: { f } } = await instantiate(binary);
+    // Param decl survived even though shouldDrop returns true for all
+    expect((f as Function)(7)).toBe(7);
+  });
+});
+
+describe("interceptWhen", () => {
+  test("applies transform only when predicate matches", async () => {
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        const x = yield* local(Type.i32);
+        yield* interceptWhen(
+          (function* () {
+            yield* x.set(yield* Mem.i32(10));
+          })(),
+          (instr) => instr._type === "stmt",
+          (instr) => {
+            if (instr._type === "stmt" && instr.node.op === "local_set" &&
+                instr.node.val.op === "const_i32" && instr.node.val.v === 10) {
+              return { ...instr, node: { ...instr.node, val: IR.const_i32(20) } };
+            }
+            return instr;
+          },
+        );
+        return x;
+      });
+      yield* Mod.export("f", fn);
+    });
+
+    const { exports: { f } } = await instantiate(binary);
+    expect((f as Function)()).toBe(20);
   });
 });

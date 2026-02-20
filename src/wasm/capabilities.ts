@@ -42,40 +42,71 @@ export const Features = {
   ),
 } as const;
 
+/** Creates a custom FeatureSet from individual features. */
+export function customFeatureSet(...features: WasmFeature[]): FeatureSet {
+  return featureSet(...features);
+}
+
+// ── Feature descriptions ────────────────────────────────────────────
+
+const featureDescriptions: Record<WasmFeature, string> = {
+  "mvp": "WebAssembly 1.0 baseline (all browsers)",
+  "bulk-memory": "Bulk memory operations (memory.copy, memory.fill) — Chrome 75+, Firefox 79+, Safari 15+",
+  "multi-value": "Multiple return values from functions/blocks — Chrome 85+, Firefox 78+, Safari 15+",
+  "sign-extension": "Sign-extension operators (i32.extend8_s, etc.) — Chrome 74+, Firefox 62+, Safari 14.1+",
+  "mutable-globals": "Mutable global variables (import/export) — Chrome 74+, Firefox 61+, Safari 13.1+",
+  "simd": "128-bit SIMD operations — Chrome 91+, Firefox 89+, Safari 16.4+",
+  "gc": "Garbage collection (struct/array types) — Chrome 119+, Firefox 120+",
+  "tail-call": "Tail call optimization — Chrome 112+, Firefox 121+, Safari 15+",
+  "exception-handling": "Try/catch exception handling — Chrome 95+, Firefox 100+, Safari 15.2+",
+  "reference-types": "Reference types (funcref, externref) — Chrome 96+, Firefox 79+, Safari 15+",
+};
+
+/** Returns a human-readable description of a feature including browser support. */
+export function describeFeature(feature: WasmFeature): string {
+  return featureDescriptions[feature];
+}
+
+// ── Sign-extension convert kinds ────────────────────────────────────
+
+const signExtensionKinds = new Set([
+  "i32_extend8_s", "i32_extend16_s",
+  "i64_extend8_s", "i64_extend16_s", "i64_extend32_s",
+]);
+
 // ── IR Feature Scanner ──────────────────────────────────────────────
 
 /**
  * Scans IR trees to detect which Wasm features are required.
- *
- * Currently wasmize only generates MVP instructions, so this returns `{"mvp"}`
- * for all programs. As new proposals are added (SIMD, bulk-memory, etc.),
- * this scanner will automatically detect them.
  */
 export function scanFeatures(funcs: FuncDef[]): Set<WasmFeature> {
   const features = new Set<WasmFeature>(["mvp"]);
 
   function scanNode(node: IRNode): IRNode {
-    // Future: detect post-MVP opcodes
-    // e.g. bulk memory: memory.copy, memory.fill
-    // e.g. SIMD: v128.*, i8x16.*, etc.
-    // e.g. multi-value: multiple return values
-
-    // For now, check for features based on IR node types
-    // Currently all generated IR nodes are MVP-compatible
-
-    // Mutable globals: detected from module-level (not IR), but
-    // global_set implies mutable globals are being used
+    // Mutable globals
     if (node.op === "global_set") {
       features.add("mutable-globals");
     }
 
-    // Recursively scan children
+    // Sign-extension: convert nodes with sign-extension kinds
+    if (node.op === "convert" && signExtensionKinds.has(node.kind)) {
+      features.add("sign-extension");
+    }
+
+    // Reference types: call_indirect uses funcref table
+    if (node.op === "call_indirect") {
+      features.add("reference-types");
+    }
+
+    // Future: bulk-memory (memory.copy, memory.fill IR nodes)
+    // Future: SIMD (v128.* IR nodes)
+
     visitChildren(node, scanNode);
     return node;
   }
 
   for (const func of funcs) {
-    // Check multi-value: multiple return values
+    // Multi-value: multiple return values
     if (func.results.length > 1) {
       features.add("multi-value");
     }
@@ -110,4 +141,28 @@ export function validateFeatures(funcs: FuncDef[], target: FeatureSet): Validati
   }
 
   return { valid: missing.length === 0, required, missing };
+}
+
+// ── Utilities ───────────────────────────────────────────────────────
+
+/** Preset ordering for suggestTarget comparison. */
+const presets: { name: string; set: FeatureSet }[] = [
+  { name: "MVP", set: Features.MVP },
+  { name: "Standard", set: Features.Standard },
+  { name: "All", set: Features.All },
+];
+
+/**
+ * Suggests the smallest predefined FeatureSet that supports all required features.
+ * Returns preset name and FeatureSet.
+ */
+export function suggestTarget(funcs: FuncDef[]): { name: string; target: FeatureSet } {
+  const required = scanFeatures(funcs);
+  for (const preset of presets) {
+    const allSupported = [...required].every((f) => preset.set.has(f));
+    if (allSupported) {
+      return { name: preset.name, target: preset.set };
+    }
+  }
+  return { name: "All", target: Features.All };
 }

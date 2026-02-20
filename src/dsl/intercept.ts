@@ -69,6 +69,55 @@ export function* withTrace<T extends FuncReturn>(
   });
 }
 
+// ── Composition utilities ───────────────────────────────────────────
+
+/**
+ * Chains multiple transform functions left-to-right into a single intercept.
+ */
+export function* composeIntercepts<T extends FuncReturn>(
+  gen: FuncGen<T>,
+  ...transforms: Array<(instr: FuncInstruction) => FuncInstruction>
+): FuncGen<T> {
+  const combined = (instr: FuncInstruction) =>
+    transforms.reduce((acc, t) => t(acc), instr);
+  return yield* intercept(gen, combined);
+}
+
+/**
+ * Drops stmt instructions that match `shouldDrop`.
+ * Declarations (decl) are never dropped for safety.
+ */
+export function* interceptFilter<T extends FuncReturn>(
+  gen: FuncGen<T>,
+  shouldDrop: (instr: FuncInstruction) => boolean,
+): FuncGen<T> {
+  let next = gen.next();
+  while (!next.done) {
+    const instr = next.value;
+    if (instr._type === "stmt" && shouldDrop(instr)) {
+      // Skip this instruction — send undefined as response (stmts don't return values)
+      next = gen.next(undefined);
+    } else {
+      const response = yield instr;
+      next = gen.next(response);
+    }
+  }
+  return next.value;
+}
+
+/**
+ * Applies `transform` only when `predicate` matches, otherwise passes through.
+ */
+export function* interceptWhen<T extends FuncReturn>(
+  gen: FuncGen<T>,
+  predicate: (instr: FuncInstruction) => boolean,
+  transform: (instr: FuncInstruction) => FuncInstruction,
+): FuncGen<T> {
+  return yield* intercept(gen, (instr) =>
+    predicate(instr) ? transform(instr) : instr,
+  );
+}
+
 /**
  * Module-level intercept: transforms every yielded {@link ModuleInstruction}.
  */

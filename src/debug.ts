@@ -1,7 +1,8 @@
 import { compileToIR } from "./dsl/interpreter";
 import { compile } from "./dsl/compiler";
 import { moduleToWAT } from "./wasm/wat";
-import type { WasmProgram, WasmBinary } from "./dsl/types";
+import { withTrace, type TraceEntry } from "./dsl/intercept";
+import type { WasmProgram, WasmBinary, FuncBody, FuncReturn } from "./dsl/types";
 import type { WasmValType } from "./wasm/opcodes";
 import type { IRNode } from "./wasm/ir";
 import type { ImportDef, ExportDef } from "./wasm/module";
@@ -81,4 +82,26 @@ export function compileWithMetadata(
   const wat = moduleToWAT(funcs, moduleOptions);
 
   return { binary, ir, wat };
+}
+
+/**
+ * Wraps a function body with trace collection.
+ * Use inside `Mod.exportFunc()` or `Mod.func()` body parameter.
+ *
+ * @example
+ * ```ts
+ * const trace: TraceEntry[] = [];
+ * compile(function* () {
+ *   yield* Mod.exportFunc("fib", { n: Type.i32 }, traceBody("fib", trace, function* () {
+ *     // ...body...
+ *   }));
+ * });
+ * ```
+ */
+export function traceBody<T extends FuncReturn>(
+  label: string,
+  collector: TraceEntry[],
+  body: FuncBody<T>,
+): FuncBody<T> {
+  return () => withTrace(label, body(), collector);
 }

@@ -26,10 +26,14 @@ src/                    # ライブラリ（@ エイリアスで import 可能�
     string.ts           # 文字列プリミティブ（Str.from, Str.len, Str.eq）
     meta.ts             # Meta namespace（コンパイル時マクロヘルパ）
     queue.ts            # Queue Generator ファクトリ（BFS キュー）
-    intercept.ts        # Generator Intercept（yield* 変換・トレース）
+    intercept.ts        # Generator Intercept（yield* 変換・トレース・合成）
+    instrument.ts       # コンパイル時命令プロファイル（createProfile, withProfiling）
+    guard.ts            # メモリ境界ガード（withBoundsCheck）
   wasm/                 # IR 定義・Codegen・Module Builder・Encoder・Opcodes
     optimizer-passes.ts # プラグイン式オプティマイザパス（9 builtin passes）
-    capabilities.ts     # Feature scanning・target validation
+    capabilities.ts     # Feature scanning・target validation・utilities
+    ir-stats.ts         # IR 統計分析（analyzeFunc, analyzeModule, formatStats）
+    optimizer-report.ts # 最適化レポート（compileWithReport, formatReport）
   stdlib/               # 再利用可能 Wasm 関数ライブラリ
     mem.ts              # memcpy, memset, memcmp
     math.ts             # pow, clamp, abs, lerp
@@ -40,7 +44,7 @@ src/                    # ライブラリ（@ エイリアスで import 可能�
   worker-pool.ts        # WorkerPool（並列 Wasm 実行）
   bench.ts              # ベンチマークハーネス
   marshal.ts            # JS ↔ Wasm メモリ転送
-  debug.ts              # IR 可視化・メタデータ・compileWithWat
+  debug.ts              # IR 可視化・メタデータ・compileWithWat・traceBody
   test-helpers.ts       # instantiate() ヘルパ（WasmBinary<T> → typed exports）
   runner.ts             # 全問題の実行・検証
   realworld-runner.ts   # Realworld デモの実行・UI データ生成
@@ -49,7 +53,7 @@ examples/               # 実例・アルゴリズム実装
   problems/             # Layer 1: 16 のアルゴリズム（低レベル DSL）
   layer3/               # Layer 3: wasmFunc() による単一関数 Wasm 化
   layer2/               # Layer 2: wasmize() による宣言的モジュール
-  advanced/             # 高度機能（Struct, stdlib sort, bench）
+  advanced/             # 高度機能（Struct, stdlib sort, bench, intercept trace, custom optimizer, capability check, bounds guard, optimizer report）
   realworld/            # 実用ユースケース（画像処理, Game of Life, CRC32, 粒子シミュレーション, 畳み込み, セピア, ヒストグラム, Erode/Dilate, Maze BFS, ヒストグラム均等化）
 ui/                     # ブラウザ UI（renderer + styles + realworld デモ）
 e2e/                    # Playwright E2E テスト
@@ -97,9 +101,15 @@ docs/                   # 技術ドキュメント
 - `binop`/`cmp`/`eqz` の IR ノードは `type?: WasmValType` で i32/i64/f64 をディスパッチ（省略時 i32）
 - `inferType(node, ctx)` が IR ノードから結果型を推定（関数戻り値型・if ブロック型に使用）
 - 多態型システム: `WasmRef<T>` は `_valType` でランタイム型を保持し、`.add()` 等がディスパッチ。`ChainableExpr<T>` がチェイン全体で型を伝搬。`this: WasmRef<IntType>` で float への bitwise/rem を禁止。`CallableFunc<Params>` と `ModNamespace` オーバーロードでアリティ推論
-- Generator Intercept: `intercept(gen, transform)` で `yield*` のインターセプト + 変換。`interceptIR(gen, transform)` は stmt の IRNode のみ変換。`withTrace(label, gen, collector)` で非破壊トレース収集。`interceptModule(gen, transform)` でモジュールレベル変換
+- Generator Intercept: `intercept(gen, transform)` で `yield*` のインターセプト + 変換。`interceptIR(gen, transform)` は stmt の IRNode のみ変換。`withTrace(label, gen, collector)` で非破壊トレース収集。`interceptModule(gen, transform)` でモジュールレベル変換。全て `compiler.ts` から公開 export
+- Intercept 合成: `composeIntercepts(gen, ...transforms)` で複数変換を左→右チェイン。`interceptFilter(gen, shouldDrop)` で stmt をドロップ（decl は安全のためスキップ不可）。`interceptWhen(gen, predicate, transform)` で条件付き変換
+- Debug 統合: `traceBody(label, collector, body)` で関数 body をトレース付きラップ（`debug.ts` から export）
+- 命令プロファイル: `createProfile()` + `withProfiling(gen, profile)` でコンパイル時命令カウント。zero-overhead（`instrument.ts`）
+- メモリ境界ガード: `withBoundsCheck(gen, maxBytes)` で store/load に境界チェック挿入。OOB で `unreachable` トラップ。Production では外すだけ（`guard.ts`）
 - プラグイン式オプティマイザ: `OptimizerPass` interface（`name` + `transform(node): IRNode`）。`builtinPasses` に 9 パス。`createOptimizer(passes)` で bottom-up 最適化関数を生成。`withoutPasses(names)` でパス除外。`compile()` に `optimizerConfig: { passes?, iterations? }` オプション
-- Capability Tracking: `WasmFeature` 型（mvp, bulk-memory, multi-value 等 10 種）。`Features.MVP/Standard/All` プリセット。`scanFeatures(funcs)` で IR 走査・feature 検出。`compile()` に `target: FeatureSet` オプションで target validation
+- Capability Tracking: `WasmFeature` 型（mvp, bulk-memory, multi-value 等 10 種）。`Features.MVP/Standard/All` プリセット。`scanFeatures(funcs)` で IR 走査・feature 検出（mutable-globals, multi-value, sign-extension, reference-types）。`compile()` に `target: FeatureSet` オプションで target validation。`describeFeature(f)` で human-readable 説明。`suggestTarget(funcs)` で最小プリセット推薦。`customFeatureSet(...features)` でカスタム FeatureSet 生成
+- IR 統計: `analyzeFunc(body)` / `analyzeModule(funcs)` で IRStats 取得（totalNodes, nodesByOp, maxDepth, memoryLoads/Stores, branches, calls, localAccesses）。`formatStats(stats)` で人間可読出力
+- 最適化レポート: `compileWithReport(program, options)` で最適化前後の IRStats 比較 + バイナリ出力。`formatReport(report)` でサマリー表示
 - WorkerPool: `WorkerState` interface で型安全な状態管理（`(worker as any).__pending` を排除）。`dedup: true` オプションで同一引数の in-flight タスク重複排除
 
 ### JS メタプログラミング

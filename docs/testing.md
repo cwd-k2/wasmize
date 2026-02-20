@@ -95,9 +95,13 @@ const { exports: { hanoi } } = await instantiate(problem1_hanoi(), {
 | `src/__tests__/async-bridge.test.ts` | Effect → Async 変換 |
 | `src/__tests__/worker-pool.test.ts` | 並列 Wasm 実行 + WorkerState 型安全性 + タスク dedup |
 | `src/__tests__/bench.test.ts` | ベンチマークハーネス |
-| `src/dsl/__tests__/intercept.test.ts` | Generator Intercept（co-routine proxy, トレース, モジュール変換） |
+| `src/dsl/__tests__/intercept.test.ts` | Generator Intercept（co-routine proxy, トレース, モジュール変換, 合成ユーティリティ） |
+| `src/dsl/__tests__/instrument.test.ts` | 命令プロファイル（withProfiling, createProfile） |
+| `src/dsl/__tests__/guard.test.ts` | メモリ境界ガード（withBoundsCheck, OOB トラップ） |
 | `src/wasm/__tests__/optimizer-passes.test.ts` | プラグイン式オプティマイザ（visitChildren, カスタムパス, パス除外, builtinPasses） |
-| `src/wasm/__tests__/capabilities.test.ts` | Capability Tracking（scanFeatures, validateFeatures, Feature presets, compile target） |
+| `src/wasm/__tests__/capabilities.test.ts` | Capability Tracking（scanFeatures, validateFeatures, Feature presets, compile target, describeFeature, suggestTarget） |
+| `src/wasm/__tests__/ir-stats.test.ts` | IR 統計分析（analyzeFunc, analyzeModule, formatStats） |
+| `src/wasm/__tests__/optimizer-report.test.ts` | 最適化レポート（compileWithReport, formatReport） |
 | `src/stdlib/__tests__/mem.test.ts` | memcpy/memset/memcmp |
 | `src/stdlib/__tests__/math.test.ts` | pow/clamp/abs/lerp |
 | `src/stdlib/__tests__/sort.test.ts` | sortI32/sortWith |
