@@ -11,6 +11,12 @@ export default defineConfig({
   },
   build: {
     outDir: "dist-app",
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        game: fileURLToPath(new URL("./game.html", import.meta.url)),
+      },
+    },
   },
   test: {
     include: ["src/**/__tests__/**/*.test.ts", "showcase/**/*.test.ts"],
