@@ -950,3 +950,119 @@ describe("StructArray.forEach", () => {
     expect((exports.test as Function)()).toBe(60);
   });
 });
+
+// --- inRange ---
+
+describe("inRange", () => {
+  test("WasmRef.inRange checks half-open range [lo, hi)", async () => {
+    const binary = compile(function* () {
+      yield* Mod.exportFunc("check", { x: Type.i32, lo: Type.i32, hi: Type.i32 }, function* (x, lo, hi) {
+        return yield* x.inRange(lo, hi);
+      });
+    });
+    const { exports } = await instantiate(binary);
+    const check = exports.check as Function;
+    expect(check(5, 0, 10)).toBe(1);  // in range
+    expect(check(0, 0, 10)).toBe(1);  // lower bound inclusive
+    expect(check(9, 0, 10)).toBe(1);  // just below upper
+    expect(check(10, 0, 10)).toBe(0); // upper bound exclusive
+    expect(check(-1, 0, 10)).toBe(0); // below range
+    expect(check(15, 0, 10)).toBe(0); // above range
+  });
+
+  test("ChainableExpr.inRange works with expressions", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      yield* Mod.exportFunc("test", { x: Type.i32, w: Type.i32 }, function* (x, w) {
+        // x.add(1).inRange(0, w) — tests ChainableExpr path
+        return yield* x.add(1).inRange(0, w);
+      });
+    });
+    const { exports } = await instantiate(binary);
+    const test = exports.test as Function;
+    expect(test(4, 10)).toBe(1);  // 5 in [0,10)
+    expect(test(9, 10)).toBe(0);  // 10 not in [0,10)
+    expect(test(-2, 10)).toBe(0); // -1 not in [0,10)
+  });
+
+  test("inRange combined with and()", async () => {
+    const binary = compile(function* () {
+      yield* Mod.exportFunc(
+        "bounds",
+        { x: Type.i32, y: Type.i32, w: Type.i32, h: Type.i32 },
+        function* (x, y, w, h) {
+          return yield* x.inRange(0, w).and(y.inRange(0, h));
+        },
+      );
+    });
+    const { exports } = await instantiate(binary);
+    const bounds = exports.bounds as Function;
+    expect(bounds(5, 3, 10, 10)).toBe(1);
+    expect(bounds(10, 3, 10, 10)).toBe(0);
+    expect(bounds(5, -1, 10, 10)).toBe(0);
+  });
+});
+
+// --- Ctrl.grid ---
+
+describe("Ctrl.grid", () => {
+  test("2D grid iterates all cells", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      const arr = Mem.i32Array2D(0, 3);
+      yield* Mod.exportFunc("fill", { h: Type.i32, w: Type.i32 }, function* (h, w) {
+        yield* Ctrl.grid([h, w], (y, x) => [arr.store(y, x, y.mul(10).add(x))]);
+      });
+      yield* Mod.exportFunc("load", { r: Type.i32, c: Type.i32 }, function* (r, c) {
+        return yield* Mem.i32Array2D(0, 3).load(r, c);
+      });
+    });
+    const { exports } = await instantiate(binary);
+    (exports.fill as Function)(3, 3);
+    expect((exports.load as Function)(0, 0)).toBe(0);
+    expect((exports.load as Function)(1, 2)).toBe(12);
+    expect((exports.load as Function)(2, 1)).toBe(21);
+  });
+
+  test("3D grid", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      yield* Mod.exportFunc("sum3d", function* () {
+        const sum = yield* local(Type.i32, 0);
+        yield* Ctrl.grid([2, 3, 4], (z, y, x) => [sum.set(sum.add(z.mul(100).add(y.mul(10)).add(x)))]);
+        return sum;
+      });
+    });
+    const { exports } = await instantiate(binary);
+    // Sum of z*100+y*10+x for z=0..1, y=0..2, x=0..3
+    let expected = 0;
+    for (let z = 0; z < 2; z++)
+      for (let y = 0; y < 3; y++)
+        for (let x = 0; x < 4; x++) expected += z * 100 + y * 10 + x;
+    expect((exports.sum3d as Function)()).toBe(expected);
+  });
+
+  test("1D grid is just a range loop", async () => {
+    const binary = compile(function* () {
+      yield* Mod.exportFunc("sum", { n: Type.i32 }, function* (n) {
+        const sum = yield* local(Type.i32, 0);
+        yield* Ctrl.grid([n], (i) => [sum.set(sum.add(i))]);
+        return sum;
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.sum as Function)(5)).toBe(10); // 0+1+2+3+4
+  });
+
+  test("0D grid runs body once", async () => {
+    const binary = compile(function* () {
+      yield* Mod.exportFunc("run", function* () {
+        const result = yield* local(Type.i32, 0);
+        yield* Ctrl.grid([], () => [result.set(42)]);
+        return result;
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.run as Function)()).toBe(42);
+  });
+});

@@ -96,6 +96,9 @@ declare module "./types" {
     popcnt(this: WasmRef<IntType>): ChainableExpr<T>;
     eqz(): ChainableExpr<"i32">;
 
+    // --- Range check ---
+    inRange(lo: ExprInput, hi: ExprInput): ChainableExpr<"i32">;
+
     // --- Conversions ---
     toF64(): ChainableExpr<"f64">;
     toI32(): ChainableExpr<"i32">;
@@ -265,6 +268,12 @@ WasmRef.prototype.eqz = function (this: WasmRef): any {
     })(this),
     "i32",
   );
+};
+
+// --- Range check ---
+
+WasmRef.prototype.inRange = function (this: WasmRef, lo: ExprInput, hi: ExprInput) {
+  return this.ge(lo).and(this.lt(hi));
 };
 
 // --- Conversions ---

@@ -67,7 +67,7 @@ function mazeBfsWasm() {
           for (const { dx, dy } of NEIGHBORS_4) {
             yield* nx.set(cx.add(dx));
             yield* ny.set(cy.add(dy));
-            yield* Ctrl.when(nx.ge(0).and(nx.lt(w)).and(ny.ge(0)).and(ny.lt(h)), function* () {
+            yield* Ctrl.when(nx.inRange(0, w).and(ny.inRange(0, h)), function* () {
               yield* ni.set(ny.mul(w).add(nx));
               // If passage and unvisited
               yield* Ctrl.when(maze.load(ny, nx).eq(0).and(dist.load(ni).eq(-1)), function* () {

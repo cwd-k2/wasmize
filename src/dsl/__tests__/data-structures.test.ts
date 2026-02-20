@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
-import { local, Type, Mod, Ctrl } from "../primitives";
+import { local, locals, Type, Mod, Mem, Ctrl, MinHeap, HashMap } from "../primitives";
 import { Stack } from "../stack";
 import { BitSet } from "../bitset";
 import { RingBuffer } from "../ringbuffer";
@@ -326,5 +326,287 @@ describe("RingBuffer", () => {
     });
     const { exports } = await instantiate(binary);
     expect((exports.test as Function)()).toBe(1);
+  });
+});
+
+// --- MinHeap ---
+
+describe("MinHeap", () => {
+  test("insert and extractMin return elements in priority order", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      yield* Mod.exportFunc("test", function* () {
+        const heap = yield* MinHeap(0);
+        const [dstPri, dstVal, result] = yield* locals(Type.i32, Type.i32, ["i32", 0]);
+
+        yield* heap.insert(30, 300);
+        yield* heap.insert(10, 100);
+        yield* heap.insert(20, 200);
+
+        yield* heap.extractMin(dstPri, dstVal);
+        yield* result.set(dstVal); // 100
+
+        yield* heap.extractMin(dstPri, dstVal);
+        yield* result.set(result.mul(1000).add(dstVal)); // 100200
+
+        yield* heap.extractMin(dstPri, dstVal);
+        yield* result.set(result.mul(1000).add(dstVal)); // 100200300
+
+        return result;
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(100200300);
+  });
+
+  test("peek returns min without removing", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      yield* Mod.exportFunc("test", function* () {
+        const heap = yield* MinHeap(0);
+
+        yield* heap.insert(5, 50);
+        yield* heap.insert(3, 30);
+        yield* heap.insert(7, 70);
+
+        const pri = yield* local(Type.i32);
+        const val = yield* local(Type.i32);
+        yield* pri.set(heap.peekPriority());
+        yield* val.set(heap.peekValue());
+
+        const pri2 = yield* local(Type.i32);
+        yield* pri2.set(heap.peekPriority());
+
+        return yield* pri.mul(1000).add(val).mul(10).add(pri2);
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(30303);
+  });
+
+  test("notEmpty reflects heap state", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      yield* Mod.exportFunc("test", function* () {
+        const heap = yield* MinHeap(0);
+        const [dstPri, dstVal] = yield* locals(Type.i32, Type.i32);
+        const result = yield* local(Type.i32, 0);
+
+        yield* Ctrl.when(heap.notEmpty, () => [result.set(1)]);
+
+        yield* heap.insert(10, 1);
+        yield* Ctrl.when(heap.notEmpty, () => [result.incrBy(10)]);
+
+        yield* heap.extractMin(dstPri, dstVal);
+        yield* Ctrl.when(heap.notEmpty, () => [result.incrBy(100)]);
+
+        return result;
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(10);
+  });
+
+  test("reset clears the heap", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      yield* Mod.exportFunc("test", function* () {
+        const heap = yield* MinHeap(0);
+        yield* heap.insert(1, 10);
+        yield* heap.insert(2, 20);
+        yield* heap.reset();
+
+        const result = yield* local(Type.i32, 0);
+        yield* Ctrl.when(heap.notEmpty, () => [result.set(1)]);
+        return result;
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(0);
+  });
+
+  test("multiple extracts produce sorted order", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      const resultArr = Mem.i32Array(0);
+
+      yield* Mod.exportFunc("test", function* () {
+        const heap = yield* MinHeap(256);
+        const [dstPri, dstVal, i] = yield* locals(Type.i32, Type.i32, Type.i32);
+
+        yield* heap.insert(50, 5);
+        yield* heap.insert(10, 1);
+        yield* heap.insert(40, 4);
+        yield* heap.insert(20, 2);
+        yield* heap.insert(30, 3);
+
+        yield* Ctrl.range(i, 5, function* () {
+          yield* heap.extractMin(dstPri, dstVal);
+          yield* resultArr.store(i, dstVal);
+        });
+
+        return yield* resultArr
+          .load(0)
+          .mul(10000)
+          .add(resultArr.load(1).mul(1000))
+          .add(resultArr.load(2).mul(100))
+          .add(resultArr.load(3).mul(10))
+          .add(resultArr.load(4));
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(12345);
+  });
+});
+
+// --- HashMap ---
+
+describe("HashMap", () => {
+  test("basic set and get", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      yield* Mod.exportFunc("test", function* () {
+        const map = yield* HashMap(0, 16);
+        const dst = yield* local(Type.i32);
+
+        yield* map.set(42, 100);
+        yield* map.set(7, 200);
+        yield* map.get(42, dst);
+        const r1 = yield* local(Type.i32);
+        yield* r1.set(dst);
+        yield* map.get(7, dst);
+        return yield* r1.mul(1000).add(dst);
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(100200);
+  });
+
+  test("capacity must be power of 2", () => {
+    expect(() => {
+      compile(function* () {
+        yield* Mod.memory(1);
+        yield* Mod.exportFunc("test", function* () {
+          yield* HashMap(0, 10);
+        });
+      });
+    }).toThrow(/power of 2/);
+  });
+
+  test("has returns 1 for existing keys, 0 for absent", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      yield* Mod.exportFunc("test", function* () {
+        const map = yield* HashMap(0, 8);
+        yield* map.set(5, 50);
+        const h1 = yield* local(Type.i32);
+        const h2 = yield* local(Type.i32);
+        yield* h1.set(map.has(5));
+        yield* h2.set(map.has(99));
+        return yield* h1.mul(10).add(h2);
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(10);
+  });
+
+  test("set overwrites existing key", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      yield* Mod.exportFunc("test", function* () {
+        const map = yield* HashMap(0, 8);
+        const dst = yield* local(Type.i32);
+        yield* map.set(1, 100);
+        yield* map.set(1, 999);
+        yield* map.get(1, dst);
+        return dst;
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(999);
+  });
+
+  test("delete removes a key", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      yield* Mod.exportFunc("test", function* () {
+        const map = yield* HashMap(0, 8);
+        const dst = yield* local(Type.i32);
+        yield* map.set(1, 100);
+        yield* map.set(2, 200);
+        yield* map.delete(1);
+        const h = yield* local(Type.i32);
+        yield* h.set(map.has(1));
+        yield* map.get(2, dst);
+        return yield* h.mul(1000).add(dst);
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(200);
+  });
+
+  test("clear resets everything", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      yield* Mod.exportFunc("test", function* () {
+        const map = yield* HashMap(0, 8);
+        yield* map.set(1, 10);
+        yield* map.set(2, 20);
+        yield* map.clear();
+        const result = yield* local(Type.i32, 0);
+        yield* Ctrl.when(map.notEmpty, () => [result.set(1)]);
+        const h = yield* local(Type.i32);
+        yield* h.set(map.has(1));
+        return yield* result.mul(10).add(h);
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(0);
+  });
+
+  test("handles hash collisions via linear probing", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(2);
+      yield* Mod.exportFunc("test", function* () {
+        const map = yield* HashMap(0, 4);
+        const dst = yield* local(Type.i32);
+
+        yield* map.set(0, 100);
+        yield* map.set(4, 200);
+        yield* map.set(8, 300);
+
+        yield* map.get(0, dst);
+        const r0 = yield* local(Type.i32);
+        yield* r0.set(dst);
+
+        yield* map.get(4, dst);
+        const r4 = yield* local(Type.i32);
+        yield* r4.set(dst);
+
+        yield* map.get(8, dst);
+
+        return yield* r0.add(r4).add(dst);
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(600);
+  });
+
+  test("notEmpty reflects map state", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      yield* Mod.exportFunc("test", function* () {
+        const map = yield* HashMap(0, 8);
+        const result = yield* local(Type.i32, 0);
+        yield* Ctrl.when(map.notEmpty, () => [result.incrBy(1)]);
+        yield* map.set(1, 10);
+        yield* Ctrl.when(map.notEmpty, () => [result.incrBy(10)]);
+        yield* map.delete(1);
+        yield* Ctrl.when(map.notEmpty, () => [result.incrBy(100)]);
+        return result;
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(10);
   });
 });

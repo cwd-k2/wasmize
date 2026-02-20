@@ -245,6 +245,31 @@ export class ChainableExpr<T extends WasmValType = "i32"> {
     return new ChainableExpr(makeConvert(kind)(this._inner), "f32");
   }
 
+  // --- inRange(lo, hi) ---
+
+  /**
+   * Tests whether the value is in the half-open range `[lo, hi)`.
+   * Equivalent to `this.ge(lo).and(this.lt(hi))` but safe for single-use expressions.
+   */
+  inRange(lo: ExprInput, hi: ExprInput): ChainableExpr<"i32"> {
+    const type = this._type;
+    return new ChainableExpr(
+      (function* (inner: Expr) {
+        const vSelf = yield* resolve(inner);
+        const vLo = yield* resolve(lo);
+        const vHi = yield* resolve(hi);
+        return val(
+          IR.binop(
+            "and",
+            IR.cmp("ge", vSelf._node, vLo._node, type),
+            IR.cmp("lt", vSelf._node, vHi._node, type),
+          ),
+        );
+      })(this._inner),
+      "i32",
+    );
+  }
+
   // --- clamp(min, max) ---
 
   /**

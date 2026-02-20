@@ -23,6 +23,8 @@ export { Queue, type QueueHandle } from "./queue";
 export { Stack, type StackHandle } from "./stack";
 export { RingBuffer, type RingBufferHandle } from "./ringbuffer";
 export { BitSet, type BitSetHandle } from "./bitset";
+export { MinHeap, type MinHeapHandle } from "./minheap";
+export { HashMap, type HashMapHandle } from "./hashmap";
 export { type ScopeHandle } from "./types";
 
 /** RGBA pixel Struct preset (4 packed u8 fields). `RGBA.at(offset)` returns a proxy with `.r`, `.g`, `.b`, `.a` FieldAccessors. */

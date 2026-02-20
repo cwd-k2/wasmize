@@ -50,16 +50,16 @@ export function problem12_flood_fill() {
               yield* q.dequeue(cy);
 
               const dirs = [
-                { dx: 1, dy: 0, check: () => nx.lt(W) }, // Right
-                { dx: -1, dy: 0, check: () => nx.ge(0) }, // Left
-                { dx: 0, dy: 1, check: () => ny.lt(H) }, // Down
-                { dx: 0, dy: -1, check: () => ny.ge(0) }, // Up
+                { dx: 1, dy: 0 },
+                { dx: -1, dy: 0 },
+                { dx: 0, dy: 1 },
+                { dx: 0, dy: -1 },
               ];
 
-              for (const { dx, dy, check } of dirs) {
+              for (const { dx, dy } of dirs) {
                 yield* nx.set(cx.add(dx));
                 yield* ny.set(cy.add(dy));
-                yield* Ctrl.when(check(), () => [
+                yield* Ctrl.when(nx.inRange(0, W).and(ny.inRange(0, H)), () => [
                   addr.set(ny.mul(W).add(nx).mul(4)),
                   Ctrl.when(Mem.load(addr).eq(target), () => [
                     Mem.store(addr, fill),

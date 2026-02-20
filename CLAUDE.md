@@ -26,6 +26,8 @@ src/                    # ライブラリ（@ エイリアスで import 可能�
     string.ts           # 文字列プリミティブ（Str.from, Str.len, Str.eq）
     meta.ts             # Meta namespace（コンパイル時マクロヘルパ）
     queue.ts            # Queue Generator ファクトリ（BFS キュー）
+    minheap.ts          # MinHeap Generator ファクトリ（優先度キュー）
+    hashmap.ts          # HashMap（open addressing + linear probing）
     intercept.ts        # Generator Intercept（yield* 変換・トレース・合成）
     instrument.ts       # コンパイル時命令プロファイル（createProfile, withProfiling）
     guard.ts            # メモリ境界ガード（withBoundsCheck）
@@ -91,6 +93,10 @@ docs/                   # 技術ドキュメント
 - Stack ヘルパ: `const s = yield* Stack(base)` で LIFO スタック生成。`s.push(v)`, `s.pop(dst)`, `s.notEmpty`, `s.peek()`, `s.reset()` を提供。内部で `top` ローカル変数を確保
 - RingBuffer ヘルパ: `const rb = yield* RingBuffer(base, capacity)` で固定容量循環バッファ生成。`rb.write(v)`, `rb.read(dst)`, `rb.isFull`, `rb.isEmpty`, `rb.reset()` を提供。capacity が 2 の冪なら `and` でラップ、それ以外は `rem_u`。内部で `head`/`tail`/`count` ローカル変数を確保
 - BitSet ヘルパ: `const bs = BitSet(base)` でビット配列生成（Generator 不要の plain function）。`bs.set(idx)`, `bs.get(idx)`, `bs.clear(idx)`, `bs.clearAll(bitCount)` を提供。`clearAll` はコンパイル時展開
+- MinHeap ヘルパ: `const heap = yield* MinHeap(base)` で (priority, value) ペアの min-heap 生成。`heap.insert(pri, val)`, `heap.extractMin(dstPri, dstVal)`, `heap.peekPriority()`, `heap.peekValue()`, `heap.notEmpty`, `heap.reset()`。interleaved メモリレイアウト `[pri0, val0, pri1, val1, ...]`
+- HashMap ヘルパ: `const map = yield* HashMap(base, capacity)` で open addressing + linear probing のハッシュマップ生成。**capacity は 2 の冪**（コンパイル時 assert）。`map.set(key, val)`, `map.get(key, dst)`, `map.has(key)`, `map.delete(key)`, `map.clear()`, `map.notEmpty`。3 並列配列（statuses, keys, values）
+- 境界チェック糖衣: `x.inRange(lo, hi)` は `x.ge(lo).and(x.lt(hi))` の糖衣。`WasmRef` と `ChainableExpr` の両方で使用可。2D 境界チェックに `nx.inRange(0, w).and(ny.inRange(0, h))`
+- N 次元グリッドループ: `yield* Ctrl.grid([h, w], (y, x) => [...])` — ループ変数を自動確保し `Ctrl.range` を再帰的にネスト。0D（即実行）、1D、2D、3D 対応
 - Scope/defer: `Ctrl.scope(function* (scope) { scope.defer(cleanup); ... })` でスコープ付きリソース管理。defer は LIFO 順でクリーンアップ展開
 - Struct snapshot: `const { r, g, b } = yield* RGBA.snapshot(offset, "r", "g", "b")` で指定フィールドをローカル変数にコピー。StructArray にも同様に `particles.snapshot(i, "x", "y")` が使用可
 - StructArray forEach: `yield* particles.forEach(n, function* (p, i) { yield* p.x.incrBy(p.vx); })` で配列要素をイテレーション。ループ変数は内部で宣言

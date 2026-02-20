@@ -29,6 +29,7 @@ import {
   type FuncInstruction,
   type ModuleGen,
   type VoidBody,
+  type VoidStmt,
   type WasmVal,
   type ModuleInstruction,
   type GlobalRef,
@@ -72,7 +73,7 @@ import {
   makeUnary,
   makeConvert,
 } from "./expr";
-import { param as declareParam } from "./declarations";
+import { param as declareParam, local as declareLocal, Type } from "./declarations";
 
 // --- Helpers ---
 
@@ -1268,6 +1269,43 @@ export const Ctrl = {
     }
     // 4-arg form: range(i, start, end, body)
     return Ctrl.for(variable, startOrEnd, variable.lt(endOrBody), variable.add(1), maybeBody!);
+  },
+  /**
+   * N-dimensional nested loop. Allocates loop variables automatically.
+   *
+   * @example
+   * ```ts
+   * yield* Ctrl.grid([h, w], (y, x) => [
+   *   gridB.store(y, x, compute(y, x)),
+   * ]);
+   * ```
+   */
+  grid(
+    dims: ExprInput[],
+    body: (...vars: WasmRef<"i32">[]) => VoidStmt[],
+  ): FuncGen<void> {
+    return (function* () {
+      const vars: WasmRef<"i32">[] = [];
+      for (let i = 0; i < dims.length; i++) {
+        vars.push(yield* declareLocal(Type.i32));
+      }
+
+      if (dims.length === 0) {
+        for (const s of body()) yield* s;
+        return;
+      }
+
+      const nest = (d: number): FuncGen<void> => {
+        if (d === dims.length - 1) {
+          return Ctrl.range(vars[d]!, dims[d]!, () => body(...vars));
+        }
+        return Ctrl.range(vars[d]!, dims[d]!, function* () {
+          yield* nest(d + 1);
+        });
+      };
+
+      yield* nest(0);
+    })();
   },
   /** Multi-way switch builder. Chain with `.case()` and optionally `.default()`. */
   switch(expr: ExprInput): SwitchBuilder {

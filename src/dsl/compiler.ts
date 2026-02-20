@@ -53,6 +53,8 @@ export {
   Stack,
   RingBuffer,
   BitSet,
+  MinHeap,
+  HashMap,
 } from "./primitives";
 export {
   WasmRef,
