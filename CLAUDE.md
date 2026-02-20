@@ -26,7 +26,10 @@ src/                    # ライブラリ（@ エイリアスで import 可能�
     string.ts           # 文字列プリミティブ（Str.from, Str.len, Str.eq）
     meta.ts             # Meta namespace（コンパイル時マクロヘルパ）
     queue.ts            # Queue Generator ファクトリ（BFS キュー）
+    intercept.ts        # Generator Intercept（yield* 変換・トレース）
   wasm/                 # IR 定義・Codegen・Module Builder・Encoder・Opcodes
+    optimizer-passes.ts # プラグイン式オプティマイザパス（9 builtin passes）
+    capabilities.ts     # Feature scanning・target validation
   stdlib/               # 再利用可能 Wasm 関数ライブラリ
     mem.ts              # memcpy, memset, memcmp
     math.ts             # pow, clamp, abs, lerp
@@ -94,6 +97,10 @@ docs/                   # 技術ドキュメント
 - `binop`/`cmp`/`eqz` の IR ノードは `type?: WasmValType` で i32/i64/f64 をディスパッチ（省略時 i32）
 - `inferType(node, ctx)` が IR ノードから結果型を推定（関数戻り値型・if ブロック型に使用）
 - 多態型システム: `WasmRef<T>` は `_valType` でランタイム型を保持し、`.add()` 等がディスパッチ。`ChainableExpr<T>` がチェイン全体で型を伝搬。`this: WasmRef<IntType>` で float への bitwise/rem を禁止。`CallableFunc<Params>` と `ModNamespace` オーバーロードでアリティ推論
+- Generator Intercept: `intercept(gen, transform)` で `yield*` のインターセプト + 変換。`interceptIR(gen, transform)` は stmt の IRNode のみ変換。`withTrace(label, gen, collector)` で非破壊トレース収集。`interceptModule(gen, transform)` でモジュールレベル変換
+- プラグイン式オプティマイザ: `OptimizerPass` interface（`name` + `transform(node): IRNode`）。`builtinPasses` に 9 パス。`createOptimizer(passes)` で bottom-up 最適化関数を生成。`withoutPasses(names)` でパス除外。`compile()` に `optimizerConfig: { passes?, iterations? }` オプション
+- Capability Tracking: `WasmFeature` 型（mvp, bulk-memory, multi-value 等 10 種）。`Features.MVP/Standard/All` プリセット。`scanFeatures(funcs)` で IR 走査・feature 検出。`compile()` に `target: FeatureSet` オプションで target validation
+- WorkerPool: `WorkerState` interface で型安全な状態管理（`(worker as any).__pending` を排除）。`dedup: true` オプションで同一引数の in-flight タスク重複排除
 
 ### JS メタプログラミング
 

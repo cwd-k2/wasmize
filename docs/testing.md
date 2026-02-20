@@ -93,8 +93,11 @@ const { exports: { hanoi } } = await instantiate(problem1_hanoi(), {
 | `src/__tests__/declarative.test.ts` | wasmize() Layer 2 API |
 | `src/__tests__/debug.test.ts` | IR 可視化・メタデータ |
 | `src/__tests__/async-bridge.test.ts` | Effect → Async 変換 |
-| `src/__tests__/worker-pool.test.ts` | 並列 Wasm 実行 |
+| `src/__tests__/worker-pool.test.ts` | 並列 Wasm 実行 + WorkerState 型安全性 + タスク dedup |
 | `src/__tests__/bench.test.ts` | ベンチマークハーネス |
+| `src/dsl/__tests__/intercept.test.ts` | Generator Intercept（co-routine proxy, トレース, モジュール変換） |
+| `src/wasm/__tests__/optimizer-passes.test.ts` | プラグイン式オプティマイザ（visitChildren, カスタムパス, パス除外, builtinPasses） |
+| `src/wasm/__tests__/capabilities.test.ts` | Capability Tracking（scanFeatures, validateFeatures, Feature presets, compile target） |
 | `src/stdlib/__tests__/mem.test.ts` | memcpy/memset/memcmp |
 | `src/stdlib/__tests__/math.test.ts` | pow/clamp/abs/lerp |
 | `src/stdlib/__tests__/sort.test.ts` | sortI32/sortWith |

@@ -15,7 +15,7 @@ WasmProgram ─→ compile() ─→ optimize() ─→ emitIR() ─→ buildModul
 
 ## 1. DSL 層
 
-**ファイル:** `src/dsl/types.ts`, `src/dsl/expr.ts`, `src/dsl/declarations.ts`, `src/dsl/namespaces.ts`, `src/dsl/augment.ts`, `src/dsl/interpreter.ts`, `src/dsl/compiler.ts`, `src/dsl/allocator.ts`, `src/dsl/struct.ts`, `src/dsl/string.ts`
+**ファイル:** `src/dsl/types.ts`, `src/dsl/expr.ts`, `src/dsl/declarations.ts`, `src/dsl/namespaces.ts`, `src/dsl/augment.ts`, `src/dsl/interpreter.ts`, `src/dsl/compiler.ts`, `src/dsl/allocator.ts`, `src/dsl/struct.ts`, `src/dsl/string.ts`, `src/dsl/intercept.ts`
 
 Generator ベースの DSL。`yield*` による直感的な合成と、ローカル変数の自動管理を提供します。
 
@@ -377,23 +377,89 @@ Index:  0        1        ...  N-1      N        N+1     ...
 
 ---
 
-## 7. IR 最適化
+## 7. IR 最適化（プラグイン式）
 
-**ファイル:** `src/wasm/optimize.ts`
+**ファイル:** `src/wasm/optimize.ts`（薄いファサード）, `src/wasm/optimizer-passes.ts`（パス定義 + インフラ）
 
-`optimize(body)` が IR ツリーに対して以下の最適化パスを適用します。全パスはパターンマッチベースの書き換えで、意味を保存する変換のみ行います。
+### アーキテクチャ
 
-| パス | 変換 | 例 |
-|------|------|----|
-| 定数畳み込み | `binop(const, const)` → `const` | `3 + 4` → `7` |
-| ゼロ加算/乗算 | `x + 0` → `x`, `x * 0` → `0` | identity/absorbing |
-| 恒等乗除 | `x * 1` → `x`, `x / 1` → `x` | |
-| local_set + local_get 融合 | `set(i, v); get(i)` → `tee(i, v)` | |
-| 冗長 load 除去 | `store(addr, v); load(addr)` → `store; v` | |
-| 定数比較 | `cmp(const, const)` → `const` | |
-| 否定比較合成 | `eqz(lt(a,b))` → `ge(a,b)` | |
-| Dead code 除去 | `return` / `br` / `unreachable` 後のコードを削除 | |
-| 空ブロック除去 | `block([])` / `seq([])` → `nop` | |
+最適化パイプラインはプラグイン式で設計されており、個々のパスを着脱・追加・順序変更できます。
+
+```
+IRNode[] ──→ optimizeFunc(body, config?) ──→ IRNode[]
+              │
+              ├─ createOptimizer(passes) → bottom-up traversal
+              │    visitChildren(node, recurse)  // 子ノード先行
+              │    pass1.transform(node)         // パスチェイン
+              │    pass2.transform(node)
+              │    ...
+              │
+              └─ eliminateDeadCode(nodes)  // return/br/unreachable 後のコード除去
+              │
+              └─ (iterations 回繰り返し、デフォルト 2)
+```
+
+### OptimizerPass interface
+
+```typescript
+interface OptimizerPass {
+  readonly name: string;
+  transform(node: IRNode): IRNode;
+}
+
+interface OptimizerConfig {
+  passes?: OptimizerPass[];  // デフォルト: builtinPasses
+  iterations?: number;       // デフォルト: 2
+}
+```
+
+### visitChildren
+
+`visitChildren(node, visit)` が IR ツリーの全 variant（42+ 種）を網羅的に走査。leaf ノードはスキップ、子を持つノードは再帰的に `visit` を適用して新しいノードを返します。オプティマイザだけでなく `scanFeatures`（capabilities）でも共有。
+
+### Builtin パス（9 個）
+
+| パス名 | 変換 | 例 |
+|--------|------|----|
+| `block-simplification` | 空ブロック除去、単一要素 unwrap | `block([x])` → `x` |
+| `constant-folding` | 定数畳み込み（binop/cmp/eqz/unary/convert） | `3 + 4` → `7` |
+| `identity-elimination` | 恒等変換除去 | `x + 0` → `x`, `x * 1` → `x` |
+| `self-cancelling` | 自己相殺 | `x - x` → `0`, `x ^ x` → `0` |
+| `strength-reduction` | 演算強度削減 | `x * 8` → `x << 3` |
+| `comparison-inversion` | 否定比較合成 | `eqz(lt(a,b))` → `ge(a,b)` |
+| `round-trip-elimination` | 型変換ラウンドトリップ除去 | `wrap(extend(x))` → `x` |
+| `algebraic-simplification` | 代数的簡約化 | `neg(neg(x))` → `x` |
+| `condition-elimination` | 定数条件の分岐除去 | `if(1, then, else)` → `then` |
+
+### カスタムパスの使用
+
+```typescript
+import { compile } from "@/dsl/compiler";
+import type { OptimizerPass } from "@/wasm/optimize";
+
+const doubleConst: OptimizerPass = {
+  name: "double-const",
+  transform(node) {
+    if (node.op === "const_i32") return IR.const_i32(node.v * 2);
+    return node;
+  },
+};
+
+compile(program, {
+  optimizerConfig: { passes: [doubleConst], iterations: 1 },
+});
+```
+
+### パスの除外
+
+```typescript
+import { withoutPasses } from "@/wasm/optimize";
+
+// constant-folding を除外して最適化
+compile(program, {
+  optimizerConfig: { passes: withoutPasses(["constant-folding"]) },
+});
+```
 
 ---
 
@@ -569,6 +635,17 @@ Effect → Async 変換。Wasm の effect（`mem[0]` = tag, `mem[4]` = payload, 
 
 並列 Wasm 実行。ブラウザ（Web Worker）と Node.js（worker_threads）の両環境に対応。
 
+**WorkerState 型安全管理**: 各 Worker の状態は `WorkerState` interface（`worker`, `pending: Map`, `nextId`）で管理。以前の `(worker as any).__pending` による monkey-patching を排除。
+
+**タスク重複排除（opt-in）**: `new WorkerPool(binary, { workers: 4, dedup: true })` で同一引数の in-flight タスクを自動的に重複排除。`Map<string, Promise>` で管理し、完了後にエントリを削除。
+
+```typescript
+const pool = new WorkerPool(binary, { workers: 4, dedup: true });
+const p1 = pool.run("compute", [42]);
+const p2 = pool.run("compute", [42]); // dedup: p1 と同じ Promise
+const p3 = pool.run("compute", [99]); // 別引数: 新規タスク
+```
+
 ### ベンチマークハーネス
 
 **ファイル:** `src/bench.ts`
@@ -577,7 +654,80 @@ Wasm vs JS のパフォーマンス比較。warmup, iterations, 統計（mean, m
 
 ---
 
-## 12. パスエイリアス
+## 12. Generator Intercept
+
+**ファイル:** `src/dsl/intercept.ts`
+
+ydant の `keyed()` パターンを移植した co-routine proxy。Generator の `yield` をインターセプトし、変換して再 yield する。interpreter の応答（`WasmRef`, `WasmVal` 等）は元の generator に正しく転送される。
+
+### API
+
+| 関数 | 用途 |
+|------|------|
+| `intercept(gen, transform)` | `FuncInstruction` レベルで全 yield を変換 |
+| `interceptIR(gen, transform)` | `stmt` の `IRNode` のみ変換（便利ラッパー） |
+| `withTrace(label, gen, collector)` | 非破壊的にトレース情報を収集 |
+| `interceptModule(gen, transform)` | `ModuleInstruction` レベルの変換 |
+
+### 核心パターン
+
+```typescript
+function* intercept<T extends FuncReturn>(
+  gen: FuncGen<T>,
+  transform: (instr: FuncInstruction) => FuncInstruction,
+): FuncGen<T> {
+  let next = gen.next();
+  while (!next.done) {
+    const response = yield transform(next.value);  // 変換して再 yield
+    next = gen.next(response);                      // interpreter の応答を転送
+  }
+  return next.value;
+}
+```
+
+**重要**: `response` の転送が不可欠。`decl` は `WasmRef` を、値付き `if` は `WasmVal` を返す。
+
+---
+
+## 13. Capability Tracking
+
+**ファイル:** `src/wasm/capabilities.ts`
+
+Wasm プログラムが必要とする feature を IR 走査で自動検出し、target runtime との互換性を検証する。
+
+### Feature Set
+
+```typescript
+type WasmFeature =
+  | "mvp" | "bulk-memory" | "multi-value" | "sign-extension" | "mutable-globals"
+  | "simd" | "gc" | "tail-call" | "exception-handling" | "reference-types";
+
+const Features = {
+  MVP: featureSet("mvp"),
+  Standard: featureSet("mvp", "bulk-memory", "multi-value", "sign-extension", "mutable-globals"),
+  All: featureSet(/* 全 10 feature */),
+};
+```
+
+### IR Feature Scanner
+
+`scanFeatures(funcs)` が IR ツリーを `visitChildren`（optimizer-passes.ts と共有）で走査し、使用されている feature を `Set<WasmFeature>` として返す。現在の検出対象:
+
+- `global_set` → `"mutable-globals"`
+- `func.results.length > 1` → `"multi-value"`
+- 将来: SIMD, bulk-memory, tail-call 等の IR ノード追加時に自動拡張
+
+### compile() との統合
+
+```typescript
+compile(program, { target: Features.MVP }); // MVP 非対応の命令があれば Error
+compile(program, { target: Features.Standard }); // Standard 互換チェック
+compile(program); // target 省略 → validation なし
+```
+
+---
+
+## 14. パスエイリアス
 
 `@` エイリアスで `src/` ディレクトリを参照可能。`tsconfig.json` の `paths` と `vite.config.ts` の `resolve.alias` で設定。
 
