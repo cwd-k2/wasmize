@@ -13,4 +13,6 @@ wasmize の拡張機能をデモする例題集。
 | `custom-optimizer.ts` | カスタム `OptimizerPass` 作成と `withoutPasses()`           |
 | `capability-check.ts` | `scanFeatures()` + `suggestTarget()` による機能チェック     |
 | `bounds-guard.ts`     | `withBoundsCheck()` メモリ境界ガード                        |
-| `optimizer-report.ts` | `compileWithReport()` 最適化前後の IR 比較レポート          |
+| `optimizer-report.ts`   | `compileWithReport()` 最適化前後の IR 比較レポート                        |
+| `minheap-dijkstra.ts`   | `MinHeap` で重み付きグリッド Dijkstra、`inRange` 境界チェック、`Ctrl.grid` 初期化 |
+| `hashmap-frequency.ts`  | `HashMap` で出現頻度カウント、最頻値検索                                  |

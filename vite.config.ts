@@ -14,6 +14,7 @@ export default defineConfig({
   },
   test: {
     include: ["src/**/__tests__/**/*.test.ts", "showcase/**/*.test.ts"],
+    exclude: ["showcase/e2e/**"],
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],

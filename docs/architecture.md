@@ -15,7 +15,7 @@ WasmProgram ─→ compile() ─→ optimize() ─→ emitIR() ─→ buildModul
 
 ## 1. DSL 層
 
-**ファイル:** `src/dsl/types.ts`, `src/dsl/expr.ts`, `src/dsl/declarations.ts`, `src/dsl/namespaces.ts`, `src/dsl/augment.ts`, `src/dsl/interpreter.ts`, `src/dsl/compiler.ts`, `src/dsl/allocator.ts`, `src/dsl/struct.ts`, `src/dsl/string.ts`, `src/dsl/intercept.ts`
+**ファイル:** `src/dsl/types.ts`, `src/dsl/expr.ts`, `src/dsl/declarations.ts`, `src/dsl/namespaces.ts`, `src/dsl/augment.ts`, `src/dsl/interpreter.ts`, `src/dsl/compiler.ts`, `src/dsl/allocator.ts`, `src/dsl/struct.ts`, `src/dsl/string.ts`, `src/dsl/intercept.ts`, `src/dsl/minheap.ts`, `src/dsl/hashmap.ts`
 
 Generator ベースの DSL。`yield*` による直感的な合成と、ローカル変数の自動管理を提供します。
 
@@ -581,6 +581,37 @@ const Pixel = Struct({ r: "u8", g: "u8", b: "u8", a: "u8" });
 Pixel.size; // 4 bytes (1+1+1+1, align 1)
 ```
 
+### データ構造ヘルパ
+
+Generator ファクトリパターンで実装された、再利用可能なデータ構造。`yield*` でローカル変数を内部に確保し、操作メソッドを持つハンドルを返す。
+
+| データ構造   | ファイル              | 生成方法                           | 主な操作                                            |
+| ------------ | --------------------- | ---------------------------------- | --------------------------------------------------- |
+| **Queue**    | `src/dsl/queue.ts`    | `yield* Queue(base)`               | `enqueue`, `dequeue`, `notEmpty`, `reset`           |
+| **Stack**    | `src/dsl/stack.ts`    | `yield* Stack(base)`               | `push`, `pop`, `peek`, `notEmpty`, `reset`          |
+| **RingBuffer** | `src/dsl/ringbuffer.ts` | `yield* RingBuffer(base, cap)`  | `write`, `read`, `isFull`, `isEmpty`, `reset`       |
+| **BitSet**   | `src/dsl/bitset.ts`   | `BitSet(base)`（plain function）   | `set`, `get`, `clear`, `clearAll`                   |
+| **MinHeap**  | `src/dsl/minheap.ts`  | `yield* MinHeap(base)`             | `insert`, `extractMin`, `peekPriority`, `notEmpty`  |
+| **HashMap**  | `src/dsl/hashmap.ts`  | `yield* HashMap(base, capacity)`   | `set`, `get`, `has`, `delete`, `clear`, `notEmpty`  |
+
+```typescript
+// MinHeap: Dijkstra の priority queue として使用
+const heap = yield* MinHeap(heapBase);
+yield* heap.insert(distance, cellIndex);
+yield* heap.extractMin(dstPri, dstVal);
+
+// HashMap: 頻度カウントの upsert パターン
+const map = yield* HashMap(mapBase, 256); // capacity は 2 の冪
+yield* Ctrl.if(map.has(key))
+  .then(function* () {
+    yield* map.get(key, tmp);
+    yield* map.set(key, tmp.add(1));
+  })
+  .else(function* () {
+    yield* map.set(key, 1);
+  });
+```
+
 ### 文字列サポート
 
 **ファイル:** `src/dsl/string.ts`
@@ -597,7 +628,7 @@ UTF-8 文字列操作。`Str.from()` は data segment に埋め込み、`Str.len
 | ---------------- | ---------------------------------------------------------------------------------- | ----------------- |
 | **Grayscale**    | `Mem.load8/store8` バイト操作, `Op.max/min` ブランチレスクランプ, チャンネルループ | `grayscale.ts`    |
 | **CRC32**        | `Mod.data()` ルックアップテーブル, `Op.shr_u` 符号なしシフト                       | `crc32.ts`        |
-| **Game of Life** | JS 側 8 近傍展開, ダブルバッファリング, ブランチレス alive 判定                    | `game-of-life.ts` |
+| **Game of Life** | `Ctrl.grid` + `inRange` 境界チェック, ダブルバッファリング, ブランチレス alive 判定 | `game-of-life.ts` |
 | **Particles**    | `Struct` + `BumpAllocator`, f64 フィールド, 軸ループによる壁反射                   | `particles.ts`    |
 
 各 example は `async function` を export し、`{ exports, setXxx, getXxx, binary }` のパターンで JS ラッパを返す。`showcase/app/realworld-runner.ts` がこれらを統合し、`showcase/ui/realworld.ts` が Canvas ベースのインタラクティブデモをレンダリングする。

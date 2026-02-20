@@ -272,8 +272,8 @@ Memory pages: 2（n ≤ 64）。
 
 ### DSL の見どころ
 
-- `Mem.i32Array2D(0, n)` で A 行列の 2D アクセス（`A.load(i, k)` で `(i*n+k)*4` を隠蔽）
-- `Ctrl.for` による 3 重ネストループ（i, j, k）
+- `Ctrl.grid([n, n], (i, j) => [...])` で外側 i,j 2 重ループを 1 行に圧縮
+- `Ctrl.range(k, n, ...)` で内側 k ループ（stride 最適化付き）
 - B / C は動的ベース（`nn*4`, `nn*8`）のため raw `Mem.load/store` を使用
 
 ---
@@ -412,10 +412,10 @@ Memory pages: 4。
 
 ### DSL の見どころ
 
-- `Ctrl.switch(d).case(0, ...).case(1, ...)...` — 4方向分岐をビルダパターンで宣言的に（nested if/else 22行 → 6行）
-- `Ctrl.while(head.lt(tail), ...)` で BFS メインループ
-- `Ctrl.for` で 4 方向展開ループ
-- `Ctrl.when` で境界チェック + 塗りつぶし条件
+- `Queue(qBase)` で BFS キュー生成（head/tail 管理が自動化）
+- `inRange` で 4 方向の境界チェック: `nx.inRange(0, W).and(ny.inRange(0, H))`
+- `Ctrl.while(q.notEmpty, ...)` で BFS メインループ
+- JS `for...of` + `NEIGHBORS_4` で 4 方向を compile-time 展開
 
 ---
 
@@ -651,7 +651,8 @@ Memory pages: 2。
 
 ### DSL の見どころ
 
-- 4 重ネスト `Ctrl.for`（y, x, dy, dx）で 8 方向近傍カウント
+- `Ctrl.grid([h, w], (y, x) => [...])` で全セル走査を 1 行で表現
+- `ny.inRange(0, h).and(nx.inRange(0, w))` で 8 方向の境界チェック
 - `count.eq(3).or(cell.and(count.eq(2)))` — ブランチレスな alive 判定（Conway のルールを 1 式で表現）
 - ダブルバッファ: gridB に書き込み → gridA にコピーで世代更新
 
@@ -838,6 +839,6 @@ Memory pages: 10。
 ### DSL の見どころ
 
 - `Queue(qBase)` で BFS キューを生成（head/tail 自動管理）
-- ローカル定数 `NEIGHBORS_4` で 4 方向展開
-- `Mem.byteGrid` + `Mem.i32Array2D` で異なる型のグリッドを同一モジュールで管理
+- `inRange` で 4 方向の境界チェック: `nx.inRange(0, w).and(ny.inRange(0, h))`
+- `Mem.byteGrid` + `Mem.i32Array` で異なる型のグリッドを同一モジュールで管理
 - `Loc.return` で目標到達時の早期リターン
