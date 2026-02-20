@@ -8,10 +8,10 @@
 
 ### Code Comparison（15 問題平均・P5-P10 実装後）
 
-| 指標 | JS | DSL | 比率 |
-|------|-----|-----|------|
-| LoC（非空行） | 9.3 | 43.6 | **4.7x** |
-| 最大ネスト深度 | 2.5 | 6.6 | **2.6x** |
+| 指標           | JS  | DSL  | 比率     |
+| -------------- | --- | ---- | -------- |
+| LoC（非空行）  | 9.3 | 43.6 | **4.7x** |
+| 最大ネスト深度 | 2.5 | 6.6  | **2.6x** |
 
 - LoC 比率は 2.3x（fibonacci）〜 37.5x（flood-fill）と幅がある
 - P0-P10 の sugar 実装により LoC 比率は 6.9x → 4.7x に改善
@@ -19,11 +19,11 @@
 
 ### Spec Coverage
 
-| 層 | カバー | 全体 | 比率 |
-|----|--------|------|------|
-| opcodes.ts | 172 | 172 | 100% |
-| codegen | 172 | 172 | 100% |
-| DSL | 172 | 172 | 100% |
+| 層         | カバー | 全体 | 比率 |
+| ---------- | ------ | ---- | ---- |
+| opcodes.ts | 172    | 172  | 100% |
+| codegen    | 172    | 172  | 100% |
+| DSL        | 172    | 172  | 100% |
 
 P14 で 30 命令を配線し 40% に到達後、`br_table`, `global_get/set` 等を追加して 99%、さらに `call_indirect`（Table/Element セクション含む）を実装して **100% Wasm MVP opcode カバレッジを達成**。
 
@@ -41,15 +41,16 @@ Wasm にはネイティブな `for` / `while` がなく、`block { loop { br_if(
 
 ```ts
 // 現状 — 7 行のセレモニー
-yield* i.set(2);
-yield* Ctrl.block(function* () {
-  yield* Ctrl.loop(function* () {
-    yield* Ctrl.br_if(1, i.gt(n));
-    yield* Mem.store8(i, 1);
-    yield* i.set(i.add(1));
-    yield* Ctrl.br(0);
+yield * i.set(2);
+yield *
+  Ctrl.block(function* () {
+    yield* Ctrl.loop(function* () {
+      yield* Ctrl.br_if(1, i.gt(n));
+      yield* Mem.store8(i, 1);
+      yield* i.set(i.add(1));
+      yield* Ctrl.br(0);
+    });
   });
-});
 ```
 
 ```js
@@ -63,15 +64,17 @@ for (let i = 2; i <= n; i++) {
 
 ```ts
 // 案: Ctrl.for(variable, start, continueWhile, step, body)
-yield* Ctrl.for(i, 2, i.le(n), i.add(1), function* () {
-  yield* Mem.store8(i, 1);
-});
+yield *
+  Ctrl.for(i, 2, i.le(n), i.add(1), function* () {
+    yield* Mem.store8(i, 1);
+  });
 
 // 案: Ctrl.while(continueWhile, body)
-yield* Ctrl.while(lo.le(hi), function* () {
-  yield* mid.set(lo.add(hi).div(2));
-  // ...
-});
+yield *
+  Ctrl.while(lo.le(hi), function* () {
+    yield* mid.set(lo.add(hi).div(2));
+    // ...
+  });
 ```
 
 `Ctrl.for` / `Ctrl.while` は内部的に `block + loop + br_if(1) + br(0)` へ展開する純粋な構文糖衣。Wasm 出力は一切変わらない。約 30 箇所 × 4 行 = **120 行以上**の削減が見込める。
@@ -84,12 +87,12 @@ i32 配列を線形メモリで扱う場合、要素インデックスからバ�
 
 ```ts
 // 現状 — LCS の DP テーブルアクセス
-Mem.load(i.sub(1).mul(cols).add(j.sub(1)).mul(4).add(DP_BASE))
+Mem.load(i.sub(1).mul(cols).add(j.sub(1)).mul(4).add(DP_BASE));
 ```
 
 ```js
 // JS 相当
-dp[(i - 1) * (n + 1) + (j - 1)]
+dp[(i - 1) * (n + 1) + (j - 1)];
 ```
 
 **理想形:**
@@ -97,12 +100,11 @@ dp[(i - 1) * (n + 1) + (j - 1)]
 ```ts
 // 案: Mem.i32Array(base) → 型付き配列ヘルパ
 const dp = Mem.i32Array(DP_BASE);
-dp.load(i.sub(1).mul(cols).add(j.sub(1)))   // .mul(4).add(BASE) を内部で付与
-dp.store(idx, val)
+dp.load(i.sub(1).mul(cols).add(j.sub(1))); // .mul(4).add(BASE) を内部で付与
+dp.store(idx, val);
 
 // 2D の場合は関数で抽象化
-const dp2d = (r: ExprInput, c: ExprInput) =>
-  dp.load(r.mul(cols).add(c));  // ストライドは dp が処理
+const dp2d = (r: ExprInput, c: ExprInput) => dp.load(r.mul(cols).add(c)); // ストライドは dp が処理
 ```
 
 `.mul(4)` を排除するだけでコードの意図が明確になり、off-by-one 的なバイトアドレスミスも防げる。
@@ -115,8 +117,8 @@ void（副作用のみ）の `Ctrl.if` でも `function* () { ... }` 構文が�
 
 ```ts
 // 現状 — 1 行の副作用に 3 行のラッパ
-yield* Ctrl.if(Mem.load8(i).eq(1))
-  .then(function* () {
+yield *
+  Ctrl.if(Mem.load8(i).eq(1)).then(function* () {
     yield* count.set(count.add(1));
   });
 ```
@@ -130,9 +132,10 @@ if (flags[i]) count++;
 
 ```ts
 // 案: Ctrl.when(cond, body) — void-only ショートカット
-yield* Ctrl.when(Mem.load8(i).eq(1), function* () {
-  yield* count.set(count.add(1));
-});
+yield *
+  Ctrl.when(Mem.load8(i).eq(1), function* () {
+    yield* count.set(count.add(1));
+  });
 ```
 
 `Ctrl.when` は `.then()` のみ・戻り値なしの一般的ケースの省略形。`.else` が不要なケースが大半（約 20/30 箇所）なので効果が大きい。
@@ -145,16 +148,16 @@ yield* Ctrl.when(Mem.load8(i).eq(1), function* () {
 
 ```ts
 // 現状 — 2 行
-const i = yield* local(Type.i32);
-yield* i.set(0);
+const i = yield * local(Type.i32);
+yield * i.set(0);
 ```
 
 **理想形:**
 
 ```ts
 // 案: local() にオプショナルな初期値
-const i = yield* local(Type.i32, 0);
-const hi = yield* local(Type.i32, len.sub(1));
+const i = yield * local(Type.i32, 0);
+const hi = yield * local(Type.i32, len.sub(1));
 ```
 
 Wasm のローカル変数はデフォルト 0 なので、0 初期化は省略可能。非 0 初期化時は interpreter が `local_set` を自動挿入する。
@@ -166,18 +169,22 @@ Wasm のローカル変数はデフォルト 0 なので、0 初期化は省略�
 ```ts
 // 現状 — let + 再代入
 let solve: CallableFunc;
-solve = yield* Mod.func(function* () {
-  // ... solve(...) を再帰呼び出し
-});
+solve =
+  yield *
+  Mod.func(function* () {
+    // ... solve(...) を再帰呼び出し
+  });
 ```
 
 **理想形:**
 
 ```ts
 // 案: Mod.recursive — self 引数で自己参照
-const solve = yield* Mod.recursive(function* (self) {
-  // ... self(...) で再帰呼び出し
-});
+const solve =
+  yield *
+  Mod.recursive(function* (self) {
+    // ... self(...) で再帰呼び出し
+  });
 ```
 
 型推論も `let` + `CallableFunc` アノテーションが不要になる。
@@ -200,7 +207,7 @@ const search = instance.exports.binary_search as (len: number, target: number) =
 
 ```ts
 // 案: instantiate() ヘルパ
-import { instantiate } from "../test-helpers";
+import { instantiate } from "../runtime/instantiate";
 
 const { exports, mem } = await instantiate(problem5_binary_search());
 const search = exports.binary_search as (len: number, target: number) => number;
@@ -238,9 +245,10 @@ export async function instantiate<T extends Record<string, unknown> = Record<str
 
 ```js
 function binarySearch(arr, target) {
-  let lo = 0, hi = arr.length - 1;
+  let lo = 0,
+    hi = arr.length - 1;
   while (lo <= hi) {
-    const mid = (lo + hi) / 2 | 0;
+    const mid = ((lo + hi) / 2) | 0;
     if (arr[mid] === target) return mid;
     if (arr[mid] < target) lo = mid + 1;
     else hi = mid - 1;
@@ -276,8 +284,12 @@ export function problem5_binary_search(): Uint8Array {
             })
             .else(function* () {
               yield* Ctrl.if(v.lt(target))
-                .then(function* () { yield* lo.set(mid.add(1)); })
-                .else(function* () { yield* hi.set(mid.sub(1)); });
+                .then(function* () {
+                  yield* lo.set(mid.add(1));
+                })
+                .else(function* () {
+                  yield* hi.set(mid.sub(1));
+                });
               yield* Ctrl.nop();
             });
           yield* Ctrl.br(0);
@@ -312,31 +324,34 @@ export function problem5_binary_search() {
           yield* Loc.return(mid);
         });
         yield* Ctrl.if(v.lt(target))
-          .then(function* () { yield* lo.set(mid.add(1)); })
-          .else(function* () { yield* hi.set(mid.sub(1)); });
+          .then(function* () {
+            yield* lo.set(mid.add(1));
+          })
+          .else(function* () {
+            yield* hi.set(mid.sub(1));
+          });
       });
 
       return -1;
-    },
-  );
+    });
 
-  // Batch search
-  const search_batch = yield* Mod.func(
-    { len: Type.i32, tbase: Type.i32, tcount: Type.i32 },
-    function* (len, tbase, tcount) {
-      const ti = yield* local(Type.i32);
-      const sum = yield* local(Type.i32, 0);
+    // Batch search
+    const search_batch = yield* Mod.func(
+      { len: Type.i32, tbase: Type.i32, tcount: Type.i32 },
+      function* (len, tbase, tcount) {
+        const ti = yield* local(Type.i32);
+        const sum = yield* local(Type.i32, 0);
 
-      yield* Ctrl.for(ti, 0, ti.lt(tcount), ti.add(1), () => [
-        sum.incrBy(binary_search(len, Mem.load(tbase.add(ti.mul(4))))),
-      ]);
+        yield* Ctrl.for(ti, 0, ti.lt(tcount), ti.add(1), () => [
+          sum.incrBy(binary_search(len, Mem.load(tbase.add(ti.mul(4))))),
+        ]);
 
-      return sum;
-    },
-  );
+        return sum;
+      },
+    );
 
-  yield* Mod.exportAll({ binary_search, search_batch });
-});
+    yield* Mod.exportAll({ binary_search, search_batch });
+  });
 }
 ```
 
@@ -358,8 +373,7 @@ export function problem5_binary_search() {
 function sieve(n) {
   const flags = new Uint8Array(n + 1);
   flags.fill(1);
-  for (let i = 2; i * i <= n; i++)
-    if (flags[i]) for (let j = i * i; j <= n; j += i) flags[j] = 0;
+  for (let i = 2; i * i <= n; i++) if (flags[i]) for (let j = i * i; j <= n; j += i) flags[j] = 0;
   let count = 0;
   for (let i = 2; i <= n; i++) if (flags[i]) count++;
   return count;
@@ -383,26 +397,20 @@ export function problem7_sieve() {
       const count = yield* local(Type.i32, 0);
 
       // Bulk init: write 0x01010101 in i32 chunks (4x fewer iterations)
-      yield* Ctrl.for(i, 0, i.le(n.div(4)), i.add(1), () => [
-        Mem.store(i.mul(4), 0x01010101),
-      ]);
+      yield* Ctrl.for(i, 0, i.le(n.div(4)), i.add(1), () => [Mem.store(i.mul(4), 0x01010101)]);
       yield* Mem.store8(0, 0);
       yield* Mem.store8(1, 0);
 
       // Sieve: for p from 2 while p*p <= n
       yield* Ctrl.for(i, 2, i.mul(i).le(n), i.add(1), () => [
         Ctrl.when(Mem.load8(i).eq(1), () => [
-          Ctrl.for(j, i.mul(i), j.le(n), j.add(i), () => [
-            Mem.store8(j, 0),
-          ]),
+          Ctrl.for(j, i.mul(i), j.le(n), j.add(i), () => [Mem.store8(j, 0)]),
         ]),
       ]);
 
       // Count primes
       yield* Ctrl.for(i, 2, i.le(n), i.add(1), () => [
-        Ctrl.when(Mem.load8(i).eq(1), () => [
-          count.incrBy(1),
-        ]),
+        Ctrl.when(Mem.load8(i).eq(1), () => [count.incrBy(1)]),
       ]);
 
       return count;
@@ -419,29 +427,29 @@ export function problem7_sieve() {
 
 改善提案をインパクト（LoC 削減 × 出現頻度）と実装コストで評価する。
 
-| 優先 | 提案 | 影響範囲 | LoC 削減見込 | 実装コスト | 層 | 状態 |
-|------|------|---------|-------------|-----------|-----|------|
-| **P0** | `instantiate()` ヘルパ | 25+ ファイル | ~100 行 | 低 | テスト/ベンチ | ✅ 実装済 |
-| **P1** | `Ctrl.for` / `Ctrl.while` | 30 箇所 | ~120 行 | 中 | DSL (namespaces) | ✅ 実装済 |
-| **P2** | `Mem.i32Array(base)` | 80 箇所 | ~80 行 | 中 | DSL (namespaces) | ✅ 実装済 |
-| **P3** | `local(type, init)` | 30 箇所 | ~30 行 | 低 | DSL (declarations + interpreter) | ✅ 実装済 |
-| **P4** | `Ctrl.when(cond, body)` | 20 箇所 | ~40 行 | 低 | DSL (namespaces) | ✅ 実装済 |
-| **P5** | `Op.select` / `Op.max` / `Op.min` | ~8 箇所 | ~30 行 | 低 | IR + codegen + DSL | ✅ 実装済 |
-| **P6** | `Mem.i32Array2D(base, cols)` | ~17 箇所 | ~20 行 | 低 | DSL (namespaces) | ✅ 実装済 |
-| **P7** | `Ctrl.switch(expr).case().default()` | 2 箇所 | ~14 行 | 中 | DSL (namespaces) | ✅ 実装済 |
-| **P8** | `i32Array.swap(i, j, tmp)` | 2 箇所 | ~4 行 | 低 | DSL (namespaces) | ✅ 実装済 |
-| **P9** | `Mod.exportAll({...})` | 1 箇所 | ~3 行 | 低 | DSL (namespaces) | ✅ 実装済 |
-| **P10** | `Mod.recursive(self => body)` | 4 箇所 | ~8 行 | 中 | DSL (interpreter) | ✅ 実装済 |
-| **P11** | 配列記法 `() => [a(), b()]` | 全 `VoidBody` | ~15 行 | 低 | DSL (namespaces) | ✅ 実装済 |
-| **P12** | `Mod.func({ a: Type.i32 }, (a) => ...)` inline params | 全 func 宣言 | ~10 行 | 低 | DSL (namespaces) | ✅ 実装済 |
-| **P13** | `Mod.exportFunc(name, body)` | export+func | ~3 行 | 低 | DSL (namespaces) | ✅ 実装済 |
-| **P14** | Spec Coverage 拡大 (i64/f64/unsigned/conversions) | 30 opcodes | — | 中 | IR + codegen + DSL | ✅ 実装済 |
+| 優先    | 提案                                                  | 影響範囲      | LoC 削減見込 | 実装コスト | 層                               | 状態      |
+| ------- | ----------------------------------------------------- | ------------- | ------------ | ---------- | -------------------------------- | --------- |
+| **P0**  | `instantiate()` ヘルパ                                | 25+ ファイル  | ~100 行      | 低         | テスト/ベンチ                    | ✅ 実装済 |
+| **P1**  | `Ctrl.for` / `Ctrl.while`                             | 30 箇所       | ~120 行      | 中         | DSL (namespaces)                 | ✅ 実装済 |
+| **P2**  | `Mem.i32Array(base)`                                  | 80 箇所       | ~80 行       | 中         | DSL (namespaces)                 | ✅ 実装済 |
+| **P3**  | `local(type, init)`                                   | 30 箇所       | ~30 行       | 低         | DSL (declarations + interpreter) | ✅ 実装済 |
+| **P4**  | `Ctrl.when(cond, body)`                               | 20 箇所       | ~40 行       | 低         | DSL (namespaces)                 | ✅ 実装済 |
+| **P5**  | `Op.select` / `Op.max` / `Op.min`                     | ~8 箇所       | ~30 行       | 低         | IR + codegen + DSL               | ✅ 実装済 |
+| **P6**  | `Mem.i32Array2D(base, cols)`                          | ~17 箇所      | ~20 行       | 低         | DSL (namespaces)                 | ✅ 実装済 |
+| **P7**  | `Ctrl.switch(expr).case().default()`                  | 2 箇所        | ~14 行       | 中         | DSL (namespaces)                 | ✅ 実装済 |
+| **P8**  | `i32Array.swap(i, j, tmp)`                            | 2 箇所        | ~4 行        | 低         | DSL (namespaces)                 | ✅ 実装済 |
+| **P9**  | `Mod.exportAll({...})`                                | 1 箇所        | ~3 行        | 低         | DSL (namespaces)                 | ✅ 実装済 |
+| **P10** | `Mod.recursive(self => body)`                         | 4 箇所        | ~8 行        | 中         | DSL (interpreter)                | ✅ 実装済 |
+| **P11** | 配列記法 `() => [a(), b()]`                           | 全 `VoidBody` | ~15 行       | 低         | DSL (namespaces)                 | ✅ 実装済 |
+| **P12** | `Mod.func({ a: Type.i32 }, (a) => ...)` inline params | 全 func 宣言  | ~10 行       | 低         | DSL (namespaces)                 | ✅ 実装済 |
+| **P13** | `Mod.exportFunc(name, body)`                          | export+func   | ~3 行        | 低         | DSL (namespaces)                 | ✅ 実装済 |
+| **P14** | Spec Coverage 拡大 (i64/f64/unsigned/conversions)     | 30 opcodes    | —            | 中         | IR + codegen + DSL               | ✅ 実装済 |
 
 ### P0: `instantiate()` ヘルパ
 
 DSL 本体ではないが、compile → instantiate のボイラープレートはテスト・ベンチ・runner の全ファイルに存在する。`as any` + `eslint-disable` を 1 箇所に閉じ込める効果も大きい。
 
-- **ファイル:** `src/test-helpers.ts`（新規）
+- **ファイル:** `src/runtime/instantiate.ts`（新規）
 - **依存:** なし
 
 ### P1: `Ctrl.for` / `Ctrl.while`
@@ -509,7 +517,7 @@ compile<{ fib: (n: number) => number }>(...)
 - `compile<T>()` の型パラメータで export 関数のシグネチャを宣言
 - `WasmBinary<T>` = `Uint8Array & { readonly __exports?: T }` — 実行時は純粋な Uint8Array
 - `instantiate<T>()` が `WasmBinary<T>` から T を推論し、`exports: T` を返す
-- テスト・ベンチ・runner から全ての `as` キャストを排除（`as any` は test-helpers.ts の 1 箇所のみ）
+- テスト・ベンチ・runner から全ての `as` キャストを排除（`as any` は runtime/instantiate.ts の 1 箇所のみ）
 
 ---
 
@@ -519,62 +527,62 @@ compile<{ fib: (n: number) => number }>(...)
 
 ### Tier 1: 配線するだけ — ✅ 全て完了
 
-| 命令 | 用途 | 状態 |
-|------|------|------|
-| `i32.eqz` | ✅ Ctrl.while/for の条件反転に使用 | 実装済 |
-| `i32.shr_u`, `i32.div_u`, `i32.rem_u` | ✅ `Op.shr_u/div_u/rem_u` | 実装済 |
-| `i32.lt_u`, `i32.gt_u`, `i32.le_u`, `i32.ge_u` | ✅ `Op.lt_u/gt_u/le_u/ge_u` | 実装済 |
-| `select` | ✅ `Op.select`, `Op.max`, `Op.min` | 実装済 |
-| `memory.size`, `memory.grow` | ✅ `Mem.size()`, `Mem.grow(pages)` | 実装済 |
-| `unreachable` | ✅ `Ctrl.unreachable()` | 実装済 |
-| `i64.load/store`, `f64.load/store` | ✅ `Mem.loadI64/storeI64/loadF64/storeF64` | 実装済 |
-| `f64.const` | ✅ `Mem.f64(v)` | 実装済 |
-| `i64.add/sub/mul/div_s` | ✅ `Op.i64.add/sub/mul/div` | 実装済 |
-| `i64.eqz` | ✅ `Op.i64.eqz` | 実装済 |
-| `f64.add/sub/mul/div` | ✅ `Op.f64.add/sub/mul/div` | 実装済 |
-| `f64.neg`, `f64.abs` | ✅ `Op.f64.neg`, `Op.f64.abs` | 実装済 |
-| `i32.wrap_i64`, `i64.extend_i32_s` | ✅ `Op.wrap`, `Op.extend` | 実装済 |
-| `f64.convert_i32_s`, `i32.trunc_f64_s` | ✅ `Op.toF64`, `Op.truncI32` | 実装済 |
+| 命令                                           | 用途                                       | 状態   |
+| ---------------------------------------------- | ------------------------------------------ | ------ |
+| `i32.eqz`                                      | ✅ Ctrl.while/for の条件反転に使用         | 実装済 |
+| `i32.shr_u`, `i32.div_u`, `i32.rem_u`          | ✅ `Op.shr_u/div_u/rem_u`                  | 実装済 |
+| `i32.lt_u`, `i32.gt_u`, `i32.le_u`, `i32.ge_u` | ✅ `Op.lt_u/gt_u/le_u/ge_u`                | 実装済 |
+| `select`                                       | ✅ `Op.select`, `Op.max`, `Op.min`         | 実装済 |
+| `memory.size`, `memory.grow`                   | ✅ `Mem.size()`, `Mem.grow(pages)`         | 実装済 |
+| `unreachable`                                  | ✅ `Ctrl.unreachable()`                    | 実装済 |
+| `i64.load/store`, `f64.load/store`             | ✅ `Mem.loadI64/storeI64/loadF64/storeF64` | 実装済 |
+| `f64.const`                                    | ✅ `Mem.f64(v)`                            | 実装済 |
+| `i64.add/sub/mul/div_s`                        | ✅ `Op.i64.add/sub/mul/div`                | 実装済 |
+| `i64.eqz`                                      | ✅ `Op.i64.eqz`                            | 実装済 |
+| `f64.add/sub/mul/div`                          | ✅ `Op.f64.add/sub/mul/div`                | 実装済 |
+| `f64.neg`, `f64.abs`                           | ✅ `Op.f64.neg`, `Op.f64.abs`              | 実装済 |
+| `i32.wrap_i64`, `i64.extend_i32_s`             | ✅ `Op.wrap`, `Op.extend`                  | 実装済 |
+| `f64.convert_i32_s`, `i32.trunc_f64_s`         | ✅ `Op.toF64`, `Op.truncI32`               | 実装済 |
 
 ### Tier 2: 実装済み — ✅ 完了
 
-| 命令群 | 用途 | 状態 |
-|--------|------|------|
+| 命令群          | 用途                                                               | 状態      |
+| --------------- | ------------------------------------------------------------------ | --------- |
 | `call_indirect` | 関数ポインタ。仮想ディスパッチ、`Mod.table()` + stdlib sort で活用 | ✅ 実装済 |
 
 ### Tier 3: 新しい問題で動機づけ
 
 coverage を上げるために問題を追加するのではなく、「この問題を解くにはこの命令が要る」という動機で拡張する。
 
-| 問題案 | 必要な命令 | 状態 |
-|--------|-----------|------|
-| SHA-256 / CRC32 | `i32.rotr`, `i32.xor`, `i32.shr_u` | ✅ CRC32 実装済（`examples/realworld/crc32.ts`） |
-| Newton 法 (sqrt) | `f64.mul`, `f64.div`, `f64.sub` | |
-| 文字列マッチング | `i32.load8_s`, `i32.load16_u` | |
-| 動的配列 (vector) | `memory.size`, `memory.grow` | |
+| 問題案            | 必要な命令                         | 状態                                                      |
+| ----------------- | ---------------------------------- | --------------------------------------------------------- |
+| SHA-256 / CRC32   | `i32.rotr`, `i32.xor`, `i32.shr_u` | ✅ CRC32 実装済（`showcase/examples/realworld/crc32.ts`） |
+| Newton 法 (sqrt)  | `f64.mul`, `f64.div`, `f64.sub`    |                                                           |
+| 文字列マッチング  | `i32.load8_s`, `i32.load16_u`      |                                                           |
+| 動的配列 (vector) | `memory.size`, `memory.grow`       |                                                           |
 
 ※ これらの命令は opcodes.ts に登録済みで codegen にも接続済み（100% カバレッジ）。
 
 ### Realworld Examples（実装済）
 
-| Example | 活用する DSL 機能 |
-|---------|------------------|
-| **Grayscale** | `Mem.load8/store8`, `Op.max/min`（ブランチレスクランプ）, JS チャンネルループ |
-| **CRC32** | `Mod.data()`（ルックアップテーブル埋め込み）, `Op.shr_u`, XOR チェイン |
+| Example          | 活用する DSL 機能                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------ |
+| **Grayscale**    | `Mem.load8/store8`, `Op.max/min`（ブランチレスクランプ）, JS チャンネルループ        |
+| **CRC32**        | `Mod.data()`（ルックアップテーブル埋め込み）, `Op.shr_u`, XOR チェイン               |
 | **Game of Life** | JS 8 近傍展開, ダブルバッファリング, `.eq()` / `.and()` / `.or()` でブランチレス判定 |
-| **Particles** | `Struct` + `BumpAllocator`, f64 フィールド, JS 軸ループによる壁反射 |
+| **Particles**    | `Struct` + `BumpAllocator`, f64 フィールド, JS 軸ループによる壁反射                  |
 
 ### JS メタプログラミングによるコード簡素化（実施済）
 
 JS/TS をプリプロセッサとして活用し、手動展開された繰り返しコードを簡素化。5 ファイルで **91 行削減**（179 → 88）。
 
-| ファイル | 手法 | 削減 |
-|---------|------|------|
-| `flood-fill.ts` | 4 方向 → config 配列 + `for...of` | -44 行 |
-| `game-of-life.ts` | 8 近傍 → JS 展開（Wasm ループ除去） | -12 行 |
-| `particles.ts` | x/y 壁反射 → 文字列キー軸ループ | -22 行 |
-| `grayscale.ts` | RGB チャンネル → `[0,1,2]` ループ | -10 行 |
-| `array-stats.ts` | sum/max/min → `reduceFunc` ファクトリ | -3 行 |
+| ファイル          | 手法                                  | 削減   |
+| ----------------- | ------------------------------------- | ------ |
+| `flood-fill.ts`   | 4 方向 → config 配列 + `for...of`     | -44 行 |
+| `game-of-life.ts` | 8 近傍 → JS 展開（Wasm ループ除去）   | -12 行 |
+| `particles.ts`    | x/y 壁反射 → 文字列キー軸ループ       | -22 行 |
+| `grayscale.ts`    | RGB チャンネル → `[0,1,2]` ループ     | -10 行 |
+| `array-stats.ts`  | sum/max/min → `reduceFunc` ファクトリ | -3 行  |
 
 詳細は [docs/metaprogramming.md](metaprogramming.md) を参照。
 

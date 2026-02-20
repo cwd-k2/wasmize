@@ -1,9 +1,37 @@
+/**
+ * Three-phase module interpreter: the core compilation engine.
+ *
+ * Drives a `WasmProgram` generator through three phases:
+ * 1. **Declaration collection** — iterates the top-level generator to gather
+ *    imports, function bodies, exports, globals, data segments, and tables.
+ * 2. **Body interpretation** — runs each function body generator, converting
+ *    `yield*` instructions into an IR tree (declarations → local indices,
+ *    statements → IRNode, control flow → nested sub-body interpretation).
+ * 3. **Optimization & emission** — applies optimizer passes, validates
+ *    feature targets, and delegates to `buildModule()` for binary encoding.
+ *
+ * @module
+ */
 import type { IRNode } from "../wasm/ir";
 import { IR } from "../wasm/ir";
 import type { WasmValType } from "../wasm/opcodes";
-import type { FuncDef, ImportDef, ExportDef, GlobalDef, DataSegment, TableDef, ElementDef } from "../wasm/module";
+import type {
+  FuncDef,
+  ImportDef,
+  ExportDef,
+  GlobalDef,
+  DataSegment,
+  TableDef,
+  ElementDef,
+} from "../wasm/module";
 import { buildModule } from "../wasm/module";
-import { optimizeFunc } from "../wasm/optimize";
+import { optimizeFunc, type OptimizerConfig } from "../wasm/optimize";
+import {
+  validateFeatures,
+  describeFeature,
+  suggestTarget,
+  type FeatureSet,
+} from "../wasm/capabilities";
 import type { WasmBinary } from "./types";
 import {
   ref,
@@ -20,6 +48,8 @@ import {
 } from "./types";
 
 // --- Type inference ---
+// Infers the Wasm value type of an IR node for determining function return
+// types and if-expression block types. Falls back to "i32" for unknown nodes.
 
 interface FuncContext {
   params: WasmValType[];
@@ -194,6 +224,7 @@ function interpretSubBody(
 function collectAndInterpret(
   program: WasmProgram,
   shouldOptimize: boolean,
+  optimizerConfig?: OptimizerConfig,
 ) {
   const gen = program();
   const imports: ImportDef[] = [];
@@ -288,7 +319,7 @@ function collectAndInterpret(
   // Phase 2.5: optimize IR
   if (shouldOptimize) {
     for (const f of funcs) {
-      f.body = optimizeFunc(f.body);
+      f.body = optimizeFunc(f.body, optimizerConfig);
     }
   }
 
@@ -305,11 +336,53 @@ function collectAndInterpret(
   return { funcs, moduleOptions };
 }
 
+/**
+ * Compiles a generator-based DSL program into a Wasm binary.
+ *
+ * Drives the program generator through declaration collection, body
+ * interpretation, IR optimization, and binary encoding.
+ *
+ * @typeParam T - Export function signatures. The returned `WasmBinary<T>`
+ *   carries this as a phantom type for use with `instantiate()`.
+ * @param program - Generator factory that yields module-level instructions.
+ * @param options.optimize - Enable IR optimization (default: `true`).
+ * @param options.optimizerConfig - Custom optimizer passes and iterations.
+ * @param options.target - Required Wasm feature set. Throws if the compiled
+ *   IR uses features not in the target.
+ * @returns Wasm binary as `Uint8Array` with phantom type `T`.
+ *
+ * @example
+ * ```ts
+ * const bin = compile<{ add(a: number, b: number): number }>(function* () {
+ *   yield* Mod.exportFunc("add", { a: Type.i32, b: Type.i32 }, function* (a, b) {
+ *     return a.add(b);
+ *   });
+ * });
+ * const { exports } = await instantiate(bin);
+ * exports.add(1, 2); // 3
+ * ```
+ */
 export function compile<T = Record<string, unknown>>(
   program: WasmProgram,
-  options?: { optimize?: boolean },
+  options?: { optimize?: boolean; optimizerConfig?: OptimizerConfig; target?: FeatureSet },
 ): WasmBinary<T> {
-  const { funcs, moduleOptions } = collectAndInterpret(program, options?.optimize !== false);
+  const { funcs, moduleOptions } = collectAndInterpret(
+    program,
+    options?.optimize !== false,
+    options?.optimizerConfig,
+  );
+
+  if (options?.target) {
+    const result = validateFeatures(funcs, options.target);
+    if (!result.valid) {
+      const details = result.missing.map((f) => `  - ${f}: ${describeFeature(f)}`).join("\n");
+      const suggestion = suggestTarget(funcs);
+      throw new Error(
+        `Target does not support required features:\n${details}\nSuggested target: Features.${suggestion.name}`,
+      );
+    }
+  }
+
   return buildModule(funcs, moduleOptions) as WasmBinary<T>;
 }
 
@@ -319,7 +392,7 @@ export function compile<T = Record<string, unknown>>(
  */
 export function compileToIR(
   program: WasmProgram,
-  options?: { optimize?: boolean },
+  options?: { optimize?: boolean; optimizerConfig?: OptimizerConfig },
 ) {
-  return collectAndInterpret(program, options?.optimize !== false);
+  return collectAndInterpret(program, options?.optimize !== false, options?.optimizerConfig);
 }

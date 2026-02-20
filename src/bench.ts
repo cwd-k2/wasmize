@@ -10,9 +10,8 @@ function stats(times: number[]): { mean: number; median: number; stddev: number 
   const sorted = [...times].sort((a, b) => a - b);
   const n = sorted.length;
   const mean = sorted.reduce((s, t) => s + t, 0) / n;
-  const median = n % 2 === 0
-    ? (sorted[n / 2 - 1]! + sorted[n / 2]!) / 2
-    : sorted[Math.floor(n / 2)]!;
+  const median =
+    n % 2 === 0 ? (sorted[n / 2 - 1]! + sorted[n / 2]!) / 2 : sorted[Math.floor(n / 2)]!;
   const variance = sorted.reduce((s, t) => s + (t - mean) ** 2, 0) / n;
   const stddev = Math.sqrt(variance);
   return { mean, median, stddev };

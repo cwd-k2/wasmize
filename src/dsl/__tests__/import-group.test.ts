@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { Type, Mod, Mem, Op } from "../primitives";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 
 describe("Mod.importGroup", () => {
   test("imports multiple functions from a single module", async () => {
@@ -53,7 +53,9 @@ describe("Mod.importGroup", () => {
     let loggedValue = -1;
     const { exports } = await instantiate(binary, {
       env: {
-        log: (v: number) => { loggedValue = v; },
+        log: (v: number) => {
+          loggedValue = v;
+        },
       },
     });
 

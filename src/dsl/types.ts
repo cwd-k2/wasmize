@@ -11,7 +11,10 @@ import type { WasmValType } from "../wasm/opcodes";
  */
 export class WasmRef<T extends WasmValType = WasmValType> {
   readonly _tag = "ref" as const;
-  constructor(readonly _idx: number, readonly _valType: T = "i32" as T) {}
+  constructor(
+    readonly _idx: number,
+    readonly _valType: T = "i32" as T,
+  ) {}
 }
 
 /**
@@ -243,6 +246,17 @@ export interface GlobalRef {
 
 export function globalRef(idx: number, type: WasmValType, mutable: boolean): GlobalRef {
   return { _tag: "global", _idx: idx, _type: type, _mutable: mutable };
+}
+
+// --- Scope handle ---
+
+/**
+ * Handle passed to `Ctrl.scope(body)` for registering deferred cleanup.
+ * Call `defer(cleanup)` to schedule a generator to run (LIFO) when the scope exits.
+ */
+export interface ScopeHandle {
+  /** Registers a cleanup generator to execute when the scope exits (LIFO order). */
+  defer(cleanup: FuncGen<void>): void;
 }
 
 // --- Data segment ---

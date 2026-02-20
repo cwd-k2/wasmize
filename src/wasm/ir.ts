@@ -1,3 +1,15 @@
+/**
+ * Intermediate Representation (IR) definitions and factory functions.
+ *
+ * The IR is a discriminated union of {@link IRNode} variants, each identified
+ * by its `op` field. Covers all Wasm MVP operations: constants, locals,
+ * globals, memory access, arithmetic, comparisons, control flow, and calls.
+ *
+ * The {@link IR} namespace provides factory functions for constructing each
+ * node type with proper structure.
+ *
+ * @module
+ */
 import type { WasmValType } from "./opcodes";
 
 export type BinopKind =
@@ -22,19 +34,49 @@ export type BinopKind =
 
 export type CmpKind = "eq" | "ne" | "lt" | "gt" | "le" | "ge" | "lt_u" | "gt_u" | "le_u" | "ge_u";
 
-export type UnaryKind = "clz" | "ctz" | "popcnt" | "abs" | "neg" | "ceil" | "floor" | "trunc" | "nearest" | "sqrt";
+export type UnaryKind =
+  | "clz"
+  | "ctz"
+  | "popcnt"
+  | "abs"
+  | "neg"
+  | "ceil"
+  | "floor"
+  | "trunc"
+  | "nearest"
+  | "sqrt";
 
 export type ConvertKind =
   | "i32_wrap_i64"
-  | "i32_trunc_f32_s" | "i32_trunc_f32_u" | "i32_trunc_f64_s" | "i32_trunc_f64_u"
-  | "i64_extend_i32_s" | "i64_extend_i32_u"
-  | "i64_trunc_f32_s" | "i64_trunc_f32_u" | "i64_trunc_f64_s" | "i64_trunc_f64_u"
-  | "f32_convert_i32_s" | "f32_convert_i32_u" | "f32_convert_i64_s" | "f32_convert_i64_u"
+  | "i32_trunc_f32_s"
+  | "i32_trunc_f32_u"
+  | "i32_trunc_f64_s"
+  | "i32_trunc_f64_u"
+  | "i64_extend_i32_s"
+  | "i64_extend_i32_u"
+  | "i64_trunc_f32_s"
+  | "i64_trunc_f32_u"
+  | "i64_trunc_f64_s"
+  | "i64_trunc_f64_u"
+  | "f32_convert_i32_s"
+  | "f32_convert_i32_u"
+  | "f32_convert_i64_s"
+  | "f32_convert_i64_u"
   | "f32_demote_f64"
-  | "f64_convert_i32_s" | "f64_convert_i32_u" | "f64_convert_i64_s" | "f64_convert_i64_u"
+  | "f64_convert_i32_s"
+  | "f64_convert_i32_u"
+  | "f64_convert_i64_s"
+  | "f64_convert_i64_u"
   | "f64_promote_f32"
-  | "i32_reinterpret_f32" | "i64_reinterpret_f64" | "f32_reinterpret_i32" | "f64_reinterpret_i64";
+  | "i32_reinterpret_f32"
+  | "i64_reinterpret_f64"
+  | "f32_reinterpret_i32"
+  | "f64_reinterpret_i64";
 
+/**
+ * Discriminated union of all IR node types.
+ * Each variant is identified by the `op` field and carries operation-specific data.
+ */
 export type IRNode =
   | { op: "const_i32"; v: number }
   | { op: "const_i64"; v: number }
@@ -119,12 +161,7 @@ export const IR = {
     ...(type && type !== "i32" ? { type } : {}),
   }),
   convert: (kind: ConvertKind, val: IRNode): IRNode => ({ op: "convert", kind, val }),
-  if_then_else: (
-    cond: IRNode,
-    then_: IRNode[],
-    else_: IRNode[],
-    type?: string,
-  ): IRNode => ({
+  if_then_else: (cond: IRNode, then_: IRNode[], else_: IRNode[], type?: string): IRNode => ({
     op: "if",
     cond,
     then: then_,
@@ -166,7 +203,12 @@ export const IR = {
   load_f64: (addr: IRNode): IRNode => ({ op: "load_f64", addr }),
   store_f64: (addr: IRNode, val: IRNode): IRNode => ({ op: "store_f64", addr, val }),
   mem_load: (kind: string, addr: IRNode): IRNode => ({ op: "mem_load", kind, addr }),
-  mem_store: (kind: string, addr: IRNode, val: IRNode): IRNode => ({ op: "mem_store", kind, addr, val }),
+  mem_store: (kind: string, addr: IRNode, val: IRNode): IRNode => ({
+    op: "mem_store",
+    kind,
+    addr,
+    val,
+  }),
   select: (a: IRNode, b: IRNode, cond: IRNode): IRNode => ({ op: "select", a, b, cond }),
   eqz: (val: IRNode, type?: WasmValType): IRNode => ({
     op: "eqz",
@@ -190,7 +232,12 @@ export const IR = {
     tag,
     payload,
   }),
-  call_indirect: (typeIdx: number, tableIdx: number, args: IRNode[], indexExpr: IRNode): IRNode => ({
+  call_indirect: (
+    typeIdx: number,
+    tableIdx: number,
+    args: IRNode[],
+    indexExpr: IRNode,
+  ): IRNode => ({
     op: "call_indirect",
     typeIdx,
     tableIdx,

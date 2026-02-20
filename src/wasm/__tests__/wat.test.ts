@@ -46,8 +46,12 @@ describe("WAT output", () => {
     const { funcs, moduleOptions } = compileToIR(function* () {
       yield* Mod.exportFunc("test", { n: Type.i32 }, function* (n) {
         return yield* Ctrl.if(n.gt(0))
-          .then(function* () { return 1; })
-          .else(function* () { return 0; });
+          .then(function* () {
+            return 1;
+          })
+          .else(function* () {
+            return 0;
+          });
       });
     });
     const wat = moduleToWAT(funcs, moduleOptions);

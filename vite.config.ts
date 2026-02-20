@@ -9,7 +9,15 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  build: {
+    outDir: "dist-app",
+  },
   test: {
-    include: ["src/**/__tests__/**/*.test.ts", "bench/**/*.test.ts", "examples/**/__tests__/**/*.test.ts"],
+    include: ["src/**/__tests__/**/*.test.ts", "showcase/**/*.test.ts"],
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.ts"],
+      exclude: ["src/**/__tests__/**"],
+    },
   },
 });

@@ -3,7 +3,7 @@ import { Mod } from "./dsl/primitives";
 import { BumpAllocator } from "./dsl/allocator";
 import type { WasmRef, FuncInstruction, FuncReturn } from "./dsl/types";
 import type { WasmValType } from "./wasm/opcodes";
-import { instantiate } from "./test-helpers";
+import { instantiate } from "./runtime/instantiate";
 
 // --- Types ---
 
@@ -23,16 +23,22 @@ interface ModuleSpec {
   functions: Record<string, FuncSpec>;
 }
 
-type LayoutViewType<T extends LayoutEntry> =
-  T["type"] extends "i32" ? Int32Array :
-  T["type"] extends "i64" ? BigInt64Array :
-  T["type"] extends "f64" ? Float64Array :
-  Int32Array | BigInt64Array | Float64Array;
+type LayoutViewType<T extends LayoutEntry> = T["type"] extends "i32"
+  ? Int32Array
+  : T["type"] extends "i64"
+    ? BigInt64Array
+    : T["type"] extends "f64"
+      ? Float64Array
+      : Int32Array | BigInt64Array | Float64Array;
 
 interface WasmModule<S extends ModuleSpec> {
   exports: { [K in keyof S["functions"]]: Function };
   layout: S["layout"] extends Record<string, LayoutEntry>
-    ? { [K in keyof S["layout"]]: S["layout"][K] extends LayoutEntry ? LayoutViewType<S["layout"][K]> : never }
+    ? {
+        [K in keyof S["layout"]]: S["layout"][K] extends LayoutEntry
+          ? LayoutViewType<S["layout"][K]>
+          : never;
+      }
     : Record<string, never>;
   instance: WebAssembly.Instance;
 }
@@ -81,11 +87,7 @@ export async function wasmize<S extends ModuleSpec>(spec: S): Promise<WasmModule
     for (const name of funcNames) {
       const funcSpec = spec.functions[name]!;
 
-      yield* Mod.exportFunc(
-        name,
-        funcSpec.params,
-        funcSpec.body,
-      );
+      yield* Mod.exportFunc(name, funcSpec.params, funcSpec.body);
     }
   });
 

@@ -33,13 +33,13 @@ npm run typecheck  # 型チェック
 
 ## Problems
 
-| # | 名前 | アルゴリズム | 特徴 |
-|---|------|-------------|------|
-| 1 | Tower of Hanoi | 再帰 | import による effect callback |
-| 2 | Fibonacci DP | ボトムアップ DP | 線形メモリテーブル |
-| 3 | Kadane's Algorithm | 最大部分配列和 | メモリ上の配列走査 (BASE=1024) |
-| 4 | Coin Change | DP（最小コイン数） | 2 領域メモリ (dp + coins) |
-| 5 | Binary Search | 二分探索 | ソート済み配列の線形メモリ探索 |
+| #   | 名前               | アルゴリズム       | 特徴                           |
+| --- | ------------------ | ------------------ | ------------------------------ |
+| 1   | Tower of Hanoi     | 再帰               | import による effect callback  |
+| 2   | Fibonacci DP       | ボトムアップ DP    | 線形メモリテーブル             |
+| 3   | Kadane's Algorithm | 最大部分配列和     | メモリ上の配列走査 (BASE=1024) |
+| 4   | Coin Change        | DP（最小コイン数） | 2 領域メモリ (dp + coins)      |
+| 5   | Binary Search      | 二分探索           | ソート済み配列の線形メモリ探索 |
 
 詳細: [docs/problems.md](docs/problems.md)
 

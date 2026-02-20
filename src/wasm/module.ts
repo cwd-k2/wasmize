@@ -1,3 +1,13 @@
+/**
+ * Wasm module builder: assembles sections into a valid binary module.
+ *
+ * {@link buildModule} takes compiled function definitions and module options
+ * (imports, exports, memory, globals, data segments, tables) and produces
+ * a complete Wasm binary. Handles type deduplication, section ordering
+ * per the Wasm spec, and proper index space management for imports.
+ *
+ * @module
+ */
 import { WasmEncoder } from "./encoder";
 import { TYPE, type WasmValType } from "./opcodes";
 import { OP } from "./opcodes";
@@ -55,9 +65,26 @@ export interface ModuleOptions {
   elements?: ElementDef[];
 }
 
+/**
+ * Assembles function definitions and module options into a complete Wasm binary.
+ *
+ * Handles type deduplication, correct section ordering (type → import → function →
+ * table → memory → global → export → element → code → data), and import index
+ * offset for function references.
+ *
+ * @returns A `Uint8Array` containing the valid Wasm module binary.
+ */
 export function buildModule(
   funcs: FuncDef[],
-  { imports = [], memoryPages = 1, exports: moduleExports = [], globals = [], dataSegments = [], tables = [], elements = [] }: ModuleOptions = {},
+  {
+    imports = [],
+    memoryPages = 1,
+    exports: moduleExports = [],
+    globals = [],
+    dataSegments = [],
+    tables = [],
+    elements = [],
+  }: ModuleOptions = {},
 ): Uint8Array {
   const enc = new WasmEncoder();
   // Magic + version
@@ -148,10 +175,22 @@ export function buildModule(
         s.byte(g.mutable ? 0x01 : 0x00);
         // Init expression
         switch (g.type) {
-          case "i32": s.byte(OP.i32_const); s.i32(g.init); break;
-          case "i64": s.byte(OP.i64_const); s.i64(g.init); break;
-          case "f32": s.byte(OP.f32_const); s.f32(g.init); break;
-          case "f64": s.byte(OP.f64_const); s.f64(g.init); break;
+          case "i32":
+            s.byte(OP.i32_const);
+            s.i32(g.init);
+            break;
+          case "i64":
+            s.byte(OP.i64_const);
+            s.i64(g.init);
+            break;
+          case "f32":
+            s.byte(OP.f32_const);
+            s.f32(g.init);
+            break;
+          case "f64":
+            s.byte(OP.f64_const);
+            s.f64(g.init);
+            break;
         }
         s.byte(OP.end);
       });

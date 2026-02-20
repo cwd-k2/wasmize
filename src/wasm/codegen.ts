@@ -1,3 +1,13 @@
+/**
+ * IR → Wasm binary code emission.
+ *
+ * Translates {@link IRNode} trees into Wasm bytecode via {@link emitIR}.
+ * Uses 2D dispatch tables (`binopTable`, `cmpTable`, `unaryTable`) to map
+ * `(type, kind)` pairs to Wasm opcodes, enabling polymorphic i32/i64/f32/f64
+ * support without branching in the hot path.
+ *
+ * @module
+ */
 import { WasmEncoder } from "./encoder";
 import { OP } from "./opcodes";
 import { TYPE } from "./opcodes";
@@ -8,49 +18,99 @@ import { IR, type IRNode } from "./ir";
 
 const binopTable: Record<string, Record<string, number>> = {
   i32: {
-    add: OP.i32_add, sub: OP.i32_sub, mul: OP.i32_mul,
-    div: OP.i32_div_s, rem: OP.i32_rem_s,
-    and: OP.i32_and, or: OP.i32_or, xor: OP.i32_xor,
-    shl: OP.i32_shl, shr: OP.i32_shr_s,
-    div_u: OP.i32_div_u, rem_u: OP.i32_rem_u, shr_u: OP.i32_shr_u,
-    rotl: OP.i32_rotl, rotr: OP.i32_rotr,
+    add: OP.i32_add,
+    sub: OP.i32_sub,
+    mul: OP.i32_mul,
+    div: OP.i32_div_s,
+    rem: OP.i32_rem_s,
+    and: OP.i32_and,
+    or: OP.i32_or,
+    xor: OP.i32_xor,
+    shl: OP.i32_shl,
+    shr: OP.i32_shr_s,
+    div_u: OP.i32_div_u,
+    rem_u: OP.i32_rem_u,
+    shr_u: OP.i32_shr_u,
+    rotl: OP.i32_rotl,
+    rotr: OP.i32_rotr,
   },
   i64: {
-    add: OP.i64_add, sub: OP.i64_sub, mul: OP.i64_mul,
-    div: OP.i64_div_s, rem: OP.i64_rem_s,
-    and: OP.i64_and, or: OP.i64_or, xor: OP.i64_xor,
-    shl: OP.i64_shl, shr: OP.i64_shr_s,
-    div_u: OP.i64_div_u, rem_u: OP.i64_rem_u, shr_u: OP.i64_shr_u,
-    rotl: OP.i64_rotl, rotr: OP.i64_rotr,
+    add: OP.i64_add,
+    sub: OP.i64_sub,
+    mul: OP.i64_mul,
+    div: OP.i64_div_s,
+    rem: OP.i64_rem_s,
+    and: OP.i64_and,
+    or: OP.i64_or,
+    xor: OP.i64_xor,
+    shl: OP.i64_shl,
+    shr: OP.i64_shr_s,
+    div_u: OP.i64_div_u,
+    rem_u: OP.i64_rem_u,
+    shr_u: OP.i64_shr_u,
+    rotl: OP.i64_rotl,
+    rotr: OP.i64_rotr,
   },
   f32: {
-    add: OP.f32_add, sub: OP.f32_sub, mul: OP.f32_mul, div: OP.f32_div,
-    min: OP.f32_min, max: OP.f32_max, copysign: OP.f32_copysign,
+    add: OP.f32_add,
+    sub: OP.f32_sub,
+    mul: OP.f32_mul,
+    div: OP.f32_div,
+    min: OP.f32_min,
+    max: OP.f32_max,
+    copysign: OP.f32_copysign,
   },
   f64: {
-    add: OP.f64_add, sub: OP.f64_sub, mul: OP.f64_mul, div: OP.f64_div,
-    min: OP.f64_min, max: OP.f64_max, copysign: OP.f64_copysign,
+    add: OP.f64_add,
+    sub: OP.f64_sub,
+    mul: OP.f64_mul,
+    div: OP.f64_div,
+    min: OP.f64_min,
+    max: OP.f64_max,
+    copysign: OP.f64_copysign,
   },
 };
 
 const cmpTable: Record<string, Record<string, number>> = {
   i32: {
-    eq: OP.i32_eq, ne: OP.i32_ne,
-    lt: OP.i32_lt_s, gt: OP.i32_gt_s, le: OP.i32_le_s, ge: OP.i32_ge_s,
-    lt_u: OP.i32_lt_u, gt_u: OP.i32_gt_u, le_u: OP.i32_le_u, ge_u: OP.i32_ge_u,
+    eq: OP.i32_eq,
+    ne: OP.i32_ne,
+    lt: OP.i32_lt_s,
+    gt: OP.i32_gt_s,
+    le: OP.i32_le_s,
+    ge: OP.i32_ge_s,
+    lt_u: OP.i32_lt_u,
+    gt_u: OP.i32_gt_u,
+    le_u: OP.i32_le_u,
+    ge_u: OP.i32_ge_u,
   },
   i64: {
-    eq: OP.i64_eq, ne: OP.i64_ne,
-    lt: OP.i64_lt_s, gt: OP.i64_gt_s, le: OP.i64_le_s, ge: OP.i64_ge_s,
-    lt_u: OP.i64_lt_u, gt_u: OP.i64_gt_u, le_u: OP.i64_le_u, ge_u: OP.i64_ge_u,
+    eq: OP.i64_eq,
+    ne: OP.i64_ne,
+    lt: OP.i64_lt_s,
+    gt: OP.i64_gt_s,
+    le: OP.i64_le_s,
+    ge: OP.i64_ge_s,
+    lt_u: OP.i64_lt_u,
+    gt_u: OP.i64_gt_u,
+    le_u: OP.i64_le_u,
+    ge_u: OP.i64_ge_u,
   },
   f32: {
-    eq: OP.f32_eq, ne: OP.f32_ne,
-    lt: OP.f32_lt, gt: OP.f32_gt, le: OP.f32_le, ge: OP.f32_ge,
+    eq: OP.f32_eq,
+    ne: OP.f32_ne,
+    lt: OP.f32_lt,
+    gt: OP.f32_gt,
+    le: OP.f32_le,
+    ge: OP.f32_ge,
   },
   f64: {
-    eq: OP.f64_eq, ne: OP.f64_ne,
-    lt: OP.f64_lt, gt: OP.f64_gt, le: OP.f64_le, ge: OP.f64_ge,
+    eq: OP.f64_eq,
+    ne: OP.f64_ne,
+    lt: OP.f64_lt,
+    gt: OP.f64_gt,
+    le: OP.f64_le,
+    ge: OP.f64_ge,
   },
 };
 
@@ -58,32 +118,51 @@ const unaryTable: Record<string, Record<string, number>> = {
   i32: { clz: OP.i32_clz, ctz: OP.i32_ctz, popcnt: OP.i32_popcnt },
   i64: { clz: OP.i64_clz, ctz: OP.i64_ctz, popcnt: OP.i64_popcnt },
   f32: {
-    abs: OP.f32_abs, neg: OP.f32_neg,
-    ceil: OP.f32_ceil, floor: OP.f32_floor, trunc: OP.f32_trunc,
-    nearest: OP.f32_nearest, sqrt: OP.f32_sqrt,
+    abs: OP.f32_abs,
+    neg: OP.f32_neg,
+    ceil: OP.f32_ceil,
+    floor: OP.f32_floor,
+    trunc: OP.f32_trunc,
+    nearest: OP.f32_nearest,
+    sqrt: OP.f32_sqrt,
   },
   f64: {
-    abs: OP.f64_abs, neg: OP.f64_neg,
-    ceil: OP.f64_ceil, floor: OP.f64_floor, trunc: OP.f64_trunc,
-    nearest: OP.f64_nearest, sqrt: OP.f64_sqrt,
+    abs: OP.f64_abs,
+    neg: OP.f64_neg,
+    ceil: OP.f64_ceil,
+    floor: OP.f64_floor,
+    trunc: OP.f64_trunc,
+    nearest: OP.f64_nearest,
+    sqrt: OP.f64_sqrt,
   },
 };
 
 const convertTable: Record<string, number> = {
   i32_wrap_i64: OP.i32_wrap_i64,
-  i32_trunc_f32_s: OP.i32_trunc_f32_s, i32_trunc_f32_u: OP.i32_trunc_f32_u,
-  i32_trunc_f64_s: OP.i32_trunc_f64_s, i32_trunc_f64_u: OP.i32_trunc_f64_u,
-  i64_extend_i32_s: OP.i64_extend_i32_s, i64_extend_i32_u: OP.i64_extend_i32_u,
-  i64_trunc_f32_s: OP.i64_trunc_f32_s, i64_trunc_f32_u: OP.i64_trunc_f32_u,
-  i64_trunc_f64_s: OP.i64_trunc_f64_s, i64_trunc_f64_u: OP.i64_trunc_f64_u,
-  f32_convert_i32_s: OP.f32_convert_i32_s, f32_convert_i32_u: OP.f32_convert_i32_u,
-  f32_convert_i64_s: OP.f32_convert_i64_s, f32_convert_i64_u: OP.f32_convert_i64_u,
+  i32_trunc_f32_s: OP.i32_trunc_f32_s,
+  i32_trunc_f32_u: OP.i32_trunc_f32_u,
+  i32_trunc_f64_s: OP.i32_trunc_f64_s,
+  i32_trunc_f64_u: OP.i32_trunc_f64_u,
+  i64_extend_i32_s: OP.i64_extend_i32_s,
+  i64_extend_i32_u: OP.i64_extend_i32_u,
+  i64_trunc_f32_s: OP.i64_trunc_f32_s,
+  i64_trunc_f32_u: OP.i64_trunc_f32_u,
+  i64_trunc_f64_s: OP.i64_trunc_f64_s,
+  i64_trunc_f64_u: OP.i64_trunc_f64_u,
+  f32_convert_i32_s: OP.f32_convert_i32_s,
+  f32_convert_i32_u: OP.f32_convert_i32_u,
+  f32_convert_i64_s: OP.f32_convert_i64_s,
+  f32_convert_i64_u: OP.f32_convert_i64_u,
   f32_demote_f64: OP.f32_demote_f64,
-  f64_convert_i32_s: OP.f64_convert_i32_s, f64_convert_i32_u: OP.f64_convert_i32_u,
-  f64_convert_i64_s: OP.f64_convert_i64_s, f64_convert_i64_u: OP.f64_convert_i64_u,
+  f64_convert_i32_s: OP.f64_convert_i32_s,
+  f64_convert_i32_u: OP.f64_convert_i32_u,
+  f64_convert_i64_s: OP.f64_convert_i64_s,
+  f64_convert_i64_u: OP.f64_convert_i64_u,
   f64_promote_f32: OP.f64_promote_f32,
-  i32_reinterpret_f32: OP.i32_reinterpret_f32, i64_reinterpret_f64: OP.i64_reinterpret_f64,
-  f32_reinterpret_i32: OP.f32_reinterpret_i32, f64_reinterpret_i64: OP.f64_reinterpret_i64,
+  i32_reinterpret_f32: OP.i32_reinterpret_f32,
+  i64_reinterpret_f64: OP.i64_reinterpret_f64,
+  f32_reinterpret_i32: OP.f32_reinterpret_i32,
+  f64_reinterpret_i64: OP.f64_reinterpret_i64,
 };
 
 const memLoadInfo: Record<string, { opcode: number; align: number }> = {
@@ -116,6 +195,7 @@ function extractOffset(addr: IRNode): { base: IRNode; offset: number } {
   return { base: addr, offset: 0 };
 }
 
+/** Emits Wasm bytecode for an IR node tree into the encoder. Recursively processes children. */
 export function emitIR(enc: WasmEncoder, node: IRNode | undefined): void {
   if (!node) return;
   switch (node.op) {

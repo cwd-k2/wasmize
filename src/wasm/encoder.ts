@@ -1,3 +1,23 @@
+/**
+ * Low-level Wasm binary encoder.
+ *
+ * Provides LEB128 (unsigned/signed), IEEE 754 (f32/f64) encoding,
+ * and Wasm-specific helpers for vectors and sections.
+ *
+ * @module
+ */
+
+/**
+ * Accumulates Wasm bytecode into a `number[]` buffer.
+ *
+ * Encoding methods:
+ * - `byte(b)` — raw byte
+ * - `u32(v)` / `i32(v)` / `i64(v)` — LEB128 integers
+ * - `f32(v)` / `f64(v)` — IEEE 754 floats
+ * - `vec(items, fn)` — length-prefixed vector
+ * - `section(id, fn)` — Wasm section with auto-computed length
+ * - `raw(arr)` — raw byte array
+ */
 export class WasmEncoder {
   bytes: number[] = [];
 

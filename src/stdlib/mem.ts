@@ -31,10 +31,7 @@ export const memset: StdlibFunc = {
     const val_ = yield* param(Type.i32);
     const len = yield* param(Type.i32);
     const i = yield* local(Type.i32);
-    yield* Ctrl.while(i.lt(len), () => [
-      Mem.store8(dst.add(i), val_),
-      i.incrBy(1),
-    ]);
+    yield* Ctrl.while(i.lt(len), () => [Mem.store8(dst.add(i), val_), i.incrBy(1)]);
   },
 };
 

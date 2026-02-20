@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../../dsl/compiler";
 import { Type, Mod, Mem } from "../../dsl/primitives";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 import { sortI32 } from "../sort";
 import { sortWith } from "../sort";
 
@@ -11,25 +11,17 @@ describe("stdlib/sort", () => {
       yield* Mod.memory(1);
       const sort = yield* Mod.use(sortI32);
 
-      yield* Mod.exportFunc(
-        "sort",
-        { lo: Type.i32, hi: Type.i32 },
-        function* (lo, hi) {
-          yield* sort.void(lo, hi);
-        },
-      );
+      yield* Mod.exportFunc("sort", { lo: Type.i32, hi: Type.i32 }, function* (lo, hi) {
+        yield* sort.void(lo, hi);
+      });
 
       yield* Mod.exportFunc("read", { idx: Type.i32 }, function* (idx) {
         return yield* Mem.i32Array().load(idx);
       });
 
-      yield* Mod.exportFunc(
-        "write",
-        { idx: Type.i32, val: Type.i32 },
-        function* (idx, val) {
-          yield* Mem.i32Array().store(idx, val);
-        },
-      );
+      yield* Mod.exportFunc("write", { idx: Type.i32, val: Type.i32 }, function* (idx, val) {
+        yield* Mem.i32Array().store(idx, val);
+      });
     });
 
     const { exports } = await instantiate(binary);
@@ -100,13 +92,9 @@ describe("stdlib/sort", () => {
         return yield* Mem.i32Array().load(idx);
       });
 
-      yield* Mod.exportFunc(
-        "write",
-        { idx: Type.i32, val: Type.i32 },
-        function* (idx, val) {
-          yield* Mem.i32Array().store(idx, val);
-        },
-      );
+      yield* Mod.exportFunc("write", { idx: Type.i32, val: Type.i32 }, function* (idx, val) {
+        yield* Mem.i32Array().store(idx, val);
+      });
     });
 
     const { exports } = await instantiate(binary);

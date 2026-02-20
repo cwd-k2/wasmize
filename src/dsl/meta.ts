@@ -131,24 +131,4 @@ export const Meta = {
     }
     return acc;
   },
-
-  /** 4-directional offsets: Right, Left, Down, Up. */
-  neighbors4: [
-    { dx: 1, dy: 0 },
-    { dx: -1, dy: 0 },
-    { dx: 0, dy: 1 },
-    { dx: 0, dy: -1 },
-  ] as const,
-
-  /** 8-directional offsets (excludes center). */
-  neighbors8: [
-    { dx: -1, dy: -1 },
-    { dx: -1, dy: 0 },
-    { dx: -1, dy: 1 },
-    { dx: 0, dy: -1 },
-    { dx: 0, dy: 1 },
-    { dx: 1, dy: -1 },
-    { dx: 1, dy: 0 },
-    { dx: 1, dy: 1 },
-  ] as const,
 };

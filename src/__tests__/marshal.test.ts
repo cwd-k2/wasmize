@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../dsl/compiler";
 import { Type, Mod, Mem } from "../dsl/primitives";
-import { instantiate } from "../test-helpers";
+import { instantiate } from "../runtime/instantiate";
 import {
   writeI32Array,
   readI32Array,
@@ -10,7 +10,7 @@ import {
   writeString,
   readString,
   roundtrip,
-} from "../marshal";
+} from "../runtime/marshal";
 
 describe("Marshal", () => {
   describe("i32 arrays", () => {

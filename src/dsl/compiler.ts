@@ -1,16 +1,9 @@
 /**
- * @module compiler
+ * Public entry point barrel for the generator-based DSL.
  *
- * Public entry point for the generator-based DSL.
- *
- * Structural primitives: `compile`, `param`, `local`.
- *
- * Namespaces:
- * - {@link Mod} — module declarations (func, export, import, memory)
- * - {@link Op} — arithmetic, comparison, bitwise
- * - {@link Mem} — memory access and constants
- * - {@link Ctrl} — control flow, branching
- * - {@link Loc} — local variable operations
+ * Re-exports all user-facing DSL primitives from their source modules:
+ * `compile`, `param`, `local`, namespaces (Mod/Op/Mem/Ctrl/Loc),
+ * type definitions, and intercept utilities.
  *
  * @example
  * ```ts
@@ -35,6 +28,7 @@ export {
   // Fluent API
   ChainableExpr,
   ThenBuilder,
+  ElseIfBuilder,
   type ExprInput,
   type CallableFunc,
   // Namespaces
@@ -53,6 +47,9 @@ export {
   RGBA,
   // Data structure helpers
   Queue,
+  Stack,
+  RingBuffer,
+  BitSet,
 } from "./primitives";
 export {
   WasmRef,
@@ -67,3 +64,13 @@ export {
   type ModuleGen,
   type WasmProgram,
 } from "./types";
+export {
+  intercept,
+  interceptIR,
+  withTrace,
+  interceptModule,
+  composeIntercepts,
+  interceptFilter,
+  interceptWhen,
+  type TraceEntry,
+} from "./intercept";

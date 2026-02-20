@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { Mod, i64, f64 } from "../primitives";
 import { BumpAllocator } from "../allocator";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 
 describe("BumpAllocator", () => {
   test("sequential alloc with default alignment", () => {
@@ -69,7 +69,9 @@ describe("BumpAllocator", () => {
         return yield* arr.load(2);
       });
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     expect((run as Function)()).toBe(30);
   });
 
@@ -87,7 +89,9 @@ describe("BumpAllocator", () => {
         return yield* a.load(0);
       });
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     expect((run as Function)()).toBe(100);
   });
 
@@ -102,7 +106,9 @@ describe("BumpAllocator", () => {
         return yield* arr.load(0);
       });
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     expect((run as Function)()).toBe(42n);
   });
 
@@ -117,7 +123,9 @@ describe("BumpAllocator", () => {
         return yield* arr.load(0);
       });
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     expect((run as Function)()).toBeCloseTo(3.14);
   });
 
@@ -132,7 +140,9 @@ describe("BumpAllocator", () => {
         return yield* mat.load(1, 2);
       });
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     expect((run as Function)()).toBe(42);
   });
 });

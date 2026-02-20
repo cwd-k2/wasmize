@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "rules": {
+    "no-unused-vars": "off",
+    "require-yield": "off",
+    "unicorn/no-thenable": "off",
+    "unicorn/no-new-array": "off"
+  },
+  "ignorePatterns": ["dist/**", "dist-app/**"]
+}

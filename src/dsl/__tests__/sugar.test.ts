@@ -1,7 +1,8 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { param, local, Type, Mod, Op, Mem, Ctrl, Loc } from "../primitives";
-import { instantiate } from "../../test-helpers";
+import { Struct } from "../struct";
+import { instantiate } from "../../runtime/instantiate";
 
 describe("Op.select", () => {
   test("select returns ifTrue when cond is non-zero", async () => {
@@ -14,7 +15,9 @@ describe("Op.select", () => {
       });
       yield* Mod.export("sel", fn);
     });
-    const { exports: { sel } } = await instantiate(binary);
+    const {
+      exports: { sel },
+    } = await instantiate(binary);
     expect((sel as Function)(10, 20, 1)).toBe(10);
     expect((sel as Function)(10, 20, 0)).toBe(20);
   });
@@ -30,7 +33,9 @@ describe("Op.max / Op.min", () => {
       });
       yield* Mod.export("max", fn);
     });
-    const { exports: { max } } = await instantiate(binary);
+    const {
+      exports: { max },
+    } = await instantiate(binary);
     expect((max as Function)(3, 7)).toBe(7);
     expect((max as Function)(10, 2)).toBe(10);
     expect((max as Function)(-1, -5)).toBe(-1);
@@ -46,7 +51,9 @@ describe("Op.max / Op.min", () => {
       });
       yield* Mod.export("min", fn);
     });
-    const { exports: { min } } = await instantiate(binary);
+    const {
+      exports: { min },
+    } = await instantiate(binary);
     expect((min as Function)(3, 7)).toBe(3);
     expect((min as Function)(10, 2)).toBe(2);
     expect((min as Function)(-1, -5)).toBe(-5);
@@ -76,14 +83,22 @@ describe("Mem.i32Array2D", () => {
       yield* Mod.export("store2d", store2d);
       yield* Mod.export("load2d", load2d);
     });
-    const { exports: { store2d, load2d } } = await instantiate(binary);
+    const {
+      exports: { store2d, load2d },
+    } = await instantiate(binary);
     const s = store2d as Function;
     const l = load2d as Function;
 
     // Store into a 3x3 matrix
-    s(0, 0, 1); s(0, 1, 2); s(0, 2, 3);
-    s(1, 0, 4); s(1, 1, 5); s(1, 2, 6);
-    s(2, 0, 7); s(2, 1, 8); s(2, 2, 9);
+    s(0, 0, 1);
+    s(0, 1, 2);
+    s(0, 2, 3);
+    s(1, 0, 4);
+    s(1, 1, 5);
+    s(1, 2, 6);
+    s(2, 0, 7);
+    s(2, 1, 8);
+    s(2, 2, 9);
 
     expect(l(0, 0)).toBe(1);
     expect(l(1, 1)).toBe(5);
@@ -111,7 +126,9 @@ describe("Mem.i32Array2D", () => {
       yield* Mod.export("store2d", store2d);
       yield* Mod.export("load2d", load2d);
     });
-    const { exports: { store2d, load2d } } = await instantiate(binary);
+    const {
+      exports: { store2d, load2d },
+    } = await instantiate(binary);
     (store2d as Function)(0, 0, 42);
     (store2d as Function)(1, 1, 99);
     expect((load2d as Function)(0, 0)).toBe(42);
@@ -127,15 +144,25 @@ describe("Ctrl.switch", () => {
         const dir = yield* param(Type.i32);
         const result = yield* local(Type.i32, 0);
         yield* Ctrl.switch(dir)
-          .case(0, function* () { yield* result.set(10); })
-          .case(1, function* () { yield* result.set(20); })
-          .case(2, function* () { yield* result.set(30); })
-          .case(3, function* () { yield* result.set(40); });
+          .case(0, function* () {
+            yield* result.set(10);
+          })
+          .case(1, function* () {
+            yield* result.set(20);
+          })
+          .case(2, function* () {
+            yield* result.set(30);
+          })
+          .case(3, function* () {
+            yield* result.set(40);
+          });
         return yield* Loc.get(result);
       });
       yield* Mod.export("dispatch", fn);
     });
-    const { exports: { dispatch } } = await instantiate(binary);
+    const {
+      exports: { dispatch },
+    } = await instantiate(binary);
     const d = dispatch as Function;
     expect(d(0)).toBe(10);
     expect(d(1)).toBe(20);
@@ -149,15 +176,25 @@ describe("Ctrl.switch", () => {
         const x = yield* param(Type.i32);
         const result = yield* local(Type.i32, 0);
         yield* Ctrl.switch(x)
-          .case(10, function* () { yield* result.set(100); })
-          .case(11, function* () { yield* result.set(110); })
-          .case(12, function* () { yield* result.set(120); })
-          .default(function* () { yield* result.set(-1); });
+          .case(10, function* () {
+            yield* result.set(100);
+          })
+          .case(11, function* () {
+            yield* result.set(110);
+          })
+          .case(12, function* () {
+            yield* result.set(120);
+          })
+          .default(function* () {
+            yield* result.set(-1);
+          });
         return yield* Loc.get(result);
       });
       yield* Mod.export("sw", fn);
     });
-    const { exports: { sw } } = await instantiate(binary);
+    const {
+      exports: { sw },
+    } = await instantiate(binary);
     const f = sw as Function;
     expect(f(10)).toBe(100);
     expect(f(11)).toBe(110);
@@ -172,14 +209,22 @@ describe("Ctrl.switch", () => {
         const x = yield* param(Type.i32);
         const result = yield* local(Type.i32, 0);
         yield* Ctrl.switch(x)
-          .case(5, function* () { yield* result.set(50); })
-          .case(6, function* () { yield* result.set(60); })
-          .case(7, function* () { yield* result.set(70); });
+          .case(5, function* () {
+            yield* result.set(50);
+          })
+          .case(6, function* () {
+            yield* result.set(60);
+          })
+          .case(7, function* () {
+            yield* result.set(70);
+          });
         return yield* Loc.get(result);
       });
       yield* Mod.export("sw", fn);
     });
-    const { exports: { sw } } = await instantiate(binary);
+    const {
+      exports: { sw },
+    } = await instantiate(binary);
     const f = sw as Function;
     expect(f(5)).toBe(50);
     expect(f(6)).toBe(60);
@@ -193,14 +238,22 @@ describe("Ctrl.switch", () => {
         const x = yield* param(Type.i32);
         const result = yield* local(Type.i32, -1);
         yield* Ctrl.switch(x)
-          .case(1, function* () { yield* result.set(100); })
-          .case(2, function* () { yield* result.set(200); })
-          .default(function* () { yield* result.set(999); });
+          .case(1, function* () {
+            yield* result.set(100);
+          })
+          .case(2, function* () {
+            yield* result.set(200);
+          })
+          .default(function* () {
+            yield* result.set(999);
+          });
         return yield* Loc.get(result);
       });
       yield* Mod.export("sw", fn);
     });
-    const { exports: { sw } } = await instantiate(binary);
+    const {
+      exports: { sw },
+    } = await instantiate(binary);
     expect((sw as Function)(1)).toBe(100);
     expect((sw as Function)(2)).toBe(200);
     expect((sw as Function)(99)).toBe(999);
@@ -225,8 +278,13 @@ describe("i32Array.swap", () => {
       yield* Mod.export("swap", swap);
       yield* Mod.export("load", load);
     });
-    const { exports: { swap, load }, mem } = await instantiate(binary);
-    mem![0] = 10; mem![1] = 20; mem![2] = 30;
+    const {
+      exports: { swap, load },
+      mem,
+    } = await instantiate(binary);
+    mem![0] = 10;
+    mem![1] = 20;
+    mem![2] = 30;
 
     (swap as Function)(0, 2);
     expect((load as Function)(0)).toBe(30);
@@ -266,14 +324,14 @@ describe("array notation", () => {
       const fn = yield* Mod.func(function* () {
         const n = yield* param(Type.i32);
         const i = yield* local(Type.i32);
-        yield* Ctrl.for(i, 0, i.lt(n), i.add(1), () => [
-          arr.store(i, i.mul(i)),
-        ]);
+        yield* Ctrl.for(i, 0, i.lt(n), i.add(1), () => [arr.store(i, i.mul(i))]);
         return yield* arr.load(n.sub(1));
       });
       yield* Mod.export("run", fn);
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     expect((run as Function)(5)).toBe(16); // 4*4
   });
 
@@ -282,14 +340,14 @@ describe("array notation", () => {
       const fn = yield* Mod.func(function* () {
         const x = yield* param(Type.i32);
         const result = yield* local(Type.i32, 0);
-        yield* Ctrl.when(x.gt(0), () => [
-          result.set(42),
-        ]);
+        yield* Ctrl.when(x.gt(0), () => [result.set(42)]);
         return yield* Loc.get(result);
       });
       yield* Mod.export("run", fn);
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     expect((run as Function)(1)).toBe(42);
     expect((run as Function)(0)).toBe(0);
   });
@@ -299,15 +357,14 @@ describe("array notation", () => {
       const fn = yield* Mod.func(function* () {
         const n = yield* param(Type.i32);
         const sum = yield* local(Type.i32, 0);
-        yield* Ctrl.while(n.gt(0), () => [
-          sum.set(sum.add(n)),
-          n.set(n.sub(1)),
-        ]);
+        yield* Ctrl.while(n.gt(0), () => [sum.set(sum.add(n)), n.set(n.sub(1))]);
         return yield* Loc.get(sum);
       });
       yield* Mod.export("run", fn);
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     expect((run as Function)(5)).toBe(15); // 5+4+3+2+1
   });
 
@@ -324,7 +381,9 @@ describe("array notation", () => {
       });
       yield* Mod.export("run", fn);
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     expect((run as Function)(0)).toBe(10);
     expect((run as Function)(1)).toBe(20);
     expect((run as Function)(5)).toBe(99);
@@ -339,15 +398,21 @@ describe("array notation", () => {
         yield* Ctrl.while(x.gt(0), () => [
           a.set(a.add(1)),
           Ctrl.if(x.gt(5))
-            .then(function* () { yield* b.set(b.add(10)); })
-            .else(function* () { yield* b.set(b.add(1)); }),
+            .then(function* () {
+              yield* b.set(b.add(10));
+            })
+            .else(function* () {
+              yield* b.set(b.add(1));
+            }),
           x.set(x.sub(1)),
         ]);
         return yield* a.add(b);
       });
       yield* Mod.export("run", fn);
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     // x=10: a=10, b = 5*10 + 5*1 = 55
     expect((run as Function)(10)).toBe(65);
   });
@@ -356,25 +421,23 @@ describe("array notation", () => {
 describe("inline params", () => {
   test("Mod.func with param record", async () => {
     const binary = compile(function* () {
-      const fn = yield* Mod.func(
-        { a: Type.i32, b: Type.i32 },
-        function* (a, b) {
-          return yield* a.add(b);
-        },
-      );
+      const fn = yield* Mod.func({ a: Type.i32, b: Type.i32 }, function* (a, b) {
+        return yield* a.add(b);
+      });
       yield* Mod.export("add", fn);
     });
-    const { exports: { add } } = await instantiate(binary);
+    const {
+      exports: { add },
+    } = await instantiate(binary);
     expect((add as Function)(3, 4)).toBe(7);
   });
 
   test("rejects numeric keys", () => {
     expect(() => {
       compile(function* () {
-        yield* Mod.func(
-          { "0": Type.i32 } as Record<string, "i32">,
-          function* (a) { return yield* Loc.get(a); },
-        );
+        yield* Mod.func({ "0": Type.i32 } as Record<string, "i32">, function* (a) {
+          return yield* Loc.get(a);
+        });
       });
     }).toThrow(/Numeric key/);
   });
@@ -388,31 +451,29 @@ describe("Mod.exportFunc", () => {
         return yield* x.mul(2);
       });
     });
-    const { exports: { double: dbl } } = await instantiate(binary);
+    const {
+      exports: { double: dbl },
+    } = await instantiate(binary);
     expect((dbl as Function)(21)).toBe(42);
   });
 
   test("exportFunc with inline params", async () => {
     const binary = compile(function* () {
-      yield* Mod.exportFunc(
-        "mul",
-        { a: Type.i32, b: Type.i32 },
-        function* (a, b) {
-          return yield* a.mul(b);
-        },
-      );
+      yield* Mod.exportFunc("mul", { a: Type.i32, b: Type.i32 }, function* (a, b) {
+        return yield* a.mul(b);
+      });
     });
-    const { exports: { mul } } = await instantiate(binary);
+    const {
+      exports: { mul },
+    } = await instantiate(binary);
     expect((mul as Function)(6, 7)).toBe(42);
   });
 
   test("exportFunc returns callable ref", async () => {
     const binary = compile(function* () {
-      const add = yield* Mod.exportFunc(
-        "add",
-        { a: Type.i32, b: Type.i32 },
-        function* (a, b) { return yield* a.add(b); },
-      );
+      const add = yield* Mod.exportFunc("add", { a: Type.i32, b: Type.i32 }, function* (a, b) {
+        return yield* a.add(b);
+      });
       // Use the returned ref in another function
       yield* Mod.exportFunc("add3", { x: Type.i32 }, function* (x) {
         return yield* add(x, 3);
@@ -430,12 +491,18 @@ describe("Mod.recursive", () => {
       const fact = yield* Mod.recursive(function* (self) {
         const n = yield* param(Type.i32);
         return yield* Ctrl.if(n.le(1))
-          .then(function* () { return yield* Mem.i32(1); })
-          .else(function* () { return yield* n.mul(self(n.sub(1))); });
+          .then(function* () {
+            return yield* Mem.i32(1);
+          })
+          .else(function* () {
+            return yield* n.mul(self(n.sub(1)));
+          });
       });
       yield* Mod.export("fact", fact);
     });
-    const { exports: { fact } } = await instantiate(binary);
+    const {
+      exports: { fact },
+    } = await instantiate(binary);
     expect((fact as Function)(0)).toBe(1);
     expect((fact as Function)(1)).toBe(1);
     expect((fact as Function)(5)).toBe(120);
@@ -444,19 +511,20 @@ describe("Mod.recursive", () => {
 
   test("recursive with inline params", async () => {
     const binary = compile(function* () {
-      const fib = yield* Mod.recursive(
-        { n: Type.i32 },
-        function* (self, n) {
-          return yield* Ctrl.if(n.le(1))
-            .then(function* () { return yield* Loc.get(n); })
-            .else(function* () {
-              return yield* Op.add(self(n.sub(1)), self(n.sub(2)));
-            });
-        },
-      );
+      const fib = yield* Mod.recursive({ n: Type.i32 }, function* (self, n) {
+        return yield* Ctrl.if(n.le(1))
+          .then(function* () {
+            return yield* Loc.get(n);
+          })
+          .else(function* () {
+            return yield* Op.add(self(n.sub(1)), self(n.sub(2)));
+          });
+      });
       yield* Mod.export("fib", fib);
     });
-    const { exports: { fib } } = await instantiate(binary);
+    const {
+      exports: { fib },
+    } = await instantiate(binary);
     expect((fib as Function)(0)).toBe(0);
     expect((fib as Function)(1)).toBe(1);
     expect((fib as Function)(10)).toBe(55);
@@ -472,14 +540,14 @@ describe("Ctrl.range", () => {
         const n = yield* param(Type.i32);
         const i = yield* local(Type.i32);
         // fill arr[0..n) with i*i
-        yield* Ctrl.range(i, n, () => [
-          arr.store(i, i.mul(i)),
-        ]);
+        yield* Ctrl.range(i, n, () => [arr.store(i, i.mul(i))]);
         return yield* arr.load(n.sub(1));
       });
       yield* Mod.export("run", fn);
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     expect((run as Function)(5)).toBe(16); // 4*4
   });
 
@@ -490,14 +558,14 @@ describe("Ctrl.range", () => {
         const end = yield* param(Type.i32);
         const i = yield* local(Type.i32);
         const sum = yield* local(Type.i32, 0);
-        yield* Ctrl.range(i, start, end, () => [
-          sum.set(sum.add(i)),
-        ]);
+        yield* Ctrl.range(i, start, end, () => [sum.set(sum.add(i))]);
         return yield* Loc.get(sum);
       });
       yield* Mod.export("run", fn);
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     // sum of 3..7 = 3+4+5+6 = 18
     expect((run as Function)(3, 7)).toBe(18);
   });
@@ -517,7 +585,9 @@ describe("i32Array.at()", () => {
       });
       yield* Mod.export("run", fn);
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     expect((run as Function)(0)).toBe(100);
     expect((run as Function)(1)).toBe(200);
     expect((run as Function)(2)).toBe(300);
@@ -534,8 +604,129 @@ describe("i32Array.at()", () => {
       });
       yield* Mod.export("run", fn);
     });
-    const { exports: { run } } = await instantiate(binary);
+    const {
+      exports: { run },
+    } = await instantiate(binary);
     expect((run as Function)()).toBe(15);
+  });
+});
+
+describe("Ctrl.if().elseif() chaining", () => {
+  test("basic 2-branch elseif (no final else)", async () => {
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        const x = yield* param(Type.i32);
+        const result = yield* local(Type.i32, 0);
+        yield* Ctrl.if(x.eq(1))
+          .then(function* () {
+            yield* result.set(10);
+          })
+          .elseif(x.eq(2))
+          .then(function* () {
+            yield* result.set(20);
+          });
+        return yield* Loc.get(result);
+      });
+      yield* Mod.export("run", fn);
+    });
+    const {
+      exports: { run },
+    } = await instantiate(binary);
+    expect((run as Function)(1)).toBe(10);
+    expect((run as Function)(2)).toBe(20);
+    expect((run as Function)(3)).toBe(0); // no match, stays 0
+  });
+
+  test("3-branch with final else", async () => {
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        const x = yield* param(Type.i32);
+        const result = yield* local(Type.i32, 0);
+        yield* Ctrl.if(x.eq(1))
+          .then(function* () {
+            yield* result.set(10);
+          })
+          .elseif(x.eq(2))
+          .then(function* () {
+            yield* result.set(20);
+          })
+          .else(function* () {
+            yield* result.set(99);
+          });
+        return yield* Loc.get(result);
+      });
+      yield* Mod.export("run", fn);
+    });
+    const {
+      exports: { run },
+    } = await instantiate(binary);
+    expect((run as Function)(1)).toBe(10);
+    expect((run as Function)(2)).toBe(20);
+    expect((run as Function)(0)).toBe(99);
+  });
+
+  test("multiple elseif chain (4 branches)", async () => {
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        const x = yield* param(Type.i32);
+        const result = yield* local(Type.i32, 0);
+        yield* Ctrl.if(x.eq(1))
+          .then(function* () {
+            yield* result.set(10);
+          })
+          .elseif(x.eq(2))
+          .then(function* () {
+            yield* result.set(20);
+          })
+          .elseif(x.eq(3))
+          .then(function* () {
+            yield* result.set(30);
+          })
+          .elseif(x.eq(4))
+          .then(function* () {
+            yield* result.set(40);
+          })
+          .else(function* () {
+            yield* result.set(-1);
+          });
+        return yield* Loc.get(result);
+      });
+      yield* Mod.export("run", fn);
+    });
+    const {
+      exports: { run },
+    } = await instantiate(binary);
+    expect((run as Function)(1)).toBe(10);
+    expect((run as Function)(2)).toBe(20);
+    expect((run as Function)(3)).toBe(30);
+    expect((run as Function)(4)).toBe(40);
+    expect((run as Function)(5)).toBe(-1);
+  });
+
+  test("elseif with return values (if-expression)", async () => {
+    const binary = compile(function* () {
+      const fn = yield* Mod.func(function* () {
+        const x = yield* param(Type.i32);
+        return yield* Ctrl.if(x.lt(0))
+          .then(function* () {
+            return yield* Mem.i32(-1);
+          })
+          .elseif(x.eq(0))
+          .then(function* () {
+            return yield* Mem.i32(0);
+          })
+          .else(function* () {
+            return yield* Mem.i32(1);
+          });
+      });
+      yield* Mod.export("sign", fn);
+    });
+    const {
+      exports: { sign },
+    } = await instantiate(binary);
+    expect((sign as Function)(-5)).toBe(-1);
+    expect((sign as Function)(0)).toBe(0);
+    expect((sign as Function)(7)).toBe(1);
   });
 });
 
@@ -585,5 +776,177 @@ describe("Mod.global", () => {
     const dec = exports.dec as Function;
     expect(dec(10)).toBe(90);
     expect(dec(40)).toBe(50);
+  });
+});
+
+// --- Ctrl.scope + defer ---
+
+describe("Ctrl.scope", () => {
+  test("basic defer runs cleanup", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      yield* Mod.exportFunc("test", function* () {
+        const result = yield* local(Type.i32, 0);
+        yield* Ctrl.scope(function* (scope) {
+          scope.defer(result.set(42));
+          yield* result.set(10); // body sets 10
+        });
+        // after scope: deferred sets result to 42
+        return result;
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(42);
+  });
+
+  test("multiple defers run in LIFO order", async () => {
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      const arr = Mem.i32Array(0);
+      yield* Mod.exportFunc("test", function* () {
+        const idx = yield* local(Type.i32, 0);
+        yield* Ctrl.scope(function* (scope) {
+          // defer 1: write 10 at arr[idx], idx++
+          scope.defer(
+            (function* () {
+              yield* arr.store(idx, 10);
+              yield* idx.incrBy(1);
+            })(),
+          );
+          // defer 2: write 20 at arr[idx], idx++
+          scope.defer(
+            (function* () {
+              yield* arr.store(idx, 20);
+              yield* idx.incrBy(1);
+            })(),
+          );
+        });
+        // LIFO: defer 2 runs first (writes 20 at 0), then defer 1 (writes 10 at 1)
+        // result = arr[0] * 100 + arr[1]
+        return yield* arr.load(0).mul(100).add(arr.load(1));
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(2010); // 20*100 + 10
+  });
+
+  test("no defers (no-op)", async () => {
+    const binary = compile(function* () {
+      yield* Mod.exportFunc("test", function* () {
+        const result = yield* local(Type.i32, 0);
+        yield* Ctrl.scope(function* () {
+          yield* result.set(77);
+        });
+        return result;
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(77);
+  });
+});
+
+// --- Struct.snapshot ---
+
+describe("Struct.snapshot", () => {
+  test("StructType snapshot copies fields to locals", async () => {
+    const RGBA = Struct({ r: "u8", g: "u8", b: "u8", a: "u8" });
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      yield* Mod.exportFunc("test", function* () {
+        const offset = yield* local(Type.i32, 0);
+        // Write pixel: r=100, g=150, b=200, a=255
+        yield* RGBA.set(offset, "r", 100);
+        yield* RGBA.set(offset, "g", 150);
+        yield* RGBA.set(offset, "b", 200);
+        yield* RGBA.set(offset, "a", 255);
+        // Snapshot copies r, g, b into locals
+        const { r, g, b } = yield* RGBA.snapshot(offset, "r", "g", "b");
+        // Modify the memory (shouldn't affect snapshot)
+        yield* RGBA.set(offset, "r", 0);
+        yield* RGBA.set(offset, "g", 0);
+        yield* RGBA.set(offset, "b", 0);
+        // Return sum of snapshotted values
+        return yield* r.add(g).add(b);
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(450); // 100 + 150 + 200
+  });
+
+  test("StructArray snapshot", async () => {
+    const Point = Struct({ x: "i32", y: "i32" });
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      const alloc = Mod.allocator();
+      const points = Point.array(alloc, 4);
+      yield* Mod.exportFunc("test", function* () {
+        yield* points.set(0, "x", 10);
+        yield* points.set(0, "y", 20);
+        const { x, y } = yield* points.snapshot(0, "x", "y");
+        // Modify memory
+        yield* points.set(0, "x", 0);
+        yield* points.set(0, "y", 0);
+        return yield* x.add(y);
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(30);
+  });
+});
+
+// --- StructArray.forEach ---
+
+describe("StructArray.forEach", () => {
+  test("iterates over all elements", async () => {
+    const Point = Struct({ x: "i32", y: "i32" });
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      const alloc = Mod.allocator();
+      const points = Point.array(alloc, 4);
+      yield* Mod.exportFunc("test", function* () {
+        const n = yield* param(Type.i32);
+        // Initialize: points[i] = (i+1, (i+1)*10)
+        const i = yield* local(Type.i32);
+        yield* Ctrl.range(i, n, function* () {
+          yield* points.set(i, "x", i.add(1));
+          yield* points.set(i, "y", i.add(1).mul(10));
+        });
+        // forEach: sum all x + y values
+        const sum = yield* local(Type.i32, 0);
+        yield* points.forEach(n, function* (p) {
+          yield* sum.set(sum.add(p.x).add(p.y));
+        });
+        return sum;
+      });
+    });
+    const { exports } = await instantiate(binary);
+    // n=3: (1+10) + (2+20) + (3+30) = 11+22+33 = 66
+    expect((exports.test as Function)(3)).toBe(66);
+  });
+
+  test("forEach body can mutate fields", async () => {
+    const Point = Struct({ x: "i32", y: "i32" });
+    const binary = compile(function* () {
+      yield* Mod.memory(1);
+      const alloc = Mod.allocator();
+      const points = Point.array(alloc, 4);
+      yield* Mod.exportFunc("test", function* () {
+        yield* points.set(0, "x", 5);
+        yield* points.set(1, "x", 10);
+        yield* points.set(2, "x", 15);
+        // Double all x values
+        yield* points.forEach(3, function* (p) {
+          yield* p.x.mulBy(2);
+        });
+        // Read back: 10 + 20 + 30 = 60
+        const sum = yield* local(Type.i32, 0);
+        yield* sum.set(points.get(0, "x"));
+        yield* sum.set(sum.add(points.get(1, "x")));
+        yield* sum.set(sum.add(points.get(2, "x")));
+        return sum;
+      });
+    });
+    const { exports } = await instantiate(binary);
+    expect((exports.test as Function)()).toBe(60);
   });
 });

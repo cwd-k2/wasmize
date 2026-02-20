@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { Type, Mod, Mem } from "../primitives";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 
 describe("Data Segment", () => {
   test("raw bytes are initialized in memory", async () => {
@@ -12,7 +12,9 @@ describe("Data Segment", () => {
         return yield* Mem.load8(addr);
       });
     });
-    const { exports: { read } } = await instantiate(binary);
+    const {
+      exports: { read },
+    } = await instantiate(binary);
     expect((read as Function)(0)).toBe(1);
     expect((read as Function)(1)).toBe(2);
     expect((read as Function)(2)).toBe(3);
@@ -29,7 +31,9 @@ describe("Data Segment", () => {
         return yield* Mem.load(idx.mul(4));
       });
     });
-    const { exports: { read } } = await instantiate(binary);
+    const {
+      exports: { read },
+    } = await instantiate(binary);
     expect((read as Function)(0)).toBe(0x0301);
     expect((read as Function)(1)).toBe(42);
   });
@@ -42,7 +46,9 @@ describe("Data Segment", () => {
         return yield* Mem.load8(addr);
       });
     });
-    const { exports: { read } } = await instantiate(binary);
+    const {
+      exports: { read },
+    } = await instantiate(binary);
     expect((read as Function)(100)).toBe(0xff);
     expect((read as Function)(101)).toBe(0xfe);
     expect((read as Function)(99)).toBe(0); // untouched
@@ -57,7 +63,9 @@ describe("Data Segment", () => {
         return yield* Mem.load8(addr);
       });
     });
-    const { exports: { read } } = await instantiate(binary);
+    const {
+      exports: { read },
+    } = await instantiate(binary);
     expect((read as Function)(0)).toBe(0x48); // 'H'
     expect((read as Function)(1)).toBe(0x65); // 'e'
     expect((read as Function)(2)).toBe(0x6c); // 'l'
@@ -74,7 +82,9 @@ describe("Data Segment", () => {
         return yield* Mem.load8(addr);
       });
     });
-    const { exports: { read } } = await instantiate(binary);
+    const {
+      exports: { read },
+    } = await instantiate(binary);
     expect((read as Function)(0)).toBe(10);
     expect((read as Function)(1)).toBe(20);
     expect((read as Function)(10)).toBe(30);
@@ -91,7 +101,9 @@ describe("Data Segment", () => {
         return yield* Mem.load8(addr);
       });
     });
-    const { exports: { read } } = await instantiate(binary);
+    const {
+      exports: { read },
+    } = await instantiate(binary);
     for (let i = 0; i < encoded.length; i++) {
       expect((read as Function)(i)).toBe(encoded[i]);
     }

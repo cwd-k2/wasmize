@@ -12,7 +12,6 @@
     "moduleDetection": "force",
     "noEmit": true,
 
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     },
@@ -22,5 +21,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "bench", "examples", "ui"]
+  "include": ["src", "showcase"]
 }

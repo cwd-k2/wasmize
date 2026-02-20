@@ -22,7 +22,9 @@ describe("constant folding", () => {
   });
 
   test("mul uses Math.imul for i32 wrap", () => {
-    expect(opt(IR.binop("mul", IR.const_i32(0x10000), IR.const_i32(0x10000)))).toEqual(IR.const_i32(0));
+    expect(opt(IR.binop("mul", IR.const_i32(0x10000), IR.const_i32(0x10000)))).toEqual(
+      IR.const_i32(0),
+    );
   });
 
   test("div", () => {
@@ -40,15 +42,21 @@ describe("constant folding", () => {
   });
 
   test("bitwise ops", () => {
-    expect(opt(IR.binop("and", IR.const_i32(0xff), IR.const_i32(0x0f)))).toEqual(IR.const_i32(0x0f));
+    expect(opt(IR.binop("and", IR.const_i32(0xff), IR.const_i32(0x0f)))).toEqual(
+      IR.const_i32(0x0f),
+    );
     expect(opt(IR.binop("or", IR.const_i32(0xf0), IR.const_i32(0x0f)))).toEqual(IR.const_i32(0xff));
-    expect(opt(IR.binop("xor", IR.const_i32(0xff), IR.const_i32(0x0f)))).toEqual(IR.const_i32(0xf0));
+    expect(opt(IR.binop("xor", IR.const_i32(0xff), IR.const_i32(0x0f)))).toEqual(
+      IR.const_i32(0xf0),
+    );
   });
 
   test("shift ops", () => {
     expect(opt(IR.binop("shl", IR.const_i32(1), IR.const_i32(4)))).toEqual(IR.const_i32(16));
     expect(opt(IR.binop("shr", IR.const_i32(16), IR.const_i32(2)))).toEqual(IR.const_i32(4));
-    expect(opt(IR.binop("shr_u", IR.const_i32(-1), IR.const_i32(1)))).toEqual(IR.const_i32(0x7fffffff));
+    expect(opt(IR.binop("shr_u", IR.const_i32(-1), IR.const_i32(1)))).toEqual(
+      IR.const_i32(0x7fffffff),
+    );
   });
 
   test("cmp", () => {
@@ -160,40 +168,32 @@ describe("identity elimination", () => {
 
 describe("dead code elimination", () => {
   test("removes code after br", () => {
-    const result = optimizeFunc([
-      IR.br(0),
-      IR.local_set(0, IR.const_i32(42)),
-      IR.const_i32(99),
-    ]);
+    const result = optimizeFunc([IR.br(0), IR.local_set(0, IR.const_i32(42)), IR.const_i32(99)]);
     expect(result).toHaveLength(1);
     expect(result[0]!.op).toBe("br");
   });
 
   test("removes code after return", () => {
-    const result = optimizeFunc([
-      IR.return_(IR.const_i32(1)),
-      IR.local_set(0, IR.const_i32(2)),
-    ]);
+    const result = optimizeFunc([IR.return_(IR.const_i32(1)), IR.local_set(0, IR.const_i32(2))]);
     expect(result).toHaveLength(1);
     expect(result[0]!.op).toBe("return");
   });
 
   test("removes code after unreachable", () => {
-    const result = optimizeFunc([
-      IR.unreachable(),
-      IR.const_i32(42),
-    ]);
+    const result = optimizeFunc([IR.unreachable(), IR.const_i32(42)]);
     expect(result).toHaveLength(1);
     expect(result[0]!.op).toBe("unreachable");
   });
 
   test("recurses into if branches", () => {
-    const result = opt(IR.if_then_else(
-      IR.local_get(0),
-      [IR.br(0), IR.const_i32(42)],
-      [IR.return_(IR.const_i32(1)), IR.const_i32(99)],
-      "void",
-    ));
+    const result = opt(
+      IR.if_then_else(
+        IR.local_get(0),
+        [IR.br(0), IR.const_i32(42)],
+        [IR.return_(IR.const_i32(1)), IR.const_i32(99)],
+        "void",
+      ),
+    );
     expect(result.op).toBe("if");
     if (result.op === "if") {
       expect(result.then).toHaveLength(1);
@@ -202,10 +202,7 @@ describe("dead code elimination", () => {
   });
 
   test("recurses into loop", () => {
-    const result = opt(IR.loop([
-      IR.br(0),
-      IR.const_i32(42),
-    ]));
+    const result = opt(IR.loop([IR.br(0), IR.const_i32(42)]));
     expect(result.op).toBe("loop");
     if (result.op === "loop") {
       expect(result.body).toHaveLength(1);
@@ -217,20 +214,14 @@ describe("recursive optimization", () => {
   test("nested constant folding", () => {
     // (2 + 3) * 4 → 5 * 4 → shl(5, 2) ... but 5 is const and 4 is const, so → 20
     const result = opt(
-      IR.binop("mul",
-        IR.binop("add", IR.const_i32(2), IR.const_i32(3)),
-        IR.const_i32(4),
-      ),
+      IR.binop("mul", IR.binop("add", IR.const_i32(2), IR.const_i32(3)), IR.const_i32(4)),
     );
     expect(result).toEqual(IR.const_i32(20));
   });
 
   test("optimizes inside store addr", () => {
     const result = opt(
-      IR.store_i32(
-        IR.binop("add", IR.const_i32(100), IR.const_i32(0)),
-        IR.local_get(0),
-      ),
+      IR.store_i32(IR.binop("add", IR.const_i32(100), IR.const_i32(0)), IR.local_get(0)),
     );
     expect(result.op).toBe("store_i32");
     if (result.op === "store_i32") {
@@ -240,12 +231,7 @@ describe("recursive optimization", () => {
 
   test("optimizes typical array access: mul(idx, 4) + base", () => {
     const idx = IR.local_get(0);
-    const result = opt(
-      IR.binop("add",
-        IR.binop("mul", idx, IR.const_i32(4)),
-        IR.const_i32(2048),
-      ),
-    );
+    const result = opt(IR.binop("add", IR.binop("mul", idx, IR.const_i32(4)), IR.const_i32(2048)));
     // mul(idx, 4) → shl(idx, 2), then add stays
     expect(result.op).toBe("binop");
     if (result.op === "binop") {
@@ -258,47 +244,56 @@ describe("recursive optimization", () => {
 
 describe("eqz-of-comparison inversion", () => {
   test("eqz(lt(a, b)) → ge(a, b)", () => {
-    const a = IR.local_get(0), b = IR.local_get(1);
+    const a = IR.local_get(0),
+      b = IR.local_get(1);
     expect(opt(IR.eqz(IR.cmp("lt", a, b)))).toEqual(IR.cmp("ge", a, b));
   });
 
   test("eqz(ge(a, b)) → lt(a, b)", () => {
-    const a = IR.local_get(0), b = IR.local_get(1);
+    const a = IR.local_get(0),
+      b = IR.local_get(1);
     expect(opt(IR.eqz(IR.cmp("ge", a, b)))).toEqual(IR.cmp("lt", a, b));
   });
 
   test("eqz(gt(a, b)) → le(a, b)", () => {
-    const a = IR.local_get(0), b = IR.local_get(1);
+    const a = IR.local_get(0),
+      b = IR.local_get(1);
     expect(opt(IR.eqz(IR.cmp("gt", a, b)))).toEqual(IR.cmp("le", a, b));
   });
 
   test("eqz(le(a, b)) → gt(a, b)", () => {
-    const a = IR.local_get(0), b = IR.local_get(1);
+    const a = IR.local_get(0),
+      b = IR.local_get(1);
     expect(opt(IR.eqz(IR.cmp("le", a, b)))).toEqual(IR.cmp("gt", a, b));
   });
 
   test("eqz(eq(a, b)) → ne(a, b)", () => {
-    const a = IR.local_get(0), b = IR.local_get(1);
+    const a = IR.local_get(0),
+      b = IR.local_get(1);
     expect(opt(IR.eqz(IR.cmp("eq", a, b)))).toEqual(IR.cmp("ne", a, b));
   });
 
   test("eqz(ne(a, b)) → eq(a, b)", () => {
-    const a = IR.local_get(0), b = IR.local_get(1);
+    const a = IR.local_get(0),
+      b = IR.local_get(1);
     expect(opt(IR.eqz(IR.cmp("ne", a, b)))).toEqual(IR.cmp("eq", a, b));
   });
 
   test("eqz(lt_u(a, b)) → ge_u(a, b)", () => {
-    const a = IR.local_get(0), b = IR.local_get(1);
+    const a = IR.local_get(0),
+      b = IR.local_get(1);
     expect(opt(IR.eqz(IR.cmp("lt_u", a, b)))).toEqual(IR.cmp("ge_u", a, b));
   });
 
   test("eqz(ge_u(a, b)) → lt_u(a, b)", () => {
-    const a = IR.local_get(0), b = IR.local_get(1);
+    const a = IR.local_get(0),
+      b = IR.local_get(1);
     expect(opt(IR.eqz(IR.cmp("ge_u", a, b)))).toEqual(IR.cmp("lt_u", a, b));
   });
 
   test("skips non-i32 eqz", () => {
-    const a = IR.local_get(0), b = IR.local_get(1);
+    const a = IR.local_get(0),
+      b = IR.local_get(1);
     const result = opt(IR.eqz(IR.cmp("lt", a, b), "i64"));
     expect(result.op).toBe("eqz");
   });
@@ -307,9 +302,7 @@ describe("eqz-of-comparison inversion", () => {
 describe("rem_u strength reduction", () => {
   test("rem_u(x, 8) → and(x, 7)", () => {
     const x = IR.local_get(0);
-    expect(opt(IR.binop("rem_u", x, IR.const_i32(8)))).toEqual(
-      IR.binop("and", x, IR.const_i32(7)),
-    );
+    expect(opt(IR.binop("rem_u", x, IR.const_i32(8)))).toEqual(IR.binop("and", x, IR.const_i32(7)));
   });
 
   test("rem_u(x, 16) → and(x, 15)", () => {
@@ -336,42 +329,33 @@ describe("rem_u strength reduction", () => {
 
 describe("constant condition elimination", () => {
   test("if(const non-zero) → then branch", () => {
-    const result = opt(IR.if_then_else(
-      IR.const_i32(1),
-      [IR.const_i32(42)],
-      [IR.const_i32(99)],
-      "i32",
-    ));
+    const result = opt(
+      IR.if_then_else(IR.const_i32(1), [IR.const_i32(42)], [IR.const_i32(99)], "i32"),
+    );
     expect(result).toEqual(IR.const_i32(42));
   });
 
   test("if(const 0) → else branch", () => {
-    const result = opt(IR.if_then_else(
-      IR.const_i32(0),
-      [IR.const_i32(42)],
-      [IR.const_i32(99)],
-      "i32",
-    ));
+    const result = opt(
+      IR.if_then_else(IR.const_i32(0), [IR.const_i32(42)], [IR.const_i32(99)], "i32"),
+    );
     expect(result).toEqual(IR.const_i32(99));
   });
 
   test("if(const 0, then, empty else) → nop", () => {
-    const result = opt(IR.if_then_else(
-      IR.const_i32(1),
-      [],
-      [IR.const_i32(99)],
-      "void",
-    ));
+    const result = opt(IR.if_then_else(IR.const_i32(1), [], [IR.const_i32(99)], "void"));
     expect(result).toEqual(IR.nop());
   });
 
   test("select(a, b, const non-zero) → a", () => {
-    const a = IR.local_get(0), b = IR.local_get(1);
+    const a = IR.local_get(0),
+      b = IR.local_get(1);
     expect(opt(IR.select(a, b, IR.const_i32(1)))).toEqual(a);
   });
 
   test("select(a, b, const 0) → b", () => {
-    const a = IR.local_get(0), b = IR.local_get(1);
+    const a = IR.local_get(0),
+      b = IR.local_get(1);
     expect(opt(IR.select(a, b, IR.const_i32(0)))).toEqual(b);
   });
 
@@ -386,7 +370,8 @@ describe("constant condition elimination", () => {
 
 describe("double eqz elimination", () => {
   test("eqz(eqz(cmp)) → cmp", () => {
-    const a = IR.local_get(0), b = IR.local_get(1);
+    const a = IR.local_get(0),
+      b = IR.local_get(1);
     const cmp = IR.cmp("lt", a, b);
     expect(opt(IR.eqz(IR.eqz(cmp)))).toEqual(cmp);
   });
@@ -415,7 +400,8 @@ describe("double eqz elimination", () => {
   });
 
   test("eqz(eqz(eqz(cmp))) → eqz-of-inverted via cascade", () => {
-    const a = IR.local_get(0), b = IR.local_get(1);
+    const a = IR.local_get(0),
+      b = IR.local_get(1);
     // eqz(eqz(eqz(cmp("lt", a, b))))
     // Pass 1: inner eqz(cmp("lt")) → cmp("ge")
     //         then eqz(eqz(cmp("ge"))) ... wait, it's bottom-up
@@ -426,9 +412,7 @@ describe("double eqz elimination", () => {
     //       → eqz of cmp → cmp("ge")
     //     → eqz(cmp("ge")): eqz of cmp → cmp("lt")
     //   → eqz(cmp("lt")): eqz of cmp → cmp("ge")
-    expect(opt(IR.eqz(IR.eqz(IR.eqz(IR.cmp("lt", a, b)))))).toEqual(
-      IR.cmp("ge", a, b),
-    );
+    expect(opt(IR.eqz(IR.eqz(IR.eqz(IR.cmp("lt", a, b)))))).toEqual(IR.cmp("ge", a, b));
   });
 });
 
@@ -480,10 +464,7 @@ describe("unsigned comparison with zero", () => {
 
 describe("seq/block flattening", () => {
   test("seq with nested seq is flattened", () => {
-    const result = opt(IR.seq([
-      IR.const_i32(1),
-      IR.seq([IR.const_i32(2), IR.const_i32(3)]),
-    ]));
+    const result = opt(IR.seq([IR.const_i32(1), IR.seq([IR.const_i32(2), IR.const_i32(3)])]));
     expect(result).toEqual(IR.seq([IR.const_i32(1), IR.const_i32(2), IR.const_i32(3)]));
   });
 
@@ -507,10 +488,7 @@ describe("seq/block flattening", () => {
 
   test("seq flattening applies dead code elimination", () => {
     // Inner seq ends with br, outer continues — after flatten, DCE kicks in
-    const result = opt(IR.seq([
-      IR.seq([IR.const_i32(1), IR.br(0)]),
-      IR.const_i32(99),
-    ]));
+    const result = opt(IR.seq([IR.seq([IR.const_i32(1), IR.br(0)]), IR.const_i32(99)]));
     expect(result).toEqual(IR.seq([IR.const_i32(1), IR.br(0)]));
   });
 });
@@ -547,19 +525,27 @@ describe("type conversion folding", () => {
   });
 
   test("convert(f32_convert_i32_s, const_i32) → const_f32", () => {
-    expect(opt(IR.convert("f32_convert_i32_s", IR.const_i32(42)))).toEqual(IR.const_f32(Math.fround(42)));
+    expect(opt(IR.convert("f32_convert_i32_s", IR.const_i32(42)))).toEqual(
+      IR.const_f32(Math.fround(42)),
+    );
   });
 
   test("convert(f64_convert_i32_u, const_i32(-1)) → const_f64(4294967295)", () => {
-    expect(opt(IR.convert("f64_convert_i32_u", IR.const_i32(-1)))).toEqual(IR.const_f64(4294967295));
+    expect(opt(IR.convert("f64_convert_i32_u", IR.const_i32(-1)))).toEqual(
+      IR.const_f64(4294967295),
+    );
   });
 
   test("convert(f64_promote_f32, const_f32) → const_f64", () => {
-    expect(opt(IR.convert("f64_promote_f32", IR.const_f32(Math.fround(1.5))))).toEqual(IR.const_f64(Math.fround(1.5)));
+    expect(opt(IR.convert("f64_promote_f32", IR.const_f32(Math.fround(1.5))))).toEqual(
+      IR.const_f64(Math.fround(1.5)),
+    );
   });
 
   test("convert(f32_demote_f64, const_f64) → const_f32", () => {
-    expect(opt(IR.convert("f32_demote_f64", IR.const_f64(1.5)))).toEqual(IR.const_f32(Math.fround(1.5)));
+    expect(opt(IR.convert("f32_demote_f64", IR.const_f64(1.5)))).toEqual(
+      IR.const_f32(Math.fround(1.5)),
+    );
   });
 
   test("convert(i32_trunc_f64_s, const_f64(3.7)) → const_i32(3)", () => {
@@ -577,7 +563,9 @@ describe("type conversion folding", () => {
   });
 
   test("convert(i32_trunc_f32_s, const_f32(2.9)) → const_i32(2)", () => {
-    expect(opt(IR.convert("i32_trunc_f32_s", IR.const_f32(Math.fround(2.9))))).toEqual(IR.const_i32(2));
+    expect(opt(IR.convert("i32_trunc_f32_s", IR.const_f32(Math.fround(2.9))))).toEqual(
+      IR.const_i32(2),
+    );
   });
 
   test("legacy i32_trunc_f64_s(const_f64(7.9)) → const_i32(7)", () => {
@@ -801,8 +789,11 @@ describe("2-pass cascade", () => {
       // Pass 2: seq still has nop but nothing special
       // Hmm, maybe a better example:
       // select(const_i32(10), const_i32(20), eqz(cmp("lt", const(3), const(5))))
-      IR.select(IR.const_i32(10), IR.const_i32(20),
-        IR.eqz(IR.cmp("lt", IR.const_i32(3), IR.const_i32(5)))),
+      IR.select(
+        IR.const_i32(10),
+        IR.const_i32(20),
+        IR.eqz(IR.cmp("lt", IR.const_i32(3), IR.const_i32(5))),
+      ),
     ]);
     // eqz(cmp("lt", 3, 5)) → eqz(const(1)) → const(0)
     // select(10, 20, const(0)) → 20

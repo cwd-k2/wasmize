@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../../dsl/compiler";
 import { Type, Mod } from "../../dsl/primitives";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 import { pow, clamp, abs, lerp } from "../math";
 
 describe("stdlib/math", () => {
@@ -27,9 +27,13 @@ describe("stdlib/math", () => {
     const binary = compile(function* () {
       yield* Mod.memory(1);
       const c = yield* Mod.use(clamp);
-      yield* Mod.exportFunc("clamp", { v: Type.i32, lo: Type.i32, hi: Type.i32 }, function* (v, lo, hi) {
-        return yield* c(v, lo, hi);
-      });
+      yield* Mod.exportFunc(
+        "clamp",
+        { v: Type.i32, lo: Type.i32, hi: Type.i32 },
+        function* (v, lo, hi) {
+          return yield* c(v, lo, hi);
+        },
+      );
     });
 
     const { exports } = await instantiate(binary);

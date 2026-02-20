@@ -1,12 +1,16 @@
+/**
+ * Barrel re-export for DSL primitives.
+ *
+ * Imports `augment.ts` as a side-effect to ensure WasmRef prototype
+ * methods are available before any DSL code runs. Aggregates all
+ * user-facing DSL exports from their respective modules.
+ *
+ * @module
+ */
 // Side-effect: augments WasmRef.prototype with chainable methods
 import "./augment";
 
-export {
-  type ExprInput,
-  type CallableFunc,
-  ChainableExpr,
-  ThenBuilder,
-} from "./expr";
+export { type ExprInput, type CallableFunc, ChainableExpr, ThenBuilder, ElseIfBuilder } from "./expr";
 
 export { param, local, Type } from "./declarations";
 
@@ -16,6 +20,10 @@ export { Struct, FieldAccessor, type FieldType, type FieldResultType } from "./s
 export { Str } from "./string";
 export { Meta } from "./meta";
 export { Queue, type QueueHandle } from "./queue";
+export { Stack, type StackHandle } from "./stack";
+export { RingBuffer, type RingBufferHandle } from "./ringbuffer";
+export { BitSet, type BitSetHandle } from "./bitset";
+export { type ScopeHandle } from "./types";
 
 /** RGBA pixel Struct preset (4 packed u8 fields). `RGBA.at(offset)` returns a proxy with `.r`, `.g`, `.b`, `.a` FieldAccessors. */
 import { Struct as _Struct } from "./struct";

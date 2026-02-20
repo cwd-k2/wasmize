@@ -1,3 +1,19 @@
+/**
+ * Core DSL namespaces: Mod, Op, Mem, Ctrl, Loc.
+ *
+ * These five namespaces form the primary API surface of the generator DSL:
+ * - **Mod** — Module-level declarations (functions, exports, imports, memory, globals, tables)
+ * - **Op** — Arithmetic, comparison, bitwise, and type-conversion operations.
+ *   Includes typed sub-namespaces (`Op.i64`, `Op.f64`, `Op.f32`, `Op.convert`).
+ * - **Mem** — Memory access (load/store), constants (`i32`/`i64`/`f64`),
+ *   and structured array helpers (`i32Array`, `i32Array2D`, `byteGrid`).
+ * - **Ctrl** — Control flow: `if`/`while`/`for`/`range`/`switch`, raw blocks/loops, branches.
+ * - **Loc** — Local variable operations: `get`, `set`, `tee`, `drop`, `return`.
+ *
+ * Also exports top-level constant helpers (`i32`, `i64`, `f64`).
+ *
+ * @module
+ */
 import { IR } from "../wasm/ir";
 import type { ConvertKind, IRNode } from "../wasm/ir";
 import { BumpAllocator } from "./allocator";
@@ -16,6 +32,7 @@ import {
   type WasmVal,
   type ModuleInstruction,
   type GlobalRef,
+  type ScopeHandle,
 } from "./types";
 import {
   type ExprInput,
@@ -74,9 +91,7 @@ function toBody(body: VoidBody): FuncBody<void> {
 /** Builds a FuncBody from either a plain body or a params record + callback. */
 function buildBody(
   bodyOrParams: FuncBody<FuncReturn> | Record<string, WasmValType>,
-  bodyWithParams?: (
-    ...refs: WasmRef<any>[]
-  ) => Generator<FuncInstruction, FuncReturn, any>,
+  bodyWithParams?: (...refs: WasmRef<any>[]) => Generator<FuncInstruction, FuncReturn, any>,
 ): FuncBody<FuncReturn> {
   if (typeof bodyOrParams === "function") return bodyOrParams;
   const entries = Object.entries(bodyOrParams);
@@ -145,10 +160,7 @@ interface ModNamespace {
   ): ModuleGen<CallableFunc>;
   recursive<A extends WasmRef<any>[]>(
     params: Record<string, WasmValType>,
-    body: (
-      self: CallableFunc,
-      ...refs: A
-    ) => Generator<FuncInstruction, FuncReturn, any>,
+    body: (self: CallableFunc, ...refs: A) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc<{ [K in keyof A]: WasmValType }>>;
 
   data(offset: number, bytes: Uint8Array): ModuleGen<void>;
@@ -191,9 +203,7 @@ export const Mod = {
    */
   func(
     bodyOrParams: FuncBody<FuncReturn> | Record<string, WasmValType>,
-    bodyWithParams?: (
-      ...refs: WasmRef<any>[]
-    ) => Generator<FuncInstruction, FuncReturn, any>,
+    bodyWithParams?: (...refs: WasmRef<any>[]) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc> {
     const body = buildBody(bodyOrParams, bodyWithParams);
     return (function* () {
@@ -246,9 +256,7 @@ export const Mod = {
   exportFunc(
     name: string,
     bodyOrParams: FuncBody<FuncReturn> | Record<string, WasmValType>,
-    bodyWithParams?: (
-      ...refs: WasmRef<any>[]
-    ) => Generator<FuncInstruction, FuncReturn, any>,
+    bodyWithParams?: (...refs: WasmRef<any>[]) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc> {
     const body = buildBody(bodyOrParams, bodyWithParams);
     return (function* () {
@@ -272,9 +280,7 @@ export const Mod = {
    */
   recursive(
     bodyOrParams:
-      | ((
-          self: CallableFunc,
-        ) => Generator<FuncInstruction, FuncReturn, any>)
+      | ((self: CallableFunc) => Generator<FuncInstruction, FuncReturn, any>)
       | Record<string, WasmValType>,
     bodyWithParams?: (
       self: CallableFunc,
@@ -344,7 +350,10 @@ export const Mod = {
               resolvedArgs.push(v._node);
             }
             const vi = yield* resolve(index);
-            yield { _type: "stmt", node: IR.call_indirect(firstFuncIdx, tableIdx, resolvedArgs, vi._node) } as FuncInstruction;
+            yield {
+              _type: "stmt",
+              node: IR.call_indirect(firstFuncIdx, tableIdx, resolvedArgs, vi._node),
+            } as FuncInstruction;
           })();
         },
       };
@@ -400,13 +409,14 @@ export const Mod = {
     })();
   },
   /** Declares a global variable with the given type and initial value. */
-  global(
-    type: WasmValType,
-    init: number,
-    mutable: boolean = true,
-  ) {
+  global(type: WasmValType, init: number, mutable: boolean = true) {
     return (function* () {
-      const ref: GlobalRef = yield { _type: "global", valType: type, init, mutable } as ModuleInstruction;
+      const ref: GlobalRef = yield {
+        _type: "global",
+        valType: type,
+        init,
+        mutable,
+      } as ModuleInstruction;
       return {
         get() {
           return new ChainableExpr(
@@ -430,9 +440,22 @@ export const Mod = {
 /** Arithmetic, comparison, bitwise, and conversion operations. */
 export const Op = {
   // --- i32 signed ops (top-level shortcuts) ---
-  add, sub, mul, div, rem,
-  eq, ne, lt, gt, le, ge,
-  and: and_, or: or_, xor: xor_, shl, shr,
+  add,
+  sub,
+  mul,
+  div,
+  rem,
+  eq,
+  ne,
+  lt,
+  gt,
+  le,
+  ge,
+  and: and_,
+  or: or_,
+  xor: xor_,
+  shl,
+  shr,
   select: select_,
   /** Branchless maximum via `select`. `Op.max(a, b)` = `a > b ? a : b`. */
   max(a: ExprInput, b: ExprInput): ChainableExpr {
@@ -456,7 +479,13 @@ export const Op = {
   },
 
   // --- Unsigned i32 ops ---
-  div_u, rem_u, shr_u, lt_u, gt_u, le_u, ge_u,
+  div_u,
+  rem_u,
+  shr_u,
+  lt_u,
+  gt_u,
+  le_u,
+  ge_u,
 
   // --- i32 sub-namespace ---
   i32: {
@@ -474,6 +503,7 @@ export const Op = {
   },
 
   // --- i64 operations ---
+  /** 64-bit integer operations. All ops take/return i64 except comparisons (→ i32). */
   i64: {
     add: makeBinopTyped("add", "i64"),
     sub: makeBinopTyped("sub", "i64"),
@@ -512,6 +542,7 @@ export const Op = {
   },
 
   // --- f32 operations ---
+  /** 32-bit float operations: arithmetic, rounding, comparison. */
   f32: {
     add: makeBinopTyped("add", "f32"),
     sub: makeBinopTyped("sub", "f32"),
@@ -536,6 +567,7 @@ export const Op = {
   },
 
   // --- f64 operations ---
+  /** 64-bit float operations: arithmetic, rounding, comparison. */
   f64: {
     add: makeBinopTyped("add", "f64"),
     sub: makeBinopTyped("sub", "f64"),
@@ -594,18 +626,37 @@ export const Op = {
   },
 
   // --- All conversions namespace ---
+  /** All Wasm numeric conversions as named functions (e.g. `Op.convert.f64_convert_i32_s`). */
   convert: Object.fromEntries(
-    ([
-      "i32_wrap_i64",
-      "i32_trunc_f32_s", "i32_trunc_f32_u", "i32_trunc_f64_s", "i32_trunc_f64_u",
-      "i64_extend_i32_s", "i64_extend_i32_u",
-      "i64_trunc_f32_s", "i64_trunc_f32_u", "i64_trunc_f64_s", "i64_trunc_f64_u",
-      "f32_convert_i32_s", "f32_convert_i32_u", "f32_convert_i64_s", "f32_convert_i64_u",
-      "f32_demote_f64",
-      "f64_convert_i32_s", "f64_convert_i32_u", "f64_convert_i64_s", "f64_convert_i64_u",
-      "f64_promote_f32",
-      "i32_reinterpret_f32", "i64_reinterpret_f64", "f32_reinterpret_i32", "f64_reinterpret_i64",
-    ] as ConvertKind[]).map(k => [k, makeConvert(k)])
+    (
+      [
+        "i32_wrap_i64",
+        "i32_trunc_f32_s",
+        "i32_trunc_f32_u",
+        "i32_trunc_f64_s",
+        "i32_trunc_f64_u",
+        "i64_extend_i32_s",
+        "i64_extend_i32_u",
+        "i64_trunc_f32_s",
+        "i64_trunc_f32_u",
+        "i64_trunc_f64_s",
+        "i64_trunc_f64_u",
+        "f32_convert_i32_s",
+        "f32_convert_i32_u",
+        "f32_convert_i64_s",
+        "f32_convert_i64_u",
+        "f32_demote_f64",
+        "f64_convert_i32_s",
+        "f64_convert_i32_u",
+        "f64_convert_i64_s",
+        "f64_convert_i64_u",
+        "f64_promote_f32",
+        "i32_reinterpret_f32",
+        "i64_reinterpret_f64",
+        "f32_reinterpret_i32",
+        "f64_reinterpret_i64",
+      ] as ConvertKind[]
+    ).map((k) => [k, makeConvert(k)]),
   ) as Record<ConvertKind, (a: ExprInput) => FuncGen<WasmVal>>,
 };
 
@@ -867,7 +918,7 @@ export const Mem = {
   } {
     const addrOf = (idx: ExprInput): ChainableExpr => {
       const scaled = new ChainableExpr(mul(idx, 4));
-      return (typeof base === "number" && base === 0) ? scaled : scaled.add(base);
+      return typeof base === "number" && base === 0 ? scaled : scaled.add(base);
     };
     type I32Array = {
       load(idx: ExprInput): ChainableExpr;
@@ -878,10 +929,8 @@ export const Mem = {
     };
     const arr: I32Array = {
       load: (idx: ExprInput): ChainableExpr => Mem.load(addrOf(idx)),
-      store: (idx: ExprInput, value: ExprInput): FuncGen<void> =>
-        Mem.store(addrOf(idx), value),
-      at: (idx: ExprInput): FieldAccessor<"i32"> =>
-        new FieldAccessor(addrOf(idx), "i32"),
+      store: (idx: ExprInput, value: ExprInput): FuncGen<void> => Mem.store(addrOf(idx), value),
+      at: (idx: ExprInput): FieldAccessor<"i32"> => new FieldAccessor(addrOf(idx), "i32"),
       swap: (i: ExprInput, j: ExprInput, tmp: WasmRef): FuncGen<void> =>
         (function* () {
           yield* set(tmp, arr.load(i));
@@ -890,7 +939,11 @@ export const Mem = {
         })(),
       fill: (startIdx: ExprInput, endIdx: ExprInput, value: ExprInput): FuncGen<void> =>
         (function* () {
-          const idx: WasmRef = yield { _type: "decl" as const, kind: "local" as const, valType: "i32" as WasmValType };
+          const idx: WasmRef = yield {
+            _type: "decl" as const,
+            kind: "local" as const,
+            valType: "i32" as WasmValType,
+          };
           yield* set(idx, startIdx);
           yield {
             _type: "block" as const,
@@ -918,7 +971,10 @@ export const Mem = {
    * @param cols - Number of columns (can be a runtime expression)
    * @returns Object with `load(row, col)`, `store(row, col, val)`, `at(row, col)`
    */
-  i32Array2D(base: ExprInput = 0, cols: ExprInput): {
+  i32Array2D(
+    base: ExprInput = 0,
+    cols: ExprInput,
+  ): {
     load(row: ExprInput, col: ExprInput): ChainableExpr;
     store(row: ExprInput, col: ExprInput, value: ExprInput): FuncGen<void>;
     at(row: ExprInput, col: ExprInput): FieldAccessor<"i32">;
@@ -927,11 +983,10 @@ export const Mem = {
       new ChainableExpr(add(mul(row, cols), col));
     const addrOf = (row: ExprInput, col: ExprInput): ChainableExpr => {
       const scaled = new ChainableExpr(mul(flatIdx(row, col), 4));
-      return (typeof base === "number" && base === 0) ? scaled : scaled.add(base);
+      return typeof base === "number" && base === 0 ? scaled : scaled.add(base);
     };
     return {
-      load: (row: ExprInput, col: ExprInput): ChainableExpr =>
-        Mem.load(addrOf(row, col)),
+      load: (row: ExprInput, col: ExprInput): ChainableExpr => Mem.load(addrOf(row, col)),
       store: (row: ExprInput, col: ExprInput, value: ExprInput): FuncGen<void> =>
         Mem.store(addrOf(row, col), value),
       at: (row: ExprInput, col: ExprInput): FieldAccessor<"i32"> =>
@@ -945,18 +1000,20 @@ export const Mem = {
    * @param cols - Number of columns (can be a runtime expression)
    * @returns Object with `load(row, col)`, `store(row, col, val)`, `at(row, col)`
    */
-  byteGrid(base: ExprInput = 0, cols: ExprInput): {
+  byteGrid(
+    base: ExprInput = 0,
+    cols: ExprInput,
+  ): {
     load(row: ExprInput, col: ExprInput): ChainableExpr;
     store(row: ExprInput, col: ExprInput, value: ExprInput): FuncGen<void>;
     at(row: ExprInput, col: ExprInput): FieldAccessor<"i32">;
   } {
     const addrOf = (row: ExprInput, col: ExprInput): ChainableExpr => {
       const flat = new ChainableExpr(add(mul(row, cols), col));
-      return (typeof base === "number" && base === 0) ? flat : flat.add(base);
+      return typeof base === "number" && base === 0 ? flat : flat.add(base);
     };
     return {
-      load: (row: ExprInput, col: ExprInput): ChainableExpr =>
-        Mem.load8(addrOf(row, col)),
+      load: (row: ExprInput, col: ExprInput): ChainableExpr => Mem.load8(addrOf(row, col)),
       store: (row: ExprInput, col: ExprInput, value: ExprInput): FuncGen<void> =>
         Mem.store8(addrOf(row, col), value),
       at: (row: ExprInput, col: ExprInput): FieldAccessor<"i32"> =>
@@ -1015,7 +1072,9 @@ function switchImpl(
             if (hasDefault) {
               yield {
                 _type: "block" as const,
-                body: function* () { yield* emitCases(); },
+                body: function* () {
+                  yield* emitCases();
+                },
               };
               yield* normalizedDefault!();
             } else {
@@ -1231,6 +1290,38 @@ export const Ctrl = {
   unreachable(): FuncGen<void> {
     return (function* () {
       yield { _type: "stmt", node: IR.unreachable() };
+    })();
+  },
+  /**
+   * Scoped resource management with deferred cleanup.
+   *
+   * `scope.defer(cleanup)` registers a generator to run when the scope exits (LIFO order).
+   * The body's `yield*` statements pass through transparently via generator delegation.
+   *
+   * @example
+   * ```ts
+   * yield* Ctrl.scope(function* (scope) {
+   *   const buf = yield* local(Type.i32, 0);
+   *   scope.defer(Mem.store(buf, 0));  // cleanup: zero the buffer
+   *   yield* Mem.store(buf, 42);
+   * });
+   * // after scope: buf is zeroed
+   * ```
+   */
+  scope(
+    body: (scope: ScopeHandle) => Generator<FuncInstruction, void, any>,
+  ): FuncGen<void> {
+    return (function* () {
+      const deferred: FuncGen<void>[] = [];
+      const handle: ScopeHandle = {
+        defer(cleanup) {
+          deferred.push(cleanup);
+        },
+      };
+      yield* body(handle);
+      for (let i = deferred.length - 1; i >= 0; i--) {
+        yield* deferred[i]!;
+      }
     })();
   },
 };

@@ -3,8 +3,8 @@ import { Mod } from "./dsl/primitives";
 import { BumpAllocator } from "./dsl/allocator";
 import type { WasmRef, FuncInstruction, FuncReturn } from "./dsl/types";
 import type { WasmValType } from "./wasm/opcodes";
-import { instantiate } from "./test-helpers";
-import { writeI32Array, writeF64Array } from "./marshal";
+import { instantiate } from "./runtime/instantiate";
+import { writeI32Array, writeF64Array } from "./runtime/marshal";
 
 type ScalarType = "i32" | "i64" | "f64";
 type ParamType = ScalarType | "i32[]" | "f64[]";
@@ -12,13 +12,13 @@ type ParamSpec = Record<string, ParamType>;
 
 type ResultType = "i32" | "f64" | "void";
 
-type JSResult<R extends ResultType> =
-  R extends "i32" ? number :
-  R extends "f64" ? number :
-  void;
+type JSResult<R extends ResultType> = R extends "i32" ? number : R extends "f64" ? number : void;
 
 // Cache compiled modules by body function identity
-const cache = new WeakMap<Function, Promise<{ instance: WebAssembly.Instance; memory?: WebAssembly.Memory }>>();
+const cache = new WeakMap<
+  Function,
+  Promise<{ instance: WebAssembly.Instance; memory?: WebAssembly.Memory }>
+>();
 
 /**
  * Compiles a single function to Wasm and returns a callable JS wrapper.
@@ -61,7 +61,12 @@ export async function wasmFunc<P extends ParamSpec, R extends ResultType>(
 
   // Build allocator for array regions
   const alloc = new BumpAllocator();
-  const arrayRegions: { name: string; elementType: "i32" | "f64"; base: number; maxCount: number }[] = [];
+  const arrayRegions: {
+    name: string;
+    elementType: "i32" | "f64";
+    base: number;
+    maxCount: number;
+  }[] = [];
 
   for (const ap of arrayParams) {
     const maxCount = 1024; // default max array size

@@ -67,20 +67,28 @@ for (const { dx, dy, check } of dirs) {
 
 ```typescript
 // Before: Wasm 二重ループ + center skip 条件
-yield* Ctrl.for(dy, -1, dy.le(1), dy.add(1), function* () {
-  yield* Ctrl.for(dx, -1, dx.le(1), dx.add(1), function* () {
-    yield* Ctrl.when(dx.ne(0).or(dy.ne(0)), function* () { /* ... */ });
+yield *
+  Ctrl.for(dy, -1, dy.le(1), dy.add(1), function* () {
+    yield* Ctrl.for(dx, -1, dx.le(1), dx.add(1), function* () {
+      yield* Ctrl.when(dx.ne(0).or(dy.ne(0)), function* () {
+        /* ... */
+      });
+    });
   });
-});
 
-// After: JS 側で 8 オフセットを列挙
-for (const { dx, dy } of Meta.neighbors8) {
-  yield* ny.set(y.add(dy));
-  yield* nx.set(x.add(dx));
-  yield* Ctrl.when(
-    ny.ge(0).and(ny.lt(h)).and(nx.ge(0)).and(nx.lt(w)),
-    () => [count.incrBy(gridA.load(ny, nx))],
-  );
+// After: JS 側でローカル定数を列挙（ドメイン固有の定数はファイルローカルに定義）
+const NEIGHBORS_8 = [
+  { dx: -1, dy: -1 }, { dx: -1, dy: 0 }, { dx: -1, dy: 1 },
+  { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+  { dx: 1, dy: -1 }, { dx: 1, dy: 0 }, { dx: 1, dy: 1 },
+];
+for (const { dx, dy } of NEIGHBORS_8) {
+  yield * ny.set(y.add(dy));
+  yield * nx.set(x.add(dx));
+  yield *
+    Ctrl.when(ny.ge(0).and(ny.lt(h)).and(nx.ge(0)).and(nx.lt(w)), () => [
+      count.incrBy(gridA.load(ny, nx)),
+    ]);
 }
 ```
 
@@ -135,16 +143,18 @@ const axes = [
 ] as const;
 
 for (const { pos, vel, coord, bound } of axes) {
-  yield* coord.set(p[pos]);
-  yield* Ctrl.when(coord.lt(f64(0)), function* () {
-    yield* p[pos].set(coord.neg());
-    yield* p[vel].set(p[vel].neg());
-  });
-  yield* coord.set(p[pos]); // reload
-  yield* Ctrl.when(coord.gt(bound), function* () {
-    yield* p[pos].set(bound.mul(f64(2)).sub(coord));
-    yield* p[vel].set(p[vel].neg());
-  });
+  yield * coord.set(p[pos]);
+  yield *
+    Ctrl.when(coord.lt(f64(0)), function* () {
+      yield* p[pos].set(coord.neg());
+      yield* p[vel].set(p[vel].neg());
+    });
+  yield * coord.set(p[pos]); // reload
+  yield *
+    Ctrl.when(coord.gt(bound), function* () {
+      yield* p[pos].set(bound.mul(f64(2)).sub(coord));
+      yield* p[vel].set(p[vel].neg());
+    });
 }
 ```
 
@@ -156,14 +166,14 @@ x 軸の 4 壁チェック + y 軸の 4 壁チェック（29行）→ 1 ルー�
 
 ```typescript
 // Before
-yield* Mem.store8(offset, gray);
-yield* Mem.store8(offset.add(1), gray);
-yield* Mem.store8(offset.add(2), gray);
+yield * Mem.store8(offset, gray);
+yield * Mem.store8(offset.add(1), gray);
+yield * Mem.store8(offset.add(2), gray);
 
 // After: RGBA プリセット + チャンネルループ
 const px = RGBA.at(offset);
 for (const ch of ["r", "g", "b"] as const) {
-  yield* px[ch].set(gray);
+  yield * px[ch].set(gray);
 }
 ```
 
@@ -183,15 +193,15 @@ wasmize の式（`ChainableExpr`, `FieldAccessor`）は内部に Generator を�
 // NG: FieldAccessor をキャッシュして複数回使用
 const axes = [{ pos: p.x, vel: p.vx }]; // p.x を 1 度だけ取得
 for (const { pos, vel } of axes) {
-  yield* coord.set(pos);    // (1) pos._inner を消費
-  yield* coord.set(pos);    // (2) 枯渇した Generator → undefined → TypeError!
+  yield * coord.set(pos); // (1) pos._inner を消費
+  yield * coord.set(pos); // (2) 枯渇した Generator → undefined → TypeError!
 }
 
 // OK: 文字列キーで毎回フレッシュにアクセス
 const axes = [{ pos: "x", vel: "vx" }] as const;
 for (const { pos, vel } of axes) {
-  yield* coord.set(p[pos]);   // p["x"] → Proxy get → 新しい FieldAccessor
-  yield* coord.set(p[pos]);   // p["x"] → Proxy get → また新しい FieldAccessor
+  yield * coord.set(p[pos]); // p["x"] → Proxy get → 新しい FieldAccessor
+  yield * coord.set(p[pos]); // p["x"] → Proxy get → また新しい FieldAccessor
 }
 ```
 
@@ -201,15 +211,15 @@ for (const { pos, vel } of axes) {
 
 ```typescript
 // NG: ChainableExpr を直接 base に渡す
-const px = RGBA.at(i.mul(4));  // i.mul(4) は single-use
-yield* gray.set(px.r);         // OK: r のアドレス計算で i.mul(4) を消費
-yield* px.g;                   // NG: i.mul(4) は既に消費済み → TypeError!
+const px = RGBA.at(i.mul(4)); // i.mul(4) は single-use
+yield * gray.set(px.r); // OK: r のアドレス計算で i.mul(4) を消費
+yield * px.g; // NG: i.mul(4) は既に消費済み → TypeError!
 
 // OK: ローカル変数に格納してから渡す
-yield* offset.set(i.mul(4));   // WasmRef に格納
-const px = RGBA.at(offset);   // WasmRef は何度でも local_get を生成可能
-yield* gray.set(px.r);         // OK
-yield* px.g;                   // OK: offset から新しい local_get が生成される
+yield * offset.set(i.mul(4)); // WasmRef に格納
+const px = RGBA.at(offset); // WasmRef は何度でも local_get を生成可能
+yield * gray.set(px.r); // OK
+yield * px.g; // OK: offset から新しい local_get が生成される
 ```
 
 **ルール: `Struct.at()` や `Mem.byteGrid/i32Array2D` の base/cols 引数にランタイム式を渡す場合は、`WasmRef`（ローカル変数）を使うこと。**
@@ -220,15 +230,15 @@ yield* px.g;                   // OK: offset から新しい local_get が生成
 
 JS の `for` ループで `yield*` すると、ループはコンパイル時に展開される:
 
-| JS 側（コンパイル時） | Wasm 側（実行時） |
-|---|---|
-| `for (const dir of dirs)` | 命令列がインラインに展開 |
-| `if (config.flag)` | 条件に応じた命令のみ生成 |
-| `arr.map(x => ...)` | 各要素に対応する命令列 |
-| `new Proxy(...)` | Proxy のプロパティアクセスが命令列に展開 |
-| `yield* Queue(base)` | `head`/`tail` ローカル変数宣言 + API オブジェクト |
-| `Ctrl.for(i, 0, ...)` | `block + loop + br_if + br` |
-| `Ctrl.while(cond, ...)` | `block + loop + br_if + br` |
+| JS 側（コンパイル時）     | Wasm 側（実行時）                                 |
+| ------------------------- | ------------------------------------------------- |
+| `for (const dir of dirs)` | 命令列がインラインに展開                          |
+| `if (config.flag)`        | 条件に応じた命令のみ生成                          |
+| `arr.map(x => ...)`       | 各要素に対応する命令列                            |
+| `new Proxy(...)`          | Proxy のプロパティアクセスが命令列に展開          |
+| `yield* Queue(base)`      | `head`/`tail` ローカル変数宣言 + API オブジェクト |
+| `Ctrl.for(i, 0, ...)`     | `block + loop + br_if + br`                       |
+| `Ctrl.while(cond, ...)`   | `block + loop + br_if + br`                       |
 
 JS の制御構造やオブジェクト指向機能 → コンパイル時展開（zero overhead）。DSL の制御構造（`Ctrl.*`）→ 実行時の Wasm ループ。
 
@@ -245,46 +255,50 @@ JS の制御構造やオブジェクト指向機能 → コンパイル時展開
 import { Meta } from "@/dsl/compiler";
 
 // Meta.each: 配列の各要素に対してステートメント展開
-yield* Meta.each([0, 1, 2], (c) => [
-  Mem.store8(offset.add(c), gray),
-]);
+yield * Meta.each([0, 1, 2], (c) => [Mem.store8(offset.add(c), gray)]);
 
 // Meta.times: N 回展開
-yield* Meta.times(4, (i) => [
-  Mem.store(i * 4, value),
-]);
+yield * Meta.times(4, (i) => [Mem.store(i * 4, value)]);
 
 // Meta.when: JS 条件が falsy なら命令を一切生成しない
-yield* Meta.when(USE_ALPHA, () => [
-  Mem.store8(offset.add(3), alpha),
-]);
+yield * Meta.when(USE_ALPHA, () => [Mem.store8(offset.add(3), alpha)]);
 ```
 
 ### 式の畳み込み
 
 ```typescript
 // Meta.sum: N 個の式を加算
-Meta.sum([r.mul(77), g.mul(150), b.mul(29)]).shr(8)
+Meta.sum([r.mul(77), g.mul(150), b.mul(29)]).shr(8);
 
 // Meta.weightedSum: 重み付き加算（weight=0 スキップ、weight=1 乗算省略）
 Meta.weightedSum([
   { weight: 77, expr: px.r },
   { weight: 150, expr: px.g },
   { weight: 29, expr: px.b },
-]).shr(8)
+]).shr(8);
 
 // Meta.product: N 個の式を乗算
-Meta.product([a, b, c])
+Meta.product([a, b, c]);
 ```
 
 ### 近傍定数
 
+ドメイン固有の近傍オフセットはファイルローカルに定義する:
+
 ```typescript
 // 4 近傍: Right, Left, Down, Up
-for (const { dx, dy } of Meta.neighbors4) { ... }
+const NEIGHBORS_4 = [
+  { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+];
+for (const { dx, dy } of NEIGHBORS_4) { ... }
 
 // 8 近傍: Game of Life 等
-for (const { dx, dy } of Meta.neighbors8) { ... }
+const NEIGHBORS_8 = [
+  { dx: -1, dy: -1 }, { dx: -1, dy: 0 }, { dx: -1, dy: 1 },
+  { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+  { dx: 1, dy: -1 }, { dx: 1, dy: 0 }, { dx: 1, dy: 1 },
+];
+for (const { dx, dy } of NEIGHBORS_8) { ... }
 ```
 
 ### 組み合わせ例: 3x3 畳み込みカーネル
@@ -292,17 +306,20 @@ for (const { dx, dy } of Meta.neighbors8) { ... }
 ```typescript
 // Meta.each × Meta.weightedSum で 2D カーネル展開
 const channels = ["r", "g", "b"] as const;
-yield* Meta.each(channels, (c, ci) => [
-  ch.set(
-    Meta.weightedSum(
-      kernel.map((weight, ki) => ({
-        weight,
-        expr: Mem.load8(neighborAddr(ki, ci)),
-      })),
-    ).div(divisor).clamp(0, 255),
-  ),
-  dstPx[c].set(ch),
-]);
+yield *
+  Meta.each(channels, (c, ci) => [
+    ch.set(
+      Meta.weightedSum(
+        kernel.map((weight, ki) => ({
+          weight,
+          expr: Mem.load8(neighborAddr(ki, ci)),
+        })),
+      )
+        .div(divisor)
+        .clamp(0, 255),
+    ),
+    dstPx[c].set(ch),
+  ]);
 ```
 
 ### 組み合わせ例: Sepia 行列変換
@@ -310,17 +327,20 @@ yield* Meta.each(channels, (c, ci) => [
 ```typescript
 // Meta.each で出力チャンネル、Meta.weightedSum で行列行 × ベクトル
 const rgb = [r, g, b]; // 先に読み出して WAR hazard 回避
-yield* Meta.each([0, 1, 2], (outCh) => [
-  ch.set(
-    Meta.weightedSum(
-      SEPIA_MATRIX[outCh]!.map((w, inCh) => ({
-        weight: w,
-        expr: rgb[inCh]!,
-      })),
-    ).shr(8).clamp(0, 255),
-  ),
-  px[["r", "g", "b"][outCh] as "r" | "g" | "b"].set(ch),
-]);
+yield *
+  Meta.each([0, 1, 2], (outCh) => [
+    ch.set(
+      Meta.weightedSum(
+        SEPIA_MATRIX[outCh]!.map((w, inCh) => ({
+          weight: w,
+          expr: rgb[inCh]!,
+        })),
+      )
+        .shr(8)
+        .clamp(0, 255),
+    ),
+    px[["r", "g", "b"][outCh] as "r" | "g" | "b"].set(ch),
+  ]);
 ```
 
 ---
@@ -340,6 +360,7 @@ Layer 1 (Raw)            Mem.load8(addr)           Mem.load(addr)
 ```
 
 各レイヤは下のレイヤを組み合わせて構築される。ユーザは問題に適したレイヤを選択する:
+
 - **Raw**: アドレス計算を完全に制御したい場合
 - **構造化**: 2D グリッドや配列のストライド計算を隠蔽したい場合
 - **ドメイン特化**: ピクセル操作や BFS キューなど、特定のパターンに最適化された API
@@ -353,13 +374,13 @@ const gridA = Mem.byteGrid(0, w);
 const gridB = Mem.byteGrid(gridSize, w);
 
 // 読み取り
-yield* cell.set(gridA.load(y, x));
+yield * cell.set(gridA.load(y, x));
 
 // 書き込み
-yield* gridB.store(y, x, count.eq(3).or(cell.and(count.eq(2))));
+yield * gridB.store(y, x, count.eq(3).or(cell.and(count.eq(2))));
 
 // FieldAccessor（in-place mutation）
-yield* gridA.at(y, x).incrBy(1);
+yield * gridA.at(y, x).incrBy(1);
 ```
 
 ### i32Array2D — 2D i32 配列
@@ -367,11 +388,11 @@ yield* gridA.at(y, x).incrBy(1);
 `Mem.i32Array2D(base, cols)` は `(row * cols + col) * 4 + base` のアドレス計算を隠蔽。DP テーブルに最適。`base` はランタイム式（`ExprInput`）も可。
 
 ```typescript
-const cols = yield* local(Type.i32, len_b.add(1));
+const cols = yield * local(Type.i32, len_b.add(1));
 const dp = Mem.i32Array2D(DP_BASE, cols);
 
-yield* dp.store(i, j, dp.load(i.sub(1), j.sub(1)).add(1));
-yield* dp.at(i, j).incrBy(cost);
+yield * dp.store(i, j, dp.load(i.sub(1), j.sub(1)).add(1));
+yield * dp.at(i, j).incrBy(cost);
 ```
 
 ### RGBA — ピクセルアクセス Struct プリセット
@@ -381,21 +402,22 @@ yield* dp.at(i, j).incrBy(cost);
 **重要:** `offset` には `WasmRef`（ローカル変数）を使うこと。[Single-use 制約](#single-use-制約-generator-は一度しか消費できない)を参照。
 
 ```typescript
-const offset = yield* local(Type.i32);
+const offset = yield * local(Type.i32);
 // ...
-yield* offset.set(i.mul(4));
+yield * offset.set(i.mul(4));
 const px = RGBA.at(offset);
 
-yield* gray.set(
-  Meta.weightedSum([
-    { weight: 77, expr: px.r },
-    { weight: 150, expr: px.g },
-    { weight: 29, expr: px.b },
-  ]).shr(8),
-);
+yield *
+  gray.set(
+    Meta.weightedSum([
+      { weight: 77, expr: px.r },
+      { weight: 150, expr: px.g },
+      { weight: 29, expr: px.b },
+    ]).shr(8),
+  );
 
 for (const ch of ["r", "g", "b"] as const) {
-  yield* px[ch].set(gray);
+  yield * px[ch].set(gray);
 }
 ```
 
@@ -404,24 +426,27 @@ for (const ch of ["r", "g", "b"] as const) {
 `Queue(base)` は **Generator ファクトリ** — `yield*` でローカル変数（`head`/`tail`）を内部に確保し、操作メソッドを持つオブジェクトを返す。
 
 ```typescript
-const q = yield* Queue(qBase);
+const q = yield * Queue(qBase);
 
-yield* q.enqueue(startIdx);
+yield * q.enqueue(startIdx);
 
-yield* Ctrl.while(q.notEmpty, function* () {
-  yield* q.dequeue(current);
-  // ... BFS ロジック
-  yield* q.enqueue(neighbor);
-});
+yield *
+  Ctrl.while(q.notEmpty, function* () {
+    yield* q.dequeue(current);
+    // ... BFS ロジック
+    yield* q.enqueue(neighbor);
+  });
 ```
 
 **Generator ファクトリパターンのポイント:**
+
 - `yield*` による初期化で、ローカル変数のスコープが内部に閉じ込められる
 - 返されるオブジェクトのメソッドは、クロージャで内部変数にアクセスする
 - 呼び出し側は `head`/`tail` の存在を意識せず、`enqueue`/`dequeue` だけを使う
 - 生成される Wasm は手動で `head`/`tail` を管理した場合と完全に同一
 
 このパターンは Queue 以外にも応用できる:
+
 - Stack（push/pop/isEmpty）
 - Ring buffer（固定長キュー）
 - Accumulator（reduce パターンのカプセル化）
@@ -431,8 +456,12 @@ yield* Ctrl.while(q.notEmpty, function* () {
 function* Counter() {
   const count = yield* local(Type.i32, 0);
   return {
-    increment(): FuncGen<void> { return count.incrBy(1); },
-    get value(): ChainableExpr { return count; },
+    increment(): FuncGen<void> {
+      return count.incrBy(1);
+    },
+    get value(): ChainableExpr {
+      return count;
+    },
   };
 }
 ```
@@ -442,21 +471,23 @@ function* Counter() {
 ## 設計指針
 
 **使うべき場面:**
+
 - 同一パターンが 3 回以上繰り返される
 - 差分がパラメータ（数値、フィールド名、コールバック）で表現できる
 - 展開後の命令列が元の手動展開と等価
 - メモリレイアウトの計算が複雑で、バグの温床になりやすい
 
 **使わないべき場面:**
+
 - ループ回数が実行時に決まる場合 → `Ctrl.for` / `Ctrl.while` を使う
 - 最適化意図を持つ手動展開（例: matmul のストライド管理）
 - 2 回程度の繰り返しで、メタプロ化しても行数が減らない場合
 
 **抽象化レベルの選択:**
 
-| 状況 | 推奨 |
-|------|------|
-| アドレス計算が 1 箇所だけ | Raw (`Mem.load/store`) |
-| 同じストライド計算が繰り返される | 構造化 (`byteGrid`, `i32Array2D`) |
+| 状況                                       | 推奨                                    |
+| ------------------------------------------ | --------------------------------------- |
+| アドレス計算が 1 箇所だけ                  | Raw (`Mem.load/store`)                  |
+| 同じストライド計算が繰り返される           | 構造化 (`byteGrid`, `i32Array2D`)       |
 | 特定のドメインパターンが複数ファイルに出現 | プリセット/ファクトリ (`RGBA`, `Queue`) |
-| 内部状態を持つ抽象化が必要 | Generator ファクトリパターン |
+| 内部状態を持つ抽象化が必要                 | Generator ファクトリパターン            |
