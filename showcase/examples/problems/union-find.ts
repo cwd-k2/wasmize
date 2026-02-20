@@ -1,19 +1,89 @@
 /**
  * P15: Union-Find — disjoint set with path compression and union by rank.
  *
- * Approach: Array-based union-find with two operations: find (with path compression)
- * and union (by rank).
- * Memory layout: parent array at PARENT_BASE, rank array at RANK_BASE.
+ * Approach: Self-contained UnionFind data structure (plain function pattern).
+ * Uses BumpAllocator for automatic memory layout, Mem.i32Array for parent/rank arrays.
+ * find uses path halving (single-pass), union uses rank-based merge with elseif chain.
  * Complexity: O(α(n)) amortized per operation.
- * DSL features: Mem.i32Array, Ctrl.while (path compression loop), Ctrl.if.
+ * DSL features: BumpAllocator, Mem.i32Array, Ctrl.while, Ctrl.if.elseif, Ctrl.range.
  */
-import { local, Type, Mod, Mem, Ctrl } from "@/dsl/compiler";
+import {
+  local,
+  Type,
+  Mod,
+  Mem,
+  Ctrl,
+  type ExprInput,
+  type FuncGen,
+  WasmRef,
+} from "@/dsl/compiler";
+import { BumpAllocator } from "@/dsl/allocator";
 import { compileWithWat } from "@/debug";
 
+// --- UnionFind data structure (plain function pattern) ---
+
+function UnionFind(alloc: BumpAllocator, maxN: number) {
+  const parent = alloc.i32Array(maxN);
+  const rank = alloc.i32Array(maxN);
+  const countAddr = alloc.alloc(4, 4);
+
+  /** Path-halving find: mutates x in-place to its root. */
+  function find(x: WasmRef<"i32">): FuncGen<void> {
+    return (function* () {
+      yield* Ctrl.while(x.ne(parent.load(x)), function* () {
+        yield* parent.store(x, parent.load(parent.load(x)));
+        yield* x.set(parent.load(x));
+      });
+    })();
+  }
+
+  return {
+    /** Initializes parent[i]=i, rank[i]=0, count=n for i in [0, n). */
+    init(n: ExprInput): FuncGen<void> {
+      return (function* () {
+        const i = yield* local(Type.i32);
+        yield* Ctrl.range(i, n, () => [parent.store(i, i), rank.store(i, 0)]);
+        yield* Mem.store(countAddr, n);
+      })();
+    },
+
+    find,
+
+    /** Union by rank. Merges the sets containing u and v. */
+    union(u: WasmRef<"i32">, v: WasmRef<"i32">): FuncGen<void> {
+      return (function* () {
+        yield* find(u);
+        yield* find(v);
+        yield* Ctrl.when(u.ne(v), function* () {
+          yield* Ctrl.if(rank.load(u).lt(rank.load(v)))
+            .then(function* () {
+              yield* parent.store(u, v);
+            })
+            .elseif(rank.load(u).gt(rank.load(v)))
+            .then(function* () {
+              yield* parent.store(v, u);
+            })
+            .else(function* () {
+              yield* parent.store(v, u);
+              yield* rank.store(u, rank.load(u).add(1));
+            });
+          yield* Mem.store(countAddr, Mem.load(countAddr).sub(1));
+        });
+      })();
+    },
+
+    /** Number of disjoint sets (ChainableExpr). */
+    get count() {
+      return Mem.load(countAddr);
+    },
+  };
+}
+
+// --- Wasm module ---
+
 export function problem15_union_find() {
-  const PARENT_BASE = 0;
-  const RANK_BASE = 32768;
-  const COUNT_ADDR = 65532;
+  const alloc = new BumpAllocator();
+  const uf = UnionFind(alloc, 8192);
 
   return compileWithWat<{
     uf_init: (n: number) => void;
@@ -21,57 +91,26 @@ export function problem15_union_find() {
     uf_find: (x: number) => number;
     uf_count: () => number;
   }>(function* () {
-    yield* Mod.memory(2);
-    const parent = Mem.i32Array(PARENT_BASE);
-    const rank = Mem.i32Array(RANK_BASE);
+    yield* Mod.memory(alloc.requiredPages);
 
-    // uf_init(n): parent[i] = i, rank[i] = 0, count = n
     const uf_init = yield* Mod.func({ n: Type.i32 }, function* (n) {
-      const i = yield* local(Type.i32);
-
-      yield* Ctrl.range(i, n, () => [parent.store(i, i), rank.store(i, 0)]);
-      yield* Mem.store(COUNT_ADDR, n);
+      yield* uf.init(n);
     });
 
-    // uf_find(x) -> root, with path halving (single-pass)
     const uf_find = yield* Mod.func({ x: Type.i32 }, function* (x) {
-      yield* Ctrl.while(x.ne(parent.load(x)), function* () {
-        yield* parent.store(x, parent.load(parent.load(x)));
-        yield* x.set(parent.load(x));
-      });
+      yield* uf.find(x);
       return x;
     });
 
-    // uf_union(u, v): union by rank
-    const uf_union = yield* Mod.func({ u: Type.i32, v: Type.i32 }, function* (u, v) {
-      const ru = yield* local(Type.i32);
-      const rv = yield* local(Type.i32);
+    const uf_union = yield* Mod.func(
+      { u: Type.i32, v: Type.i32 },
+      function* (u, v) {
+        yield* uf.union(u, v);
+      },
+    );
 
-      yield* ru.set(uf_find(u));
-      yield* rv.set(uf_find(v));
-
-      yield* Ctrl.when(ru.ne(rv), function* () {
-        yield* Ctrl.if(rank.load(ru).lt(rank.load(rv)))
-          .then(function* () {
-            yield* parent.store(ru, rv);
-          })
-          .else(function* () {
-            yield* Ctrl.if(rank.load(ru).gt(rank.load(rv)))
-              .then(function* () {
-                yield* parent.store(rv, ru);
-              })
-              .else(function* () {
-                yield* parent.store(rv, ru);
-                yield* rank.store(ru, rank.load(ru).add(1));
-              });
-          });
-        yield* Mem.store(COUNT_ADDR, Mem.load(COUNT_ADDR).sub(1));
-      });
-    });
-
-    // uf_count() -> number of disjoint sets
     const uf_count = yield* Mod.func(function* () {
-      return yield* Mem.load(COUNT_ADDR);
+      return yield* uf.count;
     });
 
     yield* Mod.exportAll({ uf_init, uf_find, uf_union, uf_count });
