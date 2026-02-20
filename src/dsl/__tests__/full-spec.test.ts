@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { Type, Mod, Op, Mem, Ctrl } from "../primitives";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 
 describe("i32 unary ops", () => {
   test("clz counts leading zeros", async () => {

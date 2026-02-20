@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { Mod } from "../primitives";
 import { Str } from "../string";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 
 describe("Str", () => {
   describe("Str.from", () => {

@@ -6,7 +6,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { Type, Mod, Mem, f64, i32 } from "../primitives";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 
 describe("polymorphic i64 ref ops", () => {
   test("i64 ref .add() dispatches to i64.add", async () => {

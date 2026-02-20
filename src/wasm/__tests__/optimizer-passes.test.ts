@@ -178,7 +178,7 @@ describe("custom passes", () => {
   test("custom pass via compile options", async () => {
     const { compile } = await import("../../dsl/compiler");
     const { Mod, Mem } = await import("../../dsl/primitives");
-    const { instantiate } = await import("../../test-helpers");
+    const { instantiate } = await import("../../runtime/instantiate");
 
     const doubleConst: OptimizerPass = {
       name: "double-const",

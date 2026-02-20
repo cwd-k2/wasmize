@@ -600,7 +600,7 @@ UTF-8 文字列操作。`Str.from()` は data segment に埋め込み、`Str.len
 | **Game of Life** | JS 側 8 近傍展開, ダブルバッファリング, ブランチレス alive 判定                    | `game-of-life.ts` |
 | **Particles**    | `Struct` + `BumpAllocator`, f64 フィールド, 軸ループによる壁反射                   | `particles.ts`    |
 
-各 example は `async function` を export し、`{ exports, setXxx, getXxx, binary }` のパターンで JS ラッパを返す。`src/realworld-runner.ts` がこれらを統合し、`src/ui/realworld.ts` が Canvas ベースのインタラクティブデモをレンダリングする。
+各 example は `async function` を export し、`{ exports, setXxx, getXxx, binary }` のパターンで JS ラッパを返す。`showcase/app/realworld-runner.ts` がこれらを統合し、`showcase/ui/realworld.ts` が Canvas ベースのインタラクティブデモをレンダリングする。
 
 ### JS メタプログラミング
 
@@ -616,7 +616,7 @@ Generator DSL は JS ランタイム上で実行されるため、**JS/TS がチ
 
 ### Marshal レイヤー
 
-**ファイル:** `src/marshal.ts`
+**ファイル:** `src/runtime/marshal.ts`
 
 JS 配列・文字列と Wasm 線形メモリ間の型安全なデータ転送。`writeI32Array()`, `readI32Array()`, `writeString()`, `readString()` 等。
 
@@ -646,13 +646,13 @@ yield * sort(arrBase, 0, len.sub(1));
 
 ### AsyncBridge
 
-**ファイル:** `src/async-bridge.ts`
+**ファイル:** `src/runtime/async-bridge.ts`
 
 Effect → Async 変換。Wasm の effect（`mem[0]` = tag, `mem[4]` = payload, return -1）を `on(tag, handler)` で非同期ハンドラにディスパッチ。
 
 ### WorkerPool
 
-**ファイル:** `src/worker-pool.ts`
+**ファイル:** `src/runtime/worker-pool.ts`
 
 並列 Wasm 実行。ブラウザ（Web Worker）と Node.js（worker_threads）の両環境に対応。
 
@@ -793,5 +793,5 @@ compile(program); // target 省略 → validation なし
 ```typescript
 import { compile } from "@/dsl/compiler";
 import { wasmFunc } from "@/inline";
-import { instantiate } from "@/test-helpers";
+import { instantiate } from "@/runtime/instantiate";
 ```

@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compileWithReport, formatReport } from "../optimizer-report";
 import { Mod, param, Type, Mem } from "../../dsl/primitives";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 
 describe("compileWithReport", () => {
   test("produces valid binary and report", async () => {

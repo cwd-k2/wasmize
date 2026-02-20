@@ -1,2 +1,2 @@
-export { AsyncBridge } from "./async-bridge";
-export { WorkerPool } from "./worker-pool";
+export { AsyncBridge } from "./runtime/async-bridge";
+export { WorkerPool } from "./runtime/worker-pool";

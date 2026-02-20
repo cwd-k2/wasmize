@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../../dsl/compiler";
 import { Type, Mod } from "../../dsl/primitives";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 import { pow, clamp, abs, lerp } from "../math";
 
 describe("stdlib/math", () => {

@@ -45,7 +45,7 @@ E2E テストは Vite dev server を自動起動して Playwright で検証す�
 
 Vite dev server を `http://localhost:5173` で起動します。
 
-- `index.html` → `src/main.ts` → `runner.ts` が全 15 問題を実行
+- `index.html` → `showcase/app/main.ts` → `runner.ts` が全 15 問題を実行
 - 各問題の PASS/FAIL 状態とテストケース結果がブラウザに表示される
 - HMR（Hot Module Replacement）対応 — コード変更が即座に反映
 
@@ -55,7 +55,7 @@ Vite dev server を `http://localhost:5173` で起動します。
 
 vitest をワンショット実行（`vitest run`）します。
 
-- テスト対象: `src/**/__tests__/**/*.test.ts`, `bench/**/*.test.ts`, `examples/**/__tests__/**/*.test.ts`
+- テスト対象: `src/**/__tests__/**/*.test.ts`, `showcase/**/*.test.ts`
 - 各問題の `.test.ts` が `compile()` → `instantiate()` → アサーションを実行
 - メモリを使う問題はテスト内でメモリに入力データを書き込み
 - DSL プリミティブ、stdlib、高レベル API（wasmFunc, wasmize）、使用例のテストも含む
@@ -67,7 +67,7 @@ vitest をワンショット実行（`vitest run`）します。
 Playwright でブラウザベースの E2E テストを実行します。
 
 - `playwright.config.ts` で Vite dev server を自動起動
-- `e2e/app.test.ts`: 全 15 問題が PASS することを検証
+- `showcase/e2e/app.test.ts`: 全 15 問題が PASS することを検証
 - CI 環境（`process.env.CI`）では dev server を新規起動、ローカルでは既存サーバーを再利用
 
 **用途:** UI レイヤーを含めた統合テスト。PR 前の最終確認。
@@ -96,13 +96,13 @@ TypeScript コンパイル + Vite によるプロダクションビルドを実�
 ## 新しい問題を追加するときのフロー
 
 ```
-1. examples/problems/new-problem.ts を作成
-2. examples/problems/index.ts に re-export を追加
-3. examples/problems/__tests__/new-problem.test.ts を作成
+1. showcase/examples/problems/new-problem.ts を作成
+2. showcase/examples/problems/index.ts に re-export を追加
+3. showcase/examples/problems/__tests__/new-problem.test.ts を作成
 4. npm run typecheck && npm run test    ← ここまでで基本動作を確認
-5. src/runner.ts の runTests() にセクション追加
+5. showcase/app/runner.ts の runTests() にセクション追加
 6. npm run dev                          ← ブラウザで表示確認
-7. e2e/app.test.ts の期待 PASS 数を更新
+7. showcase/e2e/app.test.ts の期待 PASS 数を更新
 8. npm run test:e2e                     ← E2E 確認
 ```
 

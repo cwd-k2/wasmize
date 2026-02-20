@@ -57,7 +57,7 @@ export { wasmFunc } from "./inline";
 export { wasmize } from "./declarative";
 
 // Runtime utilities
-export { instantiate } from "./test-helpers";
+export { instantiate } from "./runtime/instantiate";
 export {
   writeI32Array,
   readI32Array,
@@ -66,4 +66,4 @@ export {
   writeString,
   readString,
   roundtrip,
-} from "./marshal";
+} from "./runtime/marshal";

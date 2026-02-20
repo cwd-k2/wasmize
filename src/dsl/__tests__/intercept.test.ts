@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { param, local, Type, Mod, Mem, Ctrl } from "../primitives";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 import {
   intercept,
   interceptIR,

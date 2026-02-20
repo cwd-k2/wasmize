@@ -18,5 +18,5 @@
     "rootDir": "src"
   },
   "include": ["src"],
-  "exclude": ["src/**/__tests__", "src/main.ts", "src/runner.ts", "src/realworld-runner.ts"]
+  "exclude": ["src/**/__tests__"]
 }

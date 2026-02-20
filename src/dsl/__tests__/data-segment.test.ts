@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { Type, Mod, Mem } from "../primitives";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 
 describe("Data Segment", () => {
   test("raw bytes are initialized in memory", async () => {

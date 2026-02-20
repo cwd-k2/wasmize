@@ -3,8 +3,8 @@ import { Mod } from "./dsl/primitives";
 import { BumpAllocator } from "./dsl/allocator";
 import type { WasmRef, FuncInstruction, FuncReturn } from "./dsl/types";
 import type { WasmValType } from "./wasm/opcodes";
-import { instantiate } from "./test-helpers";
-import { writeI32Array, writeF64Array } from "./marshal";
+import { instantiate } from "./runtime/instantiate";
+import { writeI32Array, writeF64Array } from "./runtime/marshal";
 
 type ScalarType = "i32" | "i64" | "f64";
 type ParamType = ScalarType | "i32[]" | "f64[]";

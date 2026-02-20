@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { param, local, Type, Mod, Op, Mem, Ctrl, Loc } from "../primitives";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 
 describe("Op.select", () => {
   test("select returns ifTrue when cond is non-zero", async () => {

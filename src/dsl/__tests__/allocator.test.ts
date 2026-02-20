@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { Mod, i64, f64 } from "../primitives";
 import { BumpAllocator } from "../allocator";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 
 describe("BumpAllocator", () => {
   test("sequential alloc with default alignment", () => {

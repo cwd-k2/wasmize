@@ -3,7 +3,7 @@ import { Mod } from "./dsl/primitives";
 import { BumpAllocator } from "./dsl/allocator";
 import type { WasmRef, FuncInstruction, FuncReturn } from "./dsl/types";
 import type { WasmValType } from "./wasm/opcodes";
-import { instantiate } from "./test-helpers";
+import { instantiate } from "./runtime/instantiate";
 
 // --- Types ---
 

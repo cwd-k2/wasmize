@@ -3,7 +3,7 @@ import { compile } from "../compiler";
 import { Mod } from "../primitives";
 import { BumpAllocator } from "../allocator";
 import { boundsCheckedArray } from "../bounds";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 
 describe("Bounds checking", () => {
   test("valid access succeeds", async () => {

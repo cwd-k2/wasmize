@@ -207,7 +207,7 @@ const search = instance.exports.binary_search as (len: number, target: number) =
 
 ```ts
 // 案: instantiate() ヘルパ
-import { instantiate } from "../test-helpers";
+import { instantiate } from "../runtime/instantiate";
 
 const { exports, mem } = await instantiate(problem5_binary_search());
 const search = exports.binary_search as (len: number, target: number) => number;
@@ -449,7 +449,7 @@ export function problem7_sieve() {
 
 DSL 本体ではないが、compile → instantiate のボイラープレートはテスト・ベンチ・runner の全ファイルに存在する。`as any` + `eslint-disable` を 1 箇所に閉じ込める効果も大きい。
 
-- **ファイル:** `src/test-helpers.ts`（新規）
+- **ファイル:** `src/runtime/instantiate.ts`（新規）
 - **依存:** なし
 
 ### P1: `Ctrl.for` / `Ctrl.while`
@@ -517,7 +517,7 @@ compile<{ fib: (n: number) => number }>(...)
 - `compile<T>()` の型パラメータで export 関数のシグネチャを宣言
 - `WasmBinary<T>` = `Uint8Array & { readonly __exports?: T }` — 実行時は純粋な Uint8Array
 - `instantiate<T>()` が `WasmBinary<T>` から T を推論し、`exports: T` を返す
-- テスト・ベンチ・runner から全ての `as` キャストを排除（`as any` は test-helpers.ts の 1 箇所のみ）
+- テスト・ベンチ・runner から全ての `as` キャストを排除（`as any` は runtime/instantiate.ts の 1 箇所のみ）
 
 ---
 
@@ -554,12 +554,12 @@ compile<{ fib: (n: number) => number }>(...)
 
 coverage を上げるために問題を追加するのではなく、「この問題を解くにはこの命令が要る」という動機で拡張する。
 
-| 問題案            | 必要な命令                         | 状態                                             |
-| ----------------- | ---------------------------------- | ------------------------------------------------ |
-| SHA-256 / CRC32   | `i32.rotr`, `i32.xor`, `i32.shr_u` | ✅ CRC32 実装済（`examples/realworld/crc32.ts`） |
-| Newton 法 (sqrt)  | `f64.mul`, `f64.div`, `f64.sub`    |                                                  |
-| 文字列マッチング  | `i32.load8_s`, `i32.load16_u`      |                                                  |
-| 動的配列 (vector) | `memory.size`, `memory.grow`       |                                                  |
+| 問題案            | 必要な命令                         | 状態                                                      |
+| ----------------- | ---------------------------------- | --------------------------------------------------------- |
+| SHA-256 / CRC32   | `i32.rotr`, `i32.xor`, `i32.shr_u` | ✅ CRC32 実装済（`showcase/examples/realworld/crc32.ts`） |
+| Newton 法 (sqrt)  | `f64.mul`, `f64.div`, `f64.sub`    |                                                           |
+| 文字列マッチング  | `i32.load8_s`, `i32.load16_u`      |                                                           |
+| 動的配列 (vector) | `memory.size`, `memory.grow`       |                                                           |
 
 ※ これらの命令は opcodes.ts に登録済みで codegen にも接続済み（100% カバレッジ）。
 

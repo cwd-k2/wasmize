@@ -67,8 +67,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "bench": "vitest bench bench/perf",
-    "bench:report": "vitest run bench/",
+    "bench": "vitest bench showcase/bench/perf",
+    "bench:report": "vitest run showcase/bench/",
     "check": "npm run fmt:check && npm run lint && npm run typecheck && npm run test"
   },
   "devDependencies": {

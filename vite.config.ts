@@ -13,15 +13,11 @@ export default defineConfig({
     outDir: "dist-app",
   },
   test: {
-    include: [
-      "src/**/__tests__/**/*.test.ts",
-      "bench/**/*.test.ts",
-      "examples/**/__tests__/**/*.test.ts",
-    ],
+    include: ["src/**/__tests__/**/*.test.ts", "showcase/**/*.test.ts"],
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
-      exclude: ["src/**/__tests__/**", "src/main.ts", "src/runner.ts", "src/realworld-runner.ts"],
+      exclude: ["src/**/__tests__/**"],
     },
   },
 });

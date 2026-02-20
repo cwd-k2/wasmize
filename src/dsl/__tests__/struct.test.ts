@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { Mod, f64 } from "../primitives";
 import { Struct } from "../struct";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 
 describe("Struct", () => {
   describe("layout calculation", () => {

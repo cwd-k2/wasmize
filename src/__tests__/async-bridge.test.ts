@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../dsl/compiler";
 import { Type, Mod, Mem, Ctrl, Op } from "../dsl/primitives";
-import { AsyncBridge } from "../async-bridge";
+import { AsyncBridge } from "../runtime/async-bridge";
 
 describe("AsyncBridge", () => {
   test("handles a single effect and continues", async () => {

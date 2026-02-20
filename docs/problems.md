@@ -1,12 +1,12 @@
 # Problems
 
-15 のアルゴリズム問題 + 4 つの Realworld Example のカタログ。各問題は `examples/problems/` に、Realworld 例は `examples/realworld/` に実装され、`compile()` で Wasm バイナリに変換されます。
+15 のアルゴリズム問題 + 4 つの Realworld Example のカタログ。各問題は `showcase/examples/problems/` に、Realworld 例は `showcase/examples/realworld/` に実装され、`compile()` で Wasm バイナリに変換されます。
 
 ---
 
 ## 1. Tower of Hanoi
 
-**ファイル:** `examples/problems/hanoi.ts` | **関数:** `problem1_hanoi()`
+**ファイル:** `showcase/examples/problems/hanoi.ts` | **関数:** `problem1_hanoi()`
 
 ### アルゴリズム
 
@@ -42,7 +42,7 @@ env.effect_move(from: i32, to: i32) → void
 
 ## 2. Fibonacci DP
 
-**ファイル:** `examples/problems/fibonacci.ts` | **関数:** `problem2_fib_dp()`
+**ファイル:** `showcase/examples/problems/fibonacci.ts` | **関数:** `problem2_fib_dp()`
 
 ### アルゴリズム
 
@@ -75,7 +75,7 @@ Memory pages: 1 (64KB)
 
 ## 3. Kadane's Algorithm
 
-**ファイル:** `examples/problems/kadane.ts` | **関数:** `problem3_kadane()`
+**ファイル:** `showcase/examples/problems/kadane.ts` | **関数:** `problem3_kadane()`
 
 ### アルゴリズム
 
@@ -108,7 +108,7 @@ BASE = 1024。Memory pages: 2。
 
 ## 4. Coin Change
 
-**ファイル:** `examples/problems/coin-change.ts` | **関数:** `problem4_coin_change()`
+**ファイル:** `showcase/examples/problems/coin-change.ts` | **関数:** `problem4_coin_change()`
 
 ### アルゴリズム
 
@@ -142,7 +142,7 @@ Memory pages: 2。
 
 ## 5. Binary Search
 
-**ファイル:** `examples/problems/binary-search.ts` | **関数:** `problem5_binary_search()`
+**ファイル:** `showcase/examples/problems/binary-search.ts` | **関数:** `problem5_binary_search()`
 
 ### アルゴリズム
 
@@ -175,7 +175,7 @@ Memory pages: 1。
 
 ## 6. GCD Array
 
-**ファイル:** `examples/problems/gcd.ts` | **関数:** `problem6_gcd_array()`
+**ファイル:** `showcase/examples/problems/gcd.ts` | **関数:** `problem6_gcd_array()`
 
 ### アルゴリズム
 
@@ -210,7 +210,7 @@ Memory pages: 1。
 
 ## 7. Sieve of Eratosthenes
 
-**ファイル:** `examples/problems/sieve.ts` | **関数:** `problem7_sieve()`
+**ファイル:** `showcase/examples/problems/sieve.ts` | **関数:** `problem7_sieve()`
 
 ### アルゴリズム
 
@@ -245,7 +245,7 @@ Memory pages: 2（最大 ~131,000 まで対応）。
 
 ## 8. Matrix Multiply
 
-**ファイル:** `examples/problems/matmul.ts` | **関数:** `problem8_matmul()`
+**ファイル:** `showcase/examples/problems/matmul.ts` | **関数:** `problem8_matmul()`
 
 ### アルゴリズム
 
@@ -280,7 +280,7 @@ Memory pages: 2（n ≤ 64）。
 
 ## 9. LCS Length
 
-**ファイル:** `examples/problems/lcs.ts` | **関数:** `problem9_lcs()`
+**ファイル:** `showcase/examples/problems/lcs.ts` | **関数:** `problem9_lcs()`
 
 ### アルゴリズム
 
@@ -316,7 +316,7 @@ Memory pages: 5。
 
 ## 10. 0/1 Knapsack
 
-**ファイル:** `examples/problems/knapsack.ts` | **関数:** `problem10_knapsack()`
+**ファイル:** `showcase/examples/problems/knapsack.ts` | **関数:** `problem10_knapsack()`
 
 ### アルゴリズム
 
@@ -351,7 +351,7 @@ Memory pages: 4。
 
 ## 11. Quicksort
 
-**ファイル:** `examples/problems/quicksort.ts` | **関数:** `problem11_quicksort()`
+**ファイル:** `showcase/examples/problems/quicksort.ts` | **関数:** `problem11_quicksort()`
 
 ### アルゴリズム
 
@@ -386,7 +386,7 @@ Memory pages: 1。
 
 ## 12. Flood Fill
 
-**ファイル:** `examples/problems/flood-fill.ts` | **関数:** `problem12_flood_fill()`
+**ファイル:** `showcase/examples/problems/flood-fill.ts` | **関数:** `problem12_flood_fill()`
 
 ### アルゴリズム
 
@@ -421,7 +421,7 @@ Memory pages: 4。
 
 ## 13. LIS (Longest Increasing Subsequence)
 
-**ファイル:** `examples/problems/lis.ts` | **関数:** `problem13_lis()`
+**ファイル:** `showcase/examples/problems/lis.ts` | **関数:** `problem13_lis()`
 
 ### アルゴリズム
 
@@ -455,7 +455,7 @@ Memory pages: 1。
 
 ## 14. N-Queens Count
 
-**ファイル:** `examples/problems/nqueens.ts` | **関数:** `problem14_nqueens()`
+**ファイル:** `showcase/examples/problems/nqueens.ts` | **関数:** `problem14_nqueens()`
 
 ### アルゴリズム
 
@@ -497,7 +497,7 @@ Memory pages: 1（ほぼ不使用、ローカル変数のみ）。
 
 ## 15. Union-Find
 
-**ファイル:** `examples/problems/union-find.ts` | **関数:** `problem15_union_find()`
+**ファイル:** `showcase/examples/problems/union-find.ts` | **関数:** `problem15_union_find()`
 
 ### アルゴリズム
 
@@ -541,13 +541,13 @@ Memory pages: 2。
 
 # Realworld Examples
 
-`examples/realworld/` に配置された実用ユースケース。ブラウザ UI でインタラクティブデモとして動作する。
+`showcase/examples/realworld/` に配置された実用ユースケース。ブラウザ UI でインタラクティブデモとして動作する。
 
 ---
 
 ## R1. Image Grayscale + Brightness
 
-**ファイル:** `examples/realworld/grayscale.ts`
+**ファイル:** `showcase/examples/realworld/grayscale.ts`
 
 ### 機能
 
@@ -572,7 +572,7 @@ Memory pages: 1 (16384 pixels)。
 
 ## R2. CRC32 Checksum
 
-**ファイル:** `examples/realworld/crc32.ts`
+**ファイル:** `showcase/examples/realworld/crc32.ts`
 
 ### 機能
 
@@ -597,7 +597,7 @@ Memory pages: 1。
 
 ## R3. Conway's Game of Life
 
-**ファイル:** `examples/realworld/game-of-life.ts`
+**ファイル:** `showcase/examples/realworld/game-of-life.ts`
 
 ### 機能
 
@@ -623,7 +623,7 @@ Memory pages: 2。
 
 ## R4. 2D Particle Simulation
 
-**ファイル:** `examples/realworld/particles.ts`
+**ファイル:** `showcase/examples/realworld/particles.ts`
 
 ### 機能
 

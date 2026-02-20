@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { Type, Mod, Mem } from "../primitives";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 
 describe("call_indirect", () => {
   test("dynamic dispatch via function table", async () => {

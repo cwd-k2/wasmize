@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../compiler";
 import { param, local, Type, Mod, Mem } from "../primitives";
-import { instantiate } from "../../test-helpers";
+import { instantiate } from "../../runtime/instantiate";
 import { withBoundsCheck } from "../guard";
 // Note: withBoundsCheck uses interceptIR which only transforms stmt instructions.
 // Loads in return expressions must be captured via local variables to be guarded.

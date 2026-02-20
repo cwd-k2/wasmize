@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { compile } from "../dsl/compiler";
 import { Type, Mod } from "../dsl/primitives";
-import { WorkerPool } from "../worker-pool";
+import { WorkerPool } from "../runtime/worker-pool";
 
 describe("WorkerPool", () => {
   test("runs a function on a single worker", async () => {
