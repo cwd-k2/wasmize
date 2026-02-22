@@ -9,6 +9,7 @@
  */
 import {
   local,
+  run,
   Type,
   Mod,
   Mem,
@@ -29,12 +30,12 @@ function UnionFind(alloc: BumpAllocator, maxN: number) {
 
   /** Path-halving find: mutates x in-place to its root. */
   function find(x: WasmRef<"i32">): FuncGen<void> {
-    return (function* () {
-      yield* Ctrl.while(x.ne(parent.load(x)), function* () {
-        yield* parent.store(x, parent.load(parent.load(x)));
-        yield* x.set(parent.load(x));
-      });
-    })();
+    return run(() => [
+      Ctrl.while(x.ne(parent.load(x)), () => [
+        parent.store(x, parent.load(parent.load(x))),
+        x.set(parent.load(x)),
+      ]),
+    ]);
   }
 
   return {
@@ -51,25 +52,18 @@ function UnionFind(alloc: BumpAllocator, maxN: number) {
 
     /** Union by rank. Merges the sets containing u and v. */
     union(u: WasmRef<"i32">, v: WasmRef<"i32">): FuncGen<void> {
-      return (function* () {
-        yield* find(u);
-        yield* find(v);
-        yield* Ctrl.when(u.ne(v), function* () {
-          yield* Ctrl.if(rank.load(u).lt(rank.load(v)))
-            .then(function* () {
-              yield* parent.store(u, v);
-            })
+      return run(() => [
+        find(u),
+        find(v),
+        Ctrl.when(u.ne(v), () => [
+          Ctrl.if(rank.load(u).lt(rank.load(v)))
+            .then(() => [parent.store(u, v)])
             .elseif(rank.load(u).gt(rank.load(v)))
-            .then(function* () {
-              yield* parent.store(v, u);
-            })
-            .else(function* () {
-              yield* parent.store(v, u);
-              yield* rank.store(u, rank.load(u).add(1));
-            });
-          yield* Mem.store(countAddr, Mem.load(countAddr).sub(1));
-        });
-      })();
+            .then(() => [parent.store(v, u)])
+            .else(() => [parent.store(v, u), rank.store(u, rank.load(u).add(1))]),
+          Mem.store(countAddr, Mem.load(countAddr).sub(1)),
+        ]),
+      ]);
     },
 
     /** Number of disjoint sets (ChainableExpr). */

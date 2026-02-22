@@ -55,9 +55,9 @@ function gameOfLifeWasm() {
 
       // Copy gridB → gridA
       const copyIdx = yield* local(Type.i32);
-      yield* Ctrl.range(copyIdx, gridSize, function* () {
-        yield* Mem.store8(copyIdx, Mem.load8(copyIdx.add(gridSize)));
-      });
+      yield* Ctrl.range(copyIdx, gridSize, () => [
+        Mem.store8(copyIdx, Mem.load8(copyIdx.add(gridSize))),
+      ]);
     });
 
     yield* Mod.exportFunc(

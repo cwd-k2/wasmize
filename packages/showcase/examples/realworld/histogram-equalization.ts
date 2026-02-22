@@ -57,18 +57,18 @@ function histogramEqualizationWasm() {
 
       // --- Phase 2: CDF via prefix sum ---
       yield* sum.set(0);
-      yield* Ctrl.range(i, 256, function* () {
-        yield* sum.incrBy(hist.load(i));
-        yield* cdf.store(i, sum);
-      });
+      yield* Ctrl.range(i, 256, () => [
+        sum.incrBy(hist.load(i)),
+        cdf.store(i, sum),
+      ]);
 
       // Find cdfMin (first non-zero CDF entry)
       yield* cdfMin.set(0);
-      yield* Ctrl.range(i, 256, function* () {
-        yield* Ctrl.when(cdfMin.eq(0).and(hist.load(i).gt(0)), function* () {
-          yield* cdfMin.set(cdf.load(i));
-        });
-      });
+      yield* Ctrl.range(i, 256, () => [
+        Ctrl.when(cdfMin.eq(0).and(hist.load(i).gt(0)), () => [
+          cdfMin.set(cdf.load(i)),
+        ]),
+      ]);
 
       // denom = total - cdfMin (avoid div by zero: if denom=0, use 1)
       yield* denom.set(Op.max(len.sub(cdfMin), 1));

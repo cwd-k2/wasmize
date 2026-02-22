@@ -452,6 +452,28 @@ export function select_(cond: ExprInput, ifTrue: ExprInput, ifFalse: ExprInput):
   })();
 }
 
+// --- Body normalization ---
+
+/**
+ * Body input for `.then()` / `.else()` — accepts both generator and array forms.
+ *
+ * - `FuncBody<FuncReturn>` — `function*() { ... }` (can return a value)
+ * - `() => VoidStmt[]` — `() => [a, b]` (void shorthand)
+ */
+type IfBodyInput = FuncBody<FuncReturn> | (() => VoidStmt[]);
+
+/** Normalizes an IfBodyInput into a FuncBody<FuncReturn>. */
+function normalizeIfBody(body: IfBodyInput): FuncBody<FuncReturn> {
+  return function* () {
+    const r = (body as () => any)();
+    if (Array.isArray(r)) {
+      for (const s of r as VoidStmt[]) yield* s;
+    } else {
+      return yield* r;
+    }
+  };
+}
+
 // --- Statement primitives ---
 
 /**
@@ -532,8 +554,8 @@ function if_impl(
 export class IfBuilder {
   constructor(private readonly _cond: ExprInput) {}
   /** Specifies the then-branch body. Returns a {@link ThenBuilder} for optional `.else()` chaining. */
-  then(body: FuncBody<FuncReturn>): ThenBuilder {
-    return new ThenBuilder(this._cond, body);
+  then(body: IfBodyInput): ThenBuilder {
+    return new ThenBuilder(this._cond, normalizeIfBody(body));
   }
 }
 
@@ -550,8 +572,8 @@ export class ThenBuilder {
   ) {}
 
   /** Specifies the else-branch body. Returns a new ThenBuilder (immutable chaining). */
-  else(body: FuncBody<FuncReturn>): ThenBuilder {
-    return new ThenBuilder(this._cond, this._then, body, this._elseIfChain);
+  else(body: IfBodyInput): ThenBuilder {
+    return new ThenBuilder(this._cond, this._then, normalizeIfBody(body), this._elseIfChain);
   }
 
   /** Adds an else-if branch. Chain `.then(body)` to complete it. */
@@ -593,12 +615,12 @@ export class ElseIfBuilder {
   ) {}
 
   /** Specifies the body for this else-if branch. */
-  then(body: FuncBody<FuncReturn>): ThenBuilder {
+  then(body: IfBodyInput): ThenBuilder {
     return new ThenBuilder(
       this._chain[0]!.cond,
       this._chain[0]!.body,
       undefined,
-      [...this._chain.slice(1), { cond: this._cond, body }],
+      [...this._chain.slice(1), { cond: this._cond, body: normalizeIfBody(body) }],
     );
   }
 }

@@ -37,11 +37,11 @@ function histogramWasm() {
 
       // Count each pixel value
       yield* i.set(0);
-      yield* Ctrl.while(i.lt(len), function* () {
-        yield* val.set(Mem.load8(i));
-        yield* hist.at(val).incrBy(1);
-        yield* i.incrBy(1);
-      });
+      yield* Ctrl.while(i.lt(len), () => [
+        val.set(Mem.load8(i)),
+        hist.at(val).incrBy(1),
+        i.incrBy(1),
+      ]);
     });
 
     // histogramRgba: compute grayscale from RGBA, then histogram
@@ -74,10 +74,10 @@ function histogramWasm() {
     yield* Mod.exportFunc("cdf", function* () {
       const [i, sum] = yield* locals(Type.i32, [Type.i32, 0]);
 
-      yield* Ctrl.range(i, 256, function* () {
-        yield* sum.incrBy(hist.load(i));
-        yield* cdfArr.store(i, sum);
-      });
+      yield* Ctrl.range(i, 256, () => [
+        sum.incrBy(hist.load(i)),
+        cdfArr.store(i, sum),
+      ]);
     });
   });
 }

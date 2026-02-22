@@ -15,11 +15,11 @@ export async function optimizerReportExample() {
       const n = yield* param(Type.i32);
       const [a, b, tmp, i] = yield* locals([Type.i32, 0], [Type.i32, 1], Type.i32, Type.i32);
 
-      yield* Ctrl.range(i, n, function* () {
-        yield* tmp.set(yield* b.add(a));
-        yield* a.set(b);
-        yield* b.set(tmp);
-      });
+      yield* Ctrl.range(i, n, () => [
+        tmp.set(b.add(a)),
+        a.set(b),
+        b.set(tmp),
+      ]);
 
       return a;
     });

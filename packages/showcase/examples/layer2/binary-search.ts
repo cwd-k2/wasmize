@@ -25,12 +25,8 @@ export async function binarySearch() {
             v.set(arr.load(mid)),
             Ctrl.when(v.eq(target), () => [Loc.return(mid)]),
             Ctrl.if(v.lt(target))
-              .then(function* () {
-                yield* lo.set(mid.add(1));
-              })
-              .else(function* () {
-                yield* hi.set(mid.sub(1));
-              }),
+              .then(() => [lo.set(mid.add(1))])
+              .else(() => [hi.set(mid.sub(1))]),
           ]);
 
           return -1;

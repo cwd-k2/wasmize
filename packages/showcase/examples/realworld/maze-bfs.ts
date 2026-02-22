@@ -59,22 +59,22 @@ function mazeBfsWasm() {
           yield* curDist.set(dist.load(ci));
 
           // Check if we reached the goal
-          yield* Ctrl.when(cx.eq(gx).and(cy.eq(gy)), function* () {
-            yield* Loc.return(curDist);
-          });
+          yield* Ctrl.when(cx.eq(gx).and(cy.eq(gy)), () => [
+            Loc.return(curDist),
+          ]);
 
           // Explore 4 neighbors
           for (const { dx, dy } of NEIGHBORS_4) {
             yield* nx.set(cx.add(dx));
             yield* ny.set(cy.add(dy));
-            yield* Ctrl.when(nx.inRange(0, w).and(ny.inRange(0, h)), function* () {
-              yield* ni.set(ny.mul(w).add(nx));
+            yield* Ctrl.when(nx.inRange(0, w).and(ny.inRange(0, h)), () => [
+              ni.set(ny.mul(w).add(nx)),
               // If passage and unvisited
-              yield* Ctrl.when(maze.load(ny, nx).eq(0).and(dist.load(ni).eq(-1)), function* () {
-                yield* dist.store(ni, curDist.add(1));
-                yield* q.enqueue(ni);
-              });
-            });
+              Ctrl.when(maze.load(ny, nx).eq(0).and(dist.load(ni).eq(-1)), () => [
+                dist.store(ni, curDist.add(1)),
+                q.enqueue(ni),
+              ]),
+            ]);
           }
         });
 

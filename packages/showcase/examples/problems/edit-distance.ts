@@ -29,22 +29,19 @@ export function problem16_edit_distance() {
         yield* Ctrl.range(i, len_a.add(1), () => [dp.store(i, 0, i)]);
 
         // Fill DP table
-        yield* Ctrl.range(i, 1, len_a.add(1), function* () {
-          yield* Ctrl.range(j, 1, len_b.add(1), function* () {
-            // cost = 0 if a[i-1] == b[j-1], else 1
-            yield* cost.set(a.load(i.sub(1)).ne(b.load(j.sub(1))));
-
-            // dp[i][j] = min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+cost)
-            yield* dp.store(
+        yield* Ctrl.range(i, 1, len_a.add(1), () => [
+          Ctrl.range(j, 1, len_b.add(1), () => [
+            cost.set(a.load(i.sub(1)).ne(b.load(j.sub(1)))),
+            dp.store(
               i,
               j,
               Op.min(
                 Op.min(dp.load(i.sub(1), j).add(1), dp.load(i, j.sub(1)).add(1)),
                 dp.load(i.sub(1), j.sub(1)).add(cost),
               ),
-            );
-          });
-        });
+            ),
+          ]),
+        ]);
 
         return yield* dp.load(len_a, len_b);
       },

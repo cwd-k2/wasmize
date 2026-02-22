@@ -67,30 +67,30 @@ function dijkstraWasm() {
           yield* curDist.set(pri);
 
           // Skip if we already found a shorter path
-          yield* Ctrl.when(curDist.gt(dist.load(ci)), function* () {
-            yield* Ctrl.br(1); // continue while loop
-          });
+          yield* Ctrl.when(curDist.gt(dist.load(ci)), () => [
+            Ctrl.br(1), // continue while loop
+          ]);
 
           // Decode cell index to (cx, cy) coordinates
           yield* cy.set(ci.div(w));
           yield* cx.set(ci.sub(cy.mul(w)));
-          yield* Ctrl.when(cx.eq(gx).and(cy.eq(gy)), function* () {
-            yield* Loc.return(curDist);
-          });
+          yield* Ctrl.when(cx.eq(gx).and(cy.eq(gy)), () => [
+            Loc.return(curDist),
+          ]);
 
           // Explore 4 neighbors
           for (const { dx, dy } of NEIGHBORS_4) {
             yield* nx.set(cx.add(dx));
             yield* ny.set(cy.add(dy));
-            yield* Ctrl.when(nx.inRange(0, w).and(ny.inRange(0, h)), function* () {
-              yield* ni.set(ny.mul(w).add(nx));
-              yield* newDist.set(curDist.add(weight.load(ni)));
+            yield* Ctrl.when(nx.inRange(0, w).and(ny.inRange(0, h)), () => [
+              ni.set(ny.mul(w).add(nx)),
+              newDist.set(curDist.add(weight.load(ni))),
               // Relax edge if shorter
-              yield* Ctrl.when(newDist.lt(dist.load(ni)), function* () {
-                yield* dist.store(ni, newDist);
-                yield* heap.insert(newDist, ni);
-              });
-            });
+              Ctrl.when(newDist.lt(dist.load(ni)), () => [
+                dist.store(ni, newDist),
+                heap.insert(newDist, ni),
+              ]),
+            ]);
           }
         });
 

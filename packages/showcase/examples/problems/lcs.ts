@@ -29,17 +29,13 @@ export function problem9_lcs() {
       yield* Ctrl.range(i, len_a.add(1), () => [dp.store(i, 0, 0)]);
 
       // Fill DP table
-      yield* Ctrl.range(i, 1, len_a.add(1), function* () {
-        yield* Ctrl.range(j, 1, len_b.add(1), function* () {
-          yield* Ctrl.if(a.load(i.sub(1)).eq(b.load(j.sub(1))))
-            .then(function* () {
-              yield* dp.store(i, j, dp.load(i.sub(1), j.sub(1)).add(1));
-            })
-            .else(function* () {
-              yield* dp.store(i, j, Op.max(dp.load(i.sub(1), j), dp.load(i, j.sub(1))));
-            });
-        });
-      });
+      yield* Ctrl.range(i, 1, len_a.add(1), () => [
+        Ctrl.range(j, 1, len_b.add(1), () => [
+          Ctrl.if(a.load(i.sub(1)).eq(b.load(j.sub(1))))
+            .then(() => [dp.store(i, j, dp.load(i.sub(1), j.sub(1)).add(1))])
+            .else(() => [dp.store(i, j, Op.max(dp.load(i.sub(1), j), dp.load(i, j.sub(1))))]),
+        ]),
+      ]);
 
       return yield* dp.load(len_a, len_b);
     });

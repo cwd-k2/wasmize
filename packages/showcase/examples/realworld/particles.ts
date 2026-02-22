@@ -66,18 +66,18 @@ function particlesWasm() {
           yield* coord.set(p[pos]);
 
           // min wall: coord < 0
-          yield* Ctrl.when(coord.lt(f64(0)), function* () {
-            yield* p[pos].set(coord.neg());
-            yield* p[vel].set(p[vel].neg());
-          });
+          yield* Ctrl.when(coord.lt(f64(0)), () => [
+            p[pos].set(coord.neg()),
+            p[vel].set(p[vel].neg()),
+          ]);
 
           yield* coord.set(p[pos]); // reload after potential modification
 
           // max wall: coord > bound
-          yield* Ctrl.when(coord.gt(bound), function* () {
-            yield* p[pos].set(bound.mul(f64(2)).sub(coord));
-            yield* p[vel].set(p[vel].neg());
-          });
+          yield* Ctrl.when(coord.gt(bound), () => [
+            p[pos].set(bound.mul(f64(2)).sub(coord)),
+            p[vel].set(p[vel].neg()),
+          ]);
         }
       });
     });

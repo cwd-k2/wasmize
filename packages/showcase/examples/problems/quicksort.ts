@@ -35,11 +35,11 @@ export function problem11_quicksort() {
       function* (self, lo, hi) {
         const p = yield* local(Type.i32);
 
-        yield* Ctrl.when(lo.lt(hi), function* () {
-          yield* p.set(partition(lo, hi));
-          yield* self.void(lo, p.sub(1));
-          yield* self.void(p.add(1), hi);
-        });
+        yield* Ctrl.when(lo.lt(hi), () => [
+          p.set(partition(lo, hi)),
+          self.void(lo, p.sub(1)),
+          self.void(p.add(1), hi),
+        ]);
       },
     );
 

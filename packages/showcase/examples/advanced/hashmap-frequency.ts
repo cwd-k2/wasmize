@@ -37,19 +37,12 @@ function hashFrequencyWasm() {
 
       yield* map.clear();
 
-      yield* Ctrl.range(i, n, function* () {
-        yield* key.set(input.load(i));
-
-        // Upsert: if key exists, increment; otherwise set to 1
-        yield* Ctrl.if(map.has(key))
-          .then(function* () {
-            yield* map.get(key, tmp);
-            yield* map.set(key, tmp.add(1));
-          })
-          .else(function* () {
-            yield* map.set(key, 1);
-          });
-      });
+      yield* Ctrl.range(i, n, () => [
+        key.set(input.load(i)),
+        Ctrl.if(map.has(key))
+          .then(() => [map.get(key, tmp), map.set(key, tmp.add(1))])
+          .else(() => [map.set(key, 1)]),
+      ]);
     });
 
     // getFrequency: return the count for a given key
@@ -58,12 +51,8 @@ function hashFrequencyWasm() {
       const map = yield* HashMap(MAP_BASE, MAP_CAPACITY);
 
       yield* Ctrl.if(map.has(key))
-        .then(function* () {
-          yield* map.get(key, tmp);
-        })
-        .else(function* () {
-          yield* tmp.set(0);
-        });
+        .then(() => [map.get(key, tmp)])
+        .else(() => [tmp.set(0)]);
 
       return tmp;
     });
@@ -76,27 +65,22 @@ function hashFrequencyWasm() {
 
       // Build frequency map
       yield* map.clear();
-      yield* Ctrl.range(i, n, function* () {
-        yield* key.set(input.load(i));
-        yield* Ctrl.if(map.has(key))
-          .then(function* () {
-            yield* map.get(key, tmp);
-            yield* map.set(key, tmp.add(1));
-          })
-          .else(function* () {
-            yield* map.set(key, 1);
-          });
-      });
+      yield* Ctrl.range(i, n, () => [
+        key.set(input.load(i)),
+        Ctrl.if(map.has(key))
+          .then(() => [map.get(key, tmp), map.set(key, tmp.add(1))])
+          .else(() => [map.set(key, 1)]),
+      ]);
 
       // Scan input to find max frequency
-      yield* Ctrl.range(i, n, function* () {
-        yield* key.set(input.load(i));
-        yield* map.get(key, tmp);
-        yield* Ctrl.when(tmp.gt(bestCount), function* () {
-          yield* bestCount.set(tmp);
-          yield* bestVal.set(key);
-        });
-      });
+      yield* Ctrl.range(i, n, () => [
+        key.set(input.load(i)),
+        map.get(key, tmp),
+        Ctrl.when(tmp.gt(bestCount), () => [
+          bestCount.set(tmp),
+          bestVal.set(key),
+        ]),
+      ]);
 
       return bestVal;
     });

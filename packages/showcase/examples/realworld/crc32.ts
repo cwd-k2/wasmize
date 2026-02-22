@@ -41,15 +41,11 @@ function crc32Wasm() {
         // crc = 0xFFFFFFFF = -1 in i32
         yield* crc.set(-1);
 
-        yield* Ctrl.while(i.lt(len), function* () {
-          // idx = (crc ^ byte) & 0xFF
-          yield* idx.set(crc.xor(Mem.load8(dataOffset.add(i))).and(0xff));
-
-          // crc = table[idx] ^ (crc >>> 8)
-          yield* crc.set(Mem.load(idx.mul(4).add(TABLE_OFFSET)).xor(Op.shr_u(crc, 8)));
-
-          yield* i.incrBy(1);
-        });
+        yield* Ctrl.while(i.lt(len), () => [
+          idx.set(crc.xor(Mem.load8(dataOffset.add(i))).and(0xff)),
+          crc.set(Mem.load(idx.mul(4).add(TABLE_OFFSET)).xor(Op.shr_u(crc, 8))),
+          i.incrBy(1),
+        ]);
 
         // return crc ^ 0xFFFFFFFF = crc ^ -1
         return yield* crc.xor(-1);

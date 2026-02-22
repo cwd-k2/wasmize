@@ -22,26 +22,22 @@ export function problem13_lis() {
       const [i, tails_len, lo, hi, mid, val] =
         yield* locals(Type.i32, [Type.i32, 0], Type.i32, Type.i32, Type.i32, Type.i32);
 
-      yield* Ctrl.range(i, len, function* () {
-        yield* val.set(input.load(i));
+      yield* Ctrl.range(i, len, () => [
+        val.set(input.load(i)),
 
         // Inline lower_bound: find first index where tails[idx] >= val
-        yield* lo.set(0);
-        yield* hi.set(tails_len);
-        yield* Ctrl.while(lo.lt(hi), function* () {
-          yield* mid.set(lo.add(hi).div(2));
-          yield* Ctrl.if(tails.load(mid).lt(val))
-            .then(function* () {
-              yield* lo.set(mid.add(1));
-            })
-            .else(function* () {
-              yield* hi.set(mid);
-            });
-        });
+        lo.set(0),
+        hi.set(tails_len),
+        Ctrl.while(lo.lt(hi), () => [
+          mid.set(lo.add(hi).div(2)),
+          Ctrl.if(tails.load(mid).lt(val))
+            .then(() => [lo.set(mid.add(1))])
+            .else(() => [hi.set(mid)]),
+        ]),
 
-        yield* tails.store(lo, val);
-        yield* Ctrl.when(lo.eq(tails_len), () => [tails_len.incrBy(1)]);
-      });
+        tails.store(lo, val),
+        Ctrl.when(lo.eq(tails_len), () => [tails_len.incrBy(1)]),
+      ]);
 
       return tails_len;
     });

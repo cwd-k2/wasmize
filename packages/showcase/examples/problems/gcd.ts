@@ -20,12 +20,12 @@ export function problem6_gcd_array() {
 
       yield* result.set(arr.load(0));
 
-      yield* Ctrl.for(i, 1, i.lt(len), i.add(1), function* () {
-        yield* a.set(result);
-        yield* b.set(arr.load(i));
-        yield* Ctrl.while(b.ne(0), () => [t.set(b), b.set(a.rem(b)), a.set(t)]);
-        yield* result.set(a);
-      });
+      yield* Ctrl.for(i, 1, i.lt(len), i.add(1), () => [
+        a.set(result),
+        b.set(arr.load(i)),
+        Ctrl.while(b.ne(0), () => [t.set(b), b.set(a.rem(b)), a.set(t)]),
+        result.set(a),
+      ]);
 
       return result;
     });
