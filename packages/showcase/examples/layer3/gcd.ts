@@ -1,0 +1,19 @@
+import { wasmFunc } from "wasmize/inline";
+import { locals, Type, Ctrl } from "wasmize/dsl/primitives";
+
+/**
+ * GCD (Euclidean algorithm) via wasmFunc — Layer 3 API.
+ *
+ * 2 引数の純粋計算関数。wasmFunc() の最もシンプルなユースケース。
+ * params は WasmRef<WasmValType> なので、IntType 制約のある .rem() を使うには
+ * local(Type.i32, param) で型付きローカルにコピーする。
+ */
+export async function gcd() {
+  return wasmFunc({ a: "i32", b: "i32" }, "i32", function* (a, b) {
+    const [x, y, t] = yield* locals([Type.i32, a], [Type.i32, b], Type.i32);
+
+    yield* Ctrl.while(y.ne(0), () => [t.set(y), y.set(x.rem(y)), x.set(t)]);
+
+    return x;
+  });
+}

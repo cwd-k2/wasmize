@@ -1,9 +1,9 @@
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
-  testDir: "./showcase/e2e",
+  testDir: "./packages/showcase/e2e",
   webServer: {
-    command: "npm run dev",
+    command: "pnpm --filter @wasmize/showcase dev",
     url: "http://localhost:5173",
     reuseExistingServer: !process.env.CI,
   },

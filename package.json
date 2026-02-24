@@ -1,75 +1,20 @@
 {
-  "name": "wasmize",
-  "version": "0.1.0",
-  "description": "Generator-based DSL that compiles algorithms to WebAssembly binaries",
-  "keywords": [
-    "codegen",
-    "compiler",
-    "dsl",
-    "generator",
-    "typescript",
-    "wasm",
-    "webassembly"
-  ],
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/cwd-k2/wasmize.git"
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
+  "private": true,
   "type": "module",
-  "sideEffects": [
-    "./dist/dsl/augment.js"
-  ],
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./debug": {
-      "types": "./dist/debug.d.ts",
-      "import": "./dist/debug.js"
-    },
-    "./optimizer": {
-      "types": "./dist/optimizer.d.ts",
-      "import": "./dist/optimizer.js"
-    },
-    "./stdlib": {
-      "types": "./dist/stdlib/index.d.ts",
-      "import": "./dist/stdlib/index.js"
-    },
-    "./bench": {
-      "types": "./dist/bench.d.ts",
-      "import": "./dist/bench.js"
-    },
-    "./worker": {
-      "types": "./dist/worker.d.ts",
-      "import": "./dist/worker.js"
-    }
-  },
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "build:lib": "tsc -p tsconfig.build.json",
-    "prepublishOnly": "npm run build:lib",
-    "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
-    "typecheck:tsgo": "tsgo --noEmit",
+    "dev": "pnpm --filter @wasmize/showcase dev",
+    "build": "pnpm -r build",
+    "build:lib": "pnpm --filter wasmize build",
+    "typecheck": "pnpm -r typecheck",
     "lint": "oxlint",
     "fmt": "oxfmt .",
     "fmt:check": "oxfmt --check .",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test": "vitest run --exclude '**/e2e/**'",
+    "test:coverage": "vitest run --exclude '**/e2e/**' --coverage",
     "test:e2e": "playwright test",
-    "bench": "vitest bench showcase/bench/perf",
-    "bench:report": "vitest run showcase/bench/",
-    "check": "npm run fmt:check && npm run lint && npm run typecheck && npm run test"
+    "bench": "vitest bench packages/showcase/bench/perf",
+    "bench:report": "vitest run packages/showcase/bench/",
+    "check": "pnpm run fmt:check && pnpm run lint && pnpm run typecheck && pnpm run test"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

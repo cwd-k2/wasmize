@@ -1,0 +1,21 @@
+{
+  "name": "@wasmize/showcase",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "bench": "vitest bench bench/perf",
+    "bench:report": "vitest run bench/"
+  },
+  "dependencies": {
+    "wasmize": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "~5.7.0",
+    "vite": "^6.0.0",
+    "vitest": "^4.0.18"
+  }
+}

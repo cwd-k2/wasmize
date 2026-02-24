@@ -1,0 +1,83 @@
+{
+  "name": "wasmize",
+  "version": "0.1.0",
+  "description": "Generator-based DSL that compiles algorithms to WebAssembly binaries",
+  "keywords": [
+    "codegen",
+    "compiler",
+    "dsl",
+    "generator",
+    "typescript",
+    "wasm",
+    "webassembly"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cwd-k2/wasmize.git",
+    "directory": "packages/core"
+  },
+  "type": "module",
+  "sideEffects": [
+    "./src/dsl/augment.ts"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./debug": "./src/debug.ts",
+    "./optimizer": "./src/optimizer.ts",
+    "./stdlib": "./src/stdlib/index.ts",
+    "./bench": "./src/bench.ts",
+    "./worker": "./src/worker.ts",
+    "./*": "./src/*.ts"
+  },
+  "publishConfig": {
+    "sideEffects": [
+      "./dist/dsl/augment.js"
+    ],
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./debug": {
+        "types": "./dist/debug.d.ts",
+        "import": "./dist/debug.js"
+      },
+      "./optimizer": {
+        "types": "./dist/optimizer.d.ts",
+        "import": "./dist/optimizer.js"
+      },
+      "./stdlib": {
+        "types": "./dist/stdlib/index.d.ts",
+        "import": "./dist/stdlib/index.js"
+      },
+      "./bench": {
+        "types": "./dist/bench.d.ts",
+        "import": "./dist/bench.js"
+      },
+      "./worker": {
+        "types": "./dist/worker.d.ts",
+        "import": "./dist/worker.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "devDependencies": {
+    "typescript": "~5.7.0",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
