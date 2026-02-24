@@ -4,74 +4,41 @@ Generator ベースの DSL で定義したアルゴリズムを Wasm バイナ�
 
 ## Commands
 
-| Script              | Command                        |
-| ------------------- | ------------------------------ |
-| `npm run dev`       | Vite dev server                |
-| `npm run build`     | `tsc && vite build`            |
-| `npm run test`      | `vitest run`（ユニットテスト） |
-| `npm run test:e2e`  | `playwright test`（E2E）       |
-| `npm run typecheck` | `tsc --noEmit`                 |
+| Script               | Command                                   |
+| -------------------- | ----------------------------------------- |
+| `pnpm run dev`       | Vite dev server（showcase）               |
+| `pnpm run build`     | 全パッケージビルド                        |
+| `pnpm run test`      | `vitest run`（ユニットテスト、workspace） |
+| `pnpm run test:e2e`  | `playwright test`（E2E）                  |
+| `pnpm run typecheck` | `tsc --noEmit`（全パッケージ）            |
 
-## Directory Structure
+## Directory Structure (pnpm monorepo)
 
 ```
-src/                    # ライブラリ（@ エイリアスで import 可能、npm publish 対象）
-  dsl/                  # Generator ベース DSL → Wasm バイナリのコンパイラ
-    types.ts            # 型定義（WasmRef, WasmVal, WasmBinary, FuncRef, Instruction 等）
-    primitives.ts       # DSL プリミティブ（i32, add, store, if_, loop_ 等）
-    interpreter.ts      # compile() — 3 フェーズ Module interpreter
-    compiler.ts         # Re-export エントリポイント
-    allocator.ts        # BumpAllocator（コンパイル時メモリ管理）
-    struct.ts           # Struct 型（フィールドオフセット自動計算）
-    string.ts           # 文字列プリミティブ（Str.from, Str.len, Str.eq）
-    meta.ts             # Meta namespace（コンパイル時マクロヘルパ）
-    queue.ts            # Queue Generator ファクトリ（BFS キュー）
-    minheap.ts          # MinHeap Generator ファクトリ（優先度キュー）
-    hashmap.ts          # HashMap（open addressing + linear probing）
-    intercept.ts        # Generator Intercept（yield* 変換・トレース・合成）
-    instrument.ts       # コンパイル時命令プロファイル（createProfile, withProfiling）
-    guard.ts            # メモリ境界ガード（withBoundsCheck）
-  wasm/                 # IR 定義・Codegen・Module Builder・Encoder・Opcodes
-    optimizer-passes.ts # プラグイン式オプティマイザパス（9 builtin passes）
-    capabilities.ts     # Feature scanning・target validation・utilities
-    ir-stats.ts         # IR 統計分析（analyzeFunc, analyzeModule, formatStats）
-    optimizer-report.ts # 最適化レポート（compileWithReport, formatReport）
-  stdlib/               # 再利用可能 Wasm 関数ライブラリ
-    mem.ts              # memcpy, memset, memcmp
-    math.ts             # pow, clamp, abs, lerp
-    sort.ts             # sortI32, sortWith（call_indirect）
-  runtime/              # ホスト統合ユーティリティ（Wasm 実行時）
-    instantiate.ts      # instantiate() ヘルパ（WasmBinary<T> → typed exports）
-    marshal.ts          # JS ↔ Wasm メモリ転送
-    async-bridge.ts     # AsyncBridge（Effect → Async 変換）
-    worker-pool.ts      # WorkerPool（並列 Wasm 実行）
-  __tests__/            # ライブラリテスト
-  inline.ts             # wasmFunc() — Layer 3 インライン API
-  declarative.ts        # wasmize() — Layer 2 宣言的 API
-  bench.ts              # ベンチマークハーネス
-  debug.ts              # IR 可視化・メタデータ・compileWithWat・traceBody
-  index.ts, optimizer.ts, worker.ts
-showcase/               # デモ・教材・ベンチマーク
-  app/                  # ブラウザアプリ
-    main.ts             # エントリーポイント
-    runner.ts           # 全問題の実行・検証
-    realworld-runner.ts # Realworld デモの実行・UI データ生成
-  ui/                   # ブラウザ UI（renderer + styles + realworld デモ）
-  examples/             # 実例・アルゴリズム実装
-    problems/           # Layer 1: 16 のアルゴリズム（低レベル DSL）
-    layer3/             # Layer 3: wasmFunc() による単一関数 Wasm 化
-    layer2/             # Layer 2: wasmize() による宣言的モジュール
-    advanced/           # 高度機能（Struct, stdlib sort, bench, intercept trace, custom optimizer, capability check, bounds guard, optimizer report）
-    realworld/          # 実用ユースケース（画像処理, Game of Life, CRC32, 粒子シミュレーション, 畳み込み, セピア, ヒストグラム, Erode/Dilate, Maze BFS, ヒストグラム均等化）
-  bench/                # パフォーマンスベンチマーク
-  e2e/                  # Playwright E2E テスト
-docs/                   # 技術ドキュメント
+packages/
+  core/                   # wasmize（npm publish 対象）
+    src/
+      dsl/                # Generator ベース DSL → Wasm バイナリのコンパイラ
+      wasm/               # IR 定義・Codegen・Module Builder・Encoder・Opcodes
+      stdlib/             # 再利用可能 Wasm 関数ライブラリ
+      runtime/            # ホスト統合ユーティリティ（Wasm 実行時）
+      __tests__/          # ライブラリテスト
+      index.ts, debug.ts, inline.ts, declarative.ts, bench.ts, optimizer.ts, worker.ts
+  showcase/               # @wasmize/showcase（private、core に依存）
+    app/                  # ブラウザアプリ
+    ui/                   # ブラウザ UI
+    examples/             # 実例・アルゴリズム実装
+    game/                 # Space Shooter（Wasm DSL）
+    bench/                # パフォーマンスベンチマーク
+    e2e/                  # Playwright E2E テスト
+    index.html, game.html
+docs/                     # 技術ドキュメント
 ```
 
 ## Conventions
 
 - **strict TypeScript** + ESM only（`"type": "module"`）
-- `as any` は `src/runtime/instantiate.ts` の `instantiate()` 内に封じ込め。テスト・ベンチ・runner では `WasmBinary<T>` による型推論でキャスト不要
+- `as any` は `packages/core/src/runtime/instantiate.ts` の `instantiate()` 内に封じ込め。テスト・ベンチ・runner では `WasmBinary<T>` による型推論でキャスト不要
 - IR ノードは discriminated union（`op` フィールドで判別）
 - Generator DSL: `yield*` で合成、`compile()` でバイナリ出力
 - プリミティブは Generator を直接返す（IIFE パターン）、body は `function*() {}` factory
@@ -168,13 +135,13 @@ Generator DSL は JS ランタイム上で実行されるため、JS/TS はチ�
 2. **`as unknown as ModNamespace`** (`namespaces.ts`): 上記の invariance により、実装の `CallableFunc`（wide）がインターフェースの `CallableFunc<[]>` 等に代入不可。unsafe cast で橋渡し
 3. **`recursive` の self はアリティ未チェック** (`namespaces.ts`): self に `CallableFunc<{mapped}>` を入れると circular inference + invariance で型推論が破綻するため、`CallableFunc`（引数数制約なし）で妥協
 
-## Path Alias
+## Package Imports
 
-`@/*` → `./src/*` で src 配下を参照可能。`tsconfig.json` (paths) + `vite.config.ts` (resolve.alias) で設定。
+pnpm workspace で 2 パッケージに分割。showcase からは package name で import。
 
 ```typescript
-import { compile } from "@/dsl/compiler";
-import { instantiate } from "@/runtime/instantiate";
+import { compile } from "wasmize/dsl/compiler";
+import { instantiate } from "wasmize/runtime/instantiate";
 ```
 
 ## Docs
