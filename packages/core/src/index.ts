@@ -57,7 +57,7 @@ export {
 } from "./dsl/compiler";
 
 // Data structures
-export { Struct, FieldAccessor, type FieldType, type FieldSpec } from "./dsl/struct";
+export { Struct, FieldAccessor, type FieldType, type FieldSpec, type StructType, type StructArray } from "./dsl/struct";
 export { Str } from "./dsl/string";
 export { BumpAllocator } from "./dsl/allocator";
 

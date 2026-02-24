@@ -1021,6 +1021,38 @@ export const Mem = {
         new FieldAccessor(addrOf(row, col), "u8"),
     };
   },
+  /**
+   * Creates a 3D byte grid helper. Computes `x + y*xSize + z*(xSize*ySize) + base`.
+   * `xSize*ySize` is a compile-time constant (JS multiplication).
+   *
+   * @param base - Base byte offset (default 0, can be a runtime expression)
+   * @param xSize - Size of the X dimension (compile-time number)
+   * @param ySize - Size of the Y dimension (compile-time number)
+   * @returns Object with `load(x, y, z)`, `store(x, y, z, val)`, `at(x, y, z)`
+   */
+  byteGrid3D(
+    base: ExprInput = 0,
+    xSize: number,
+    ySize: number,
+  ): {
+    load(x: ExprInput, y: ExprInput, z: ExprInput): ChainableExpr;
+    store(x: ExprInput, y: ExprInput, z: ExprInput, value: ExprInput): FuncGen<void>;
+    at(x: ExprInput, y: ExprInput, z: ExprInput): FieldAccessor<"i32">;
+  } {
+    const sliceSize = xSize * ySize;
+    const addrOf = (x: ExprInput, y: ExprInput, z: ExprInput): ChainableExpr => {
+      const flat = new ChainableExpr(add(x, add(mul(y, xSize), mul(z, sliceSize))));
+      return typeof base === "number" && base === 0 ? flat : flat.add(base);
+    };
+    return {
+      load: (x: ExprInput, y: ExprInput, z: ExprInput): ChainableExpr =>
+        Mem.load8(addrOf(x, y, z)),
+      store: (x: ExprInput, y: ExprInput, z: ExprInput, value: ExprInput): FuncGen<void> =>
+        Mem.store8(addrOf(x, y, z), value),
+      at: (x: ExprInput, y: ExprInput, z: ExprInput): FieldAccessor<"i32"> =>
+        new FieldAccessor(addrOf(x, y, z), "u8"),
+    };
+  },
 };
 
 // --- Switch builder ---
