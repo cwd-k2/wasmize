@@ -4,8 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>wasmize — Generator DSL → Wasm Compiler</title>
+    <link rel="stylesheet" href="/ui/styles.css" />
   </head>
   <body>
+    <nav class="site-nav">
+      <a href="/" class="nav-logo">wasmize</a>
+      <ul class="nav-links">
+        <li><a href="/problems.html">Problems</a></li>
+        <li><a href="/demos.html">Demos</a></li>
+        <li><a href="/game.html">Game</a></li>
+      </ul>
+    </nav>
+
     <h1>Generator DSL → Wasm Compiler PoC</h1>
     <p class="subtitle">
       Defunctionalized continuations · Effect-as-data · Pure functions compiled to WebAssembly
@@ -25,7 +35,5 @@
         <div class="pipe-stage">Trampoline (effects)</div>
       </div>
     </div>
-
-    <script type="module" src="/app/landing.ts"></script>
   </body>
 </html>

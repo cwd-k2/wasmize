@@ -1,9 +1,6 @@
 import { instantiate } from "wasmize/runtime/instantiate";
-import { renderNav } from "../ui/nav";
 import { compileGame } from "./engine";
 import { GameRenderer } from "./renderer";
-
-renderNav("game");
 
 // ── Compile & Instantiate ──────────────────────────────────
 async function boot() {

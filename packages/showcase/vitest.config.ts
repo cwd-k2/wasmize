@@ -6,6 +6,6 @@ export default defineConfig({
       "examples/**/*.test.ts",
       "bench/**/*.test.ts",
     ],
-    exclude: ["e2e/**", "node_modules/**"],
+    exclude: ["e2e/**", "node_modules/**", "**/.claude/**"],
   },
 });
