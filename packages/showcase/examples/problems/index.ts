@@ -13,3 +13,4 @@ export { problem12_flood_fill } from "./flood-fill";
 export { problem13_lis } from "./lis";
 export { problem14_nqueens } from "./nqueens";
 export { problem15_union_find } from "./union-find";
+export { problem16_edit_distance } from "./edit-distance";
