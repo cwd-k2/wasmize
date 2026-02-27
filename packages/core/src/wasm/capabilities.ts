@@ -126,9 +126,14 @@ export function scanFeatures(funcs: FuncDef[]): Set<WasmFeature> {
       features.add("reference-types");
     }
 
-    // Bulk memory: memory.copy, memory.fill
-    if (node.op === "memory_copy" || node.op === "memory_fill") {
+    // Bulk memory: memory.copy, memory.fill, memory.init, data.drop
+    if (node.op === "memory_copy" || node.op === "memory_fill" || node.op === "memory_init" || node.op === "data_drop") {
       features.add("bulk-memory");
+    }
+
+    // Tail calls: return_call, return_call_indirect
+    if (node.op === "return_call" || node.op === "return_call_indirect") {
+      features.add("tail-call");
     }
 
     visitChildren(node, scanNode);

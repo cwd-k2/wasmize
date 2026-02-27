@@ -199,6 +199,7 @@ interface ModNamespace {
   ): ModuleGen<CallableFunc<{ [K in keyof A]: WasmValType }>>;
 
   data(offset: number, bytes: Uint8Array): ModuleGen<void>;
+  dataPassive(bytes: Uint8Array): ModuleGen<number>;
   dataString(offset: number, str: string): ModuleGen<void>;
 
   allocator(): BumpAllocator;
@@ -482,6 +483,13 @@ export const Mod = {
     return (function* () {
       yield { _type: "data", offset, init: bytes } as ModuleInstruction;
     })();
+  },
+  /** Declares a passive data segment (not copied at init). Returns segment index. Use with `Mem.init()`. */
+  dataPassive(bytes: Uint8Array): ModuleGen<number> {
+    return (function* () {
+      const segIdx: number = yield { _type: "data_passive", init: bytes } as ModuleInstruction;
+      return segIdx;
+    })() as ModuleGen<number>;
   },
   /** Embeds a UTF-8 string into linear memory at the given offset via a data segment. */
   dataString(offset: number, str: string): ModuleGen<void> {
@@ -1084,6 +1092,21 @@ export const Mem = {
       const vv = yield* resolve(value);
       const vl = yield* resolve(len);
       yield { _type: "stmt", node: IR.memory_fill(vd._node, vv._node, vl._node) } as FuncInstruction;
+    })();
+  },
+  /** Copies bytes from a passive data segment to memory. `memory.init segIdx dst src len`. */
+  init(segIdx: number, dst: ExprInput, src: ExprInput, len: ExprInput): FuncGen<void> {
+    return (function* () {
+      const vd = yield* resolve(dst);
+      const vs = yield* resolve(src);
+      const vl = yield* resolve(len);
+      yield { _type: "stmt", node: IR.memory_init(segIdx, vd._node, vs._node, vl._node) };
+    })();
+  },
+  /** Drops a passive data segment so it can no longer be used. `data.drop segIdx`. */
+  dataDrop(segIdx: number): FuncGen<void> {
+    return (function* () {
+      yield { _type: "stmt", node: IR.data_drop(segIdx) };
     })();
   },
   /**

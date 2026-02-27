@@ -152,6 +152,23 @@ export function visitChildren(node: IRNode, visit: (n: IRNode) => IRNode): IRNod
     case "memory_fill":
       return IR.memory_fill(visit(node.dst), visit(node.val), visit(node.len));
 
+    // Bulk-memory operations
+    case "memory_init":
+      return IR.memory_init(node.segIdx, visit(node.dst), visit(node.src), visit(node.len));
+    case "data_drop":
+      return node; // leaf node (no child IR nodes)
+
+    // Tail calls
+    case "return_call":
+      return IR.return_call(node.idx, node.args.map(visit));
+    case "return_call_indirect":
+      return IR.return_call_indirect(
+        node.typeIdx,
+        node.tableIdx,
+        node.args.map(visit),
+        visit(node.indexExpr),
+      );
+
     default: {
       const _exhaustive: never = node;
       return _exhaustive;

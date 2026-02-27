@@ -92,6 +92,8 @@ export function checkBinopTypes(selfType: WasmValType, arg: ExprInput, opName: s
 export interface CallableFunc<Params extends readonly WasmValType[] = WasmValType[]> {
   (...args: { [K in keyof Params]: ExprInput } & ExprInput[]): FuncGen<WasmVal>;
   void(...args: { [K in keyof Params]: ExprInput } & ExprInput[]): FuncGen<void>;
+  /** Tail call: `return_call` — reuses the current call frame. */
+  tail(...args: { [K in keyof Params]: ExprInput } & ExprInput[]): FuncGen<void>;
   readonly _tag: "func";
   readonly _idx: number;
 }
@@ -517,6 +519,10 @@ export function callableFunc(idx: number, paramCount?: number, name?: string): C
         checkArity(args);
         return call_(ref, ...args);
       },
+      tail: (...args: ExprInput[]): FuncGen<void> => {
+        checkArity(args);
+        return tailCall(ref, ...args);
+      },
     },
   );
 }
@@ -695,6 +701,22 @@ function call_(funcref: FuncRef, ...args: ExprInput[]): FuncGen<void> {
     yield {
       _type: "stmt",
       node: IR.call(
+        funcref._idx,
+        resolved.map((r) => r._node),
+      ),
+    };
+  })();
+}
+
+function tailCall(funcref: FuncRef, ...args: ExprInput[]): FuncGen<void> {
+  return (function* () {
+    const resolved = [];
+    for (const a of args) {
+      resolved.push(yield* resolve(a));
+    }
+    yield {
+      _type: "stmt",
+      node: IR.return_call(
         funcref._idx,
         resolved.map((r) => r._node),
       ),

@@ -42,6 +42,7 @@ export interface GlobalDef {
 export interface DataSegment {
   offset: number;
   init: Uint8Array;
+  mode?: "active" | "passive";
 }
 
 export interface TableDef {
@@ -302,6 +303,14 @@ export function buildModule(
     });
   }
 
+  // Data Count Section (section 12) — must appear before Code section when using bulk-memory
+  const hasPassive = dataSegments.some((seg) => seg.mode === "passive");
+  if (hasPassive) {
+    enc.section(12, (s) => {
+      s.u32(dataSegments.length);
+    });
+  }
+
   // Code section
   enc.section(10, (s) => {
     s.u32(funcs.length);
@@ -340,12 +349,18 @@ export function buildModule(
     enc.section(11, (s) => {
       s.u32(dataSegments.length);
       dataSegments.forEach((seg) => {
-        s.byte(0x00); // active segment, memory 0
-        s.byte(OP.i32_const);
-        s.i32(seg.offset);
-        s.byte(OP.end);
-        s.u32(seg.init.length);
-        s.raw([...seg.init]);
+        if (seg.mode === "passive") {
+          s.byte(0x01); // passive segment
+          s.u32(seg.init.length);
+          s.raw([...seg.init]);
+        } else {
+          s.byte(0x00); // active segment, memory 0
+          s.byte(OP.i32_const);
+          s.i32(seg.offset);
+          s.byte(OP.end);
+          s.u32(seg.init.length);
+          s.raw([...seg.init]);
+        }
       });
     });
   }

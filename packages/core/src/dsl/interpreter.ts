@@ -540,6 +540,12 @@ function collectAndInterpret(
         next = gen.next();
         break;
       }
+      case "data_passive": {
+        const segIdx = dataSegments.length;
+        dataSegments.push({ offset: 0, init: instr.init, mode: "passive" });
+        next = gen.next(segIdx);
+        break;
+      }
       case "table": {
         const tableIdx = tables.length;
         tables.push({ min: instr.funcIndices.length });

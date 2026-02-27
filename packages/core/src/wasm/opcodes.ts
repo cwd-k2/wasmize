@@ -24,6 +24,8 @@ export const OP = {
   return_: 0x0f,
   call: 0x10,
   call_indirect: 0x11,
+  return_call: 0x12,
+  return_call_indirect: 0x13,
 
   // Parametric
   drop: 0x1a,
@@ -223,6 +225,7 @@ export const OP = {
 
   // FC prefix (bulk memory + saturating truncation)
   fc_prefix: 0xfc,
+  prefix_fc: 0xfc, // alias
   i32_trunc_sat_f32_s: 0x00,
   i32_trunc_sat_f32_u: 0x01,
   i32_trunc_sat_f64_s: 0x02,

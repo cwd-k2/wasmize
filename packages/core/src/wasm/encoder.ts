@@ -46,7 +46,21 @@ export class WasmEncoder {
   }
 
   i64(v: number): void {
-    this.i32(v); // works for small values
+    // Use BigInt for proper 64-bit signed LEB128 encoding.
+    // JS Number loses precision above 2^53, so callers should use
+    // small i64 constants and construct large values via Wasm ops.
+    let val = BigInt(v);
+    let more = true;
+    while (more) {
+      const b = Number(val & 0x7fn);
+      val >>= 7n;
+      if ((val === 0n && !(b & 0x40)) || (val === -1n && (b & 0x40))) {
+        more = false;
+        this.bytes.push(b);
+      } else {
+        this.bytes.push(b | 0x80);
+      }
+    }
   }
 
   f32(v: number): void {

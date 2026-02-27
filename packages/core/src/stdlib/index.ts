@@ -27,3 +27,5 @@ export { sortI32, sortWith, mergeSort } from "./sort";
 export { isPowerOf2, log2Floor, nextPowerOf2Func, bswap32 } from "./bits";
 export { binarySearch, lowerBound, upperBound } from "./search";
 export { usePrng, type PrngHandle } from "./prng";
+export { sin, cos, tan, atan2 } from "./trig";
+export { log, log2, exp, pow_f64 } from "./math-f64";

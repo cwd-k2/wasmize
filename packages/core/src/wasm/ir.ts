@@ -145,7 +145,11 @@ export type IRNode =
   | { op: "effect"; tag: number; payload: IRNode }
   | { op: "call_indirect"; typeIdx: number; tableIdx: number; args: IRNode[]; indexExpr: IRNode }
   | { op: "memory_copy"; dst: IRNode; src: IRNode; len: IRNode }
-  | { op: "memory_fill"; dst: IRNode; val: IRNode; len: IRNode };
+  | { op: "memory_fill"; dst: IRNode; val: IRNode; len: IRNode }
+  | { op: "memory_init"; segIdx: number; dst: IRNode; src: IRNode; len: IRNode }
+  | { op: "data_drop"; segIdx: number }
+  | { op: "return_call"; idx: number; args: IRNode[] }
+  | { op: "return_call_indirect"; typeIdx: number; tableIdx: number; args: IRNode[]; indexExpr: IRNode };
 
 export const IR = {
   const_i32: (v: number): IRNode => ({ op: "const_i32", v }),
@@ -270,5 +274,26 @@ export const IR = {
     dst,
     val,
     len,
+  }),
+  memory_init: (segIdx: number, dst: IRNode, src: IRNode, len: IRNode): IRNode => ({
+    op: "memory_init",
+    segIdx,
+    dst,
+    src,
+    len,
+  }),
+  data_drop: (segIdx: number): IRNode => ({ op: "data_drop", segIdx }),
+  return_call: (idx: number, args: IRNode[]): IRNode => ({ op: "return_call", idx, args }),
+  return_call_indirect: (
+    typeIdx: number,
+    tableIdx: number,
+    args: IRNode[],
+    indexExpr: IRNode,
+  ): IRNode => ({
+    op: "return_call_indirect",
+    typeIdx,
+    tableIdx,
+    args,
+    indexExpr,
   }),
 };

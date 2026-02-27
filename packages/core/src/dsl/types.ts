@@ -324,5 +324,6 @@ export type ModuleInstruction =
     }
   | { _type: "export_global"; name: string; globalIdx: number }
   | { _type: "data"; offset: number; init: Uint8Array }
+  | { _type: "data_passive"; init: Uint8Array }
   | { _type: "table"; funcIndices: number[] }
   | { _type: "start"; ref: FuncRef };

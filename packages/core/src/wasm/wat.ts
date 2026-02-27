@@ -196,6 +196,26 @@ export function irToWAT(node: IRNode, depth: number = 0): string {
       return [irToWAT(node.dst, depth), irToWAT(node.src, depth), irToWAT(node.len, depth), indent("memory.copy", depth)].join("\n");
     case "memory_fill":
       return [irToWAT(node.dst, depth), irToWAT(node.val, depth), irToWAT(node.len, depth), indent("memory.fill", depth)].join("\n");
+    case "memory_init":
+      return [
+        irToWAT(node.dst, depth),
+        irToWAT(node.src, depth),
+        irToWAT(node.len, depth),
+        indent(`memory.init ${node.segIdx}`, depth),
+      ].join("\n");
+    case "data_drop":
+      return indent(`data.drop ${node.segIdx}`, depth);
+    case "return_call":
+      return [
+        ...node.args.map((a) => irToWAT(a, depth)),
+        indent(`return_call ${node.idx}`, depth),
+      ].join("\n");
+    case "return_call_indirect":
+      return [
+        ...node.args.map((a) => irToWAT(a, depth)),
+        irToWAT(node.indexExpr, depth),
+        indent(`return_call_indirect (type ${node.typeIdx})`, depth),
+      ].join("\n");
   }
 }
 

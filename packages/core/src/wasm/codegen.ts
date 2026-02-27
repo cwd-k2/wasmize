@@ -503,5 +503,31 @@ export function emitIR(enc: WasmEncoder, node: IRNode | undefined): void {
       enc.u32(OP.memory_fill);
       enc.byte(0x00); // memory index
       break;
+    case "memory_init":
+      emitIR(enc, node.dst);
+      emitIR(enc, node.src);
+      emitIR(enc, node.len);
+      enc.byte(OP.prefix_fc);
+      enc.u32(OP.memory_init);
+      enc.u32(node.segIdx); // segment index
+      enc.byte(0x00); // memory index (always 0)
+      break;
+    case "data_drop":
+      enc.byte(OP.prefix_fc);
+      enc.u32(OP.data_drop);
+      enc.u32(node.segIdx);
+      break;
+    case "return_call":
+      (node.args || []).forEach((a) => emitIR(enc, a));
+      enc.byte(OP.return_call);
+      enc.u32(node.idx);
+      break;
+    case "return_call_indirect":
+      (node.args || []).forEach((a) => emitIR(enc, a));
+      emitIR(enc, node.indexExpr);
+      enc.byte(OP.return_call_indirect);
+      enc.u32(node.typeIdx);
+      enc.u32(node.tableIdx);
+      break;
   }
 }
