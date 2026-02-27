@@ -30,6 +30,7 @@ import {
   resolve,
   set,
   tee,
+  checkBinopTypes,
 } from "./expr";
 
 type IntType = "i32" | "i64";
@@ -66,6 +67,8 @@ declare module "./types" {
     xor(this: WasmRef<IntType>, b: ExprInput): ChainableExpr<T>;
     shl(this: WasmRef<IntType>, b: ExprInput): ChainableExpr<T>;
     shr(this: WasmRef<IntType>, b: ExprInput): ChainableExpr<T>;
+    rotl(this: WasmRef<IntType>, b: ExprInput): ChainableExpr<T>;
+    rotr(this: WasmRef<IntType>, b: ExprInput): ChainableExpr<T>;
 
     // --- In-place mutation — all numeric types ---
     incrBy(b: ExprInput): FuncGen<void>;
@@ -99,6 +102,10 @@ declare module "./types" {
     // --- Range check ---
     inRange(lo: ExprInput, hi: ExprInput): ChainableExpr<"i32">;
 
+    // --- Sign-extension ---
+    extend8s(this: WasmRef<IntType>): ChainableExpr<T>;
+    extend16s(this: WasmRef<IntType>): ChainableExpr<T>;
+
     // --- Conversions ---
     toF64(): ChainableExpr<"f64">;
     toI32(): ChainableExpr<"i32">;
@@ -112,14 +119,17 @@ declare module "./types" {
 // Runtime helpers — type safety is enforced by the `declare module` block above.
 // Return types are intentionally `any` to avoid TS fighting with generic prototype assignments.
 function binop(kind: string, ref: WasmRef, b: ExprInput): any {
+  checkBinopTypes(ref._valType, b, kind);
   return new ChainableExpr(makeBinopTyped(kind as any, ref._valType)(ref, b), ref._valType);
 }
 
 function cmp(kind: string, ref: WasmRef, b: ExprInput): any {
+  checkBinopTypes(ref._valType, b, kind);
   return new ChainableExpr(makeCmpTyped(kind as any, ref._valType)(ref, b), "i32");
 }
 
 function mutate(kind: string, ref: WasmRef, b: ExprInput): any {
+  checkBinopTypes(ref._valType, b, kind);
   return set(ref, makeBinopTyped(kind as any, ref._valType)(ref, b));
 }
 
@@ -183,6 +193,12 @@ WasmRef.prototype.shl = function (this: WasmRef, b: ExprInput) {
 };
 WasmRef.prototype.shr = function (this: WasmRef, b: ExprInput) {
   return binop("shr", this, b);
+};
+WasmRef.prototype.rotl = function (this: WasmRef, b: ExprInput) {
+  return binop("rotl", this, b);
+};
+WasmRef.prototype.rotr = function (this: WasmRef, b: ExprInput) {
+  return binop("rotr", this, b);
 };
 
 // In-place mutation — all numeric types
@@ -309,4 +325,24 @@ WasmRef.prototype.toI64 = function (this: WasmRef) {
 };
 WasmRef.prototype.toF32 = function (this: WasmRef) {
   return convertTo(this, "f32");
+};
+
+// --- Sign-extension ---
+
+const SIGN_EXT_8: Record<string, ConvertKind> = {
+  i32: "i32_extend8_s",
+  i64: "i64_extend8_s",
+};
+const SIGN_EXT_16: Record<string, ConvertKind> = {
+  i32: "i32_extend16_s",
+  i64: "i64_extend16_s",
+};
+
+WasmRef.prototype.extend8s = function (this: WasmRef): any {
+  const kind = SIGN_EXT_8[this._valType]!;
+  return new ChainableExpr(makeConvert(kind)(this), this._valType);
+};
+WasmRef.prototype.extend16s = function (this: WasmRef): any {
+  const kind = SIGN_EXT_16[this._valType]!;
+  return new ChainableExpr(makeConvert(kind)(this), this._valType);
 };

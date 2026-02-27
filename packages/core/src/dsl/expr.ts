@@ -35,6 +35,40 @@ import {
  */
 export type ExprInput = Expr | ChainableExpr<WasmValType> | ThenBuilder;
 
+// --- Type mismatch detection (V-04) ---
+
+/**
+ * Extracts the Wasm value type from an ExprInput, if statically known.
+ * Returns undefined for number literals (implicitly typed) and opaque values.
+ */
+function getExprType(expr: ExprInput): WasmValType | undefined {
+  if (expr instanceof WasmRef) return expr._valType;
+  if (expr instanceof ChainableExpr) return expr._type;
+  return undefined;
+}
+
+/** Conversion method name for each target type. */
+const CONVERSION_HINT: Record<WasmValType, string> = {
+  i32: ".toI32()",
+  i64: ".toI64()",
+  f32: ".toF32()",
+  f64: ".toF64()",
+};
+
+/**
+ * Checks that the argument type matches the expected (self) type in a binary operation.
+ * Throws a descriptive CompileError on mismatch.
+ * Number literals and opaque expressions are allowed (implicitly typed).
+ */
+export function checkBinopTypes(selfType: WasmValType, arg: ExprInput, opName: string): void {
+  const argType = getExprType(arg);
+  if (argType !== undefined && argType !== selfType) {
+    throw new Error(
+      `Type mismatch: cannot ${opName} ${selfType} and ${argType}. Use explicit conversion (e.g., ${CONVERSION_HINT[selfType]})`,
+    );
+  }
+}
+
 /**
  * A callable function reference. Invoke directly for value-returning calls,
  * or use `.void()` for statement (void) calls.
@@ -86,56 +120,80 @@ export class ChainableExpr<T extends WasmValType = "i32"> {
 
   // --- Arithmetic (preserve type) ---
   add(b: ExprInput): ChainableExpr<T> {
+    checkBinopTypes(this._type, b, "add");
     return new ChainableExpr(makeBinopTyped("add", this._type)(this._inner, b), this._type);
   }
   sub(b: ExprInput): ChainableExpr<T> {
+    checkBinopTypes(this._type, b, "sub");
     return new ChainableExpr(makeBinopTyped("sub", this._type)(this._inner, b), this._type);
   }
   mul(b: ExprInput): ChainableExpr<T> {
+    checkBinopTypes(this._type, b, "mul");
     return new ChainableExpr(makeBinopTyped("mul", this._type)(this._inner, b), this._type);
   }
   div(b: ExprInput): ChainableExpr<T> {
+    checkBinopTypes(this._type, b, "div");
     return new ChainableExpr(makeBinopTyped("div", this._type)(this._inner, b), this._type);
   }
   rem(b: ExprInput): ChainableExpr<T> {
+    checkBinopTypes(this._type, b, "rem");
     return new ChainableExpr(makeBinopTyped("rem", this._type)(this._inner, b), this._type);
   }
 
   // --- Comparison (always i32) ---
   eq(b: ExprInput): ChainableExpr<"i32"> {
+    checkBinopTypes(this._type, b, "eq");
     return new ChainableExpr(makeCmpTyped("eq", this._type)(this._inner, b), "i32");
   }
   ne(b: ExprInput): ChainableExpr<"i32"> {
+    checkBinopTypes(this._type, b, "ne");
     return new ChainableExpr(makeCmpTyped("ne", this._type)(this._inner, b), "i32");
   }
   lt(b: ExprInput): ChainableExpr<"i32"> {
+    checkBinopTypes(this._type, b, "lt");
     return new ChainableExpr(makeCmpTyped("lt", this._type)(this._inner, b), "i32");
   }
   gt(b: ExprInput): ChainableExpr<"i32"> {
+    checkBinopTypes(this._type, b, "gt");
     return new ChainableExpr(makeCmpTyped("gt", this._type)(this._inner, b), "i32");
   }
   le(b: ExprInput): ChainableExpr<"i32"> {
+    checkBinopTypes(this._type, b, "le");
     return new ChainableExpr(makeCmpTyped("le", this._type)(this._inner, b), "i32");
   }
   ge(b: ExprInput): ChainableExpr<"i32"> {
+    checkBinopTypes(this._type, b, "ge");
     return new ChainableExpr(makeCmpTyped("ge", this._type)(this._inner, b), "i32");
   }
 
   // --- Bitwise (preserve type — TS constraints enforced at WasmRef level) ---
   and(b: ExprInput): ChainableExpr<T> {
+    checkBinopTypes(this._type, b, "and");
     return new ChainableExpr(makeBinopTyped("and", this._type)(this._inner, b), this._type);
   }
   or(b: ExprInput): ChainableExpr<T> {
+    checkBinopTypes(this._type, b, "or");
     return new ChainableExpr(makeBinopTyped("or", this._type)(this._inner, b), this._type);
   }
   xor(b: ExprInput): ChainableExpr<T> {
+    checkBinopTypes(this._type, b, "xor");
     return new ChainableExpr(makeBinopTyped("xor", this._type)(this._inner, b), this._type);
   }
   shl(b: ExprInput): ChainableExpr<T> {
+    checkBinopTypes(this._type, b, "shl");
     return new ChainableExpr(makeBinopTyped("shl", this._type)(this._inner, b), this._type);
   }
   shr(b: ExprInput): ChainableExpr<T> {
+    checkBinopTypes(this._type, b, "shr");
     return new ChainableExpr(makeBinopTyped("shr", this._type)(this._inner, b), this._type);
+  }
+  rotl(b: ExprInput): ChainableExpr<T> {
+    checkBinopTypes(this._type, b, "rotl");
+    return new ChainableExpr(makeBinopTyped("rotl", this._type)(this._inner, b), this._type);
+  }
+  rotr(b: ExprInput): ChainableExpr<T> {
+    checkBinopTypes(this._type, b, "rotr");
+    return new ChainableExpr(makeBinopTyped("rotr", this._type)(this._inner, b), this._type);
   }
 
   // --- Unary: float ops (permissive — TS constraints enforced at WasmRef level) ---
@@ -311,6 +369,19 @@ export class ChainableExpr<T extends WasmValType = "i32"> {
       this._type,
     );
   }
+
+  // --- Sign-extension ---
+
+  /** Sign-extends the low 8 bits. Integer types only. */
+  extend8s(): ChainableExpr<T> {
+    const kind: ConvertKind = this._type === "i64" ? "i64_extend8_s" : "i32_extend8_s";
+    return new ChainableExpr(makeConvert(kind)(this._inner), this._type);
+  }
+  /** Sign-extends the low 16 bits. Integer types only. */
+  extend16s(): ChainableExpr<T> {
+    const kind: ConvertKind = this._type === "i64" ? "i64_extend16_s" : "i32_extend16_s";
+    return new ChainableExpr(makeConvert(kind)(this._inner), this._type);
+  }
 }
 
 // --- resolve helper ---
@@ -341,14 +412,34 @@ export function* resolve(expr: ExprInput): Generator<FuncInstruction, WasmVal, a
  * The returned object is both callable (for value-returning calls) and
  * has a `.void()` method (for statement calls). It also carries `_tag`
  * and `_idx` so it can be passed to `Mod.export()`.
+ *
+ * When `paramCount` is provided, arity is checked at call time and a
+ * descriptive error is thrown on mismatch (V-03).
  */
-export function callableFunc(idx: number): CallableFunc {
+export function callableFunc(idx: number, paramCount?: number, name?: string): CallableFunc {
   const ref: FuncRef = { _tag: "func", _idx: idx };
-  return Object.assign((...args: ExprInput[]): FuncGen<WasmVal> => call(ref, ...args), {
-    _tag: "func" as const,
-    _idx: idx,
-    void: (...args: ExprInput[]): FuncGen<void> => call_(ref, ...args),
-  });
+  const checkArity = (args: ExprInput[]) => {
+    if (paramCount != null && args.length !== paramCount) {
+      const label = name ?? `<func#${idx}>`;
+      throw new Error(
+        `Function '${label}' expects ${paramCount} arguments but got ${args.length}`,
+      );
+    }
+  };
+  return Object.assign(
+    (...args: ExprInput[]): FuncGen<WasmVal> => {
+      checkArity(args);
+      return call(ref, ...args);
+    },
+    {
+      _tag: "func" as const,
+      _idx: idx,
+      void: (...args: ExprInput[]): FuncGen<void> => {
+        checkArity(args);
+        return call_(ref, ...args);
+      },
+    },
+  );
 }
 
 // --- Expression primitives ---

@@ -63,6 +63,7 @@ export interface ModuleOptions {
   dataSegments?: DataSegment[];
   tables?: TableDef[];
   elements?: ElementDef[];
+  startFuncIdx?: number;
 }
 
 /**
@@ -84,6 +85,7 @@ export function buildModule(
     dataSegments = [],
     tables = [],
     elements = [],
+    startFuncIdx,
   }: ModuleOptions = {},
 ): Uint8Array {
   const enc = new WasmEncoder();
@@ -212,6 +214,13 @@ export function buildModule(
       s.u32(e.idx);
     });
   });
+
+  // Start section (section 8)
+  if (startFuncIdx !== undefined) {
+    enc.section(8, (s) => {
+      s.u32(startFuncIdx);
+    });
+  }
 
   // Element section (section 9)
   if (elements.length) {

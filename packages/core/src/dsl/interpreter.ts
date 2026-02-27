@@ -34,6 +34,7 @@ import {
 } from "../wasm/capabilities";
 import type { WasmBinary } from "./types";
 import { DiagnosticCollector, type Diagnostic, type DiagnosticOptions } from "./diagnostics";
+import type { BumpAllocator } from "./allocator";
 import {
   ref,
   val,
@@ -145,9 +146,55 @@ function coerceReturn(v: unknown): WasmVal | void {
   return undefined;
 }
 
+/** V-05: Validates br depth within nesting level. V-06: Validates local variable indices. */
+function validateIRNode(node: IRNode, nestingLevel: number, ctx: FuncContext): void {
+  switch (node.op) {
+    case "br":
+      if (node.depth >= nestingLevel) {
+        throw new Error(
+          `br depth ${node.depth} exceeds block nesting level ${nestingLevel}`,
+        );
+      }
+      break;
+    case "br_if":
+      if (node.depth >= nestingLevel) {
+        throw new Error(
+          `br depth ${node.depth} exceeds block nesting level ${nestingLevel}`,
+        );
+      }
+      break;
+    case "br_table":
+      for (const label of node.labels) {
+        if (label >= nestingLevel) {
+          throw new Error(
+            `br depth ${label} exceeds block nesting level ${nestingLevel}`,
+          );
+        }
+      }
+      if (node.default_ >= nestingLevel) {
+        throw new Error(
+          `br depth ${node.default_} exceeds block nesting level ${nestingLevel}`,
+        );
+      }
+      break;
+    case "local_get":
+    case "local_set":
+    case "local_tee": {
+      const maxIdx = ctx.paramCount + ctx.localCount;
+      if (node.i >= maxIdx) {
+        throw new Error(
+          `Local index ${node.i} out of range (${maxIdx} locals declared)`,
+        );
+      }
+      break;
+    }
+  }
+}
+
 function interpretSubBody(
   body: FuncBody<FuncReturn>,
   ctx: FuncContext,
+  nestingLevel = 0,
 ): { nodes: IRNode[]; result: WasmVal | void } {
   const gen = body();
   const nodes: IRNode[] = [];
@@ -170,15 +217,16 @@ function interpretSubBody(
         break;
       }
       case "stmt": {
+        validateIRNode(instr.node, nestingLevel, ctx);
         nodes.push(instr.node);
         next = gen.next();
         break;
       }
       case "if": {
-        const thenResult = interpretSubBody(instr.then_, ctx);
+        const thenResult = interpretSubBody(instr.then_, ctx, nestingLevel + 1);
         const hasElse = instr.else_ != null;
         const elseResult = hasElse
-          ? interpretSubBody(instr.else_!, ctx)
+          ? interpretSubBody(instr.else_!, ctx, nestingLevel + 1)
           : { nodes: [] as IRNode[], result: undefined as WasmVal | void };
 
         const thenVal = isVal(thenResult.result) ? thenResult.result : null;
@@ -202,13 +250,13 @@ function interpretSubBody(
         break;
       }
       case "loop": {
-        const loopResult = interpretSubBody(instr.body as FuncBody<FuncReturn>, ctx);
+        const loopResult = interpretSubBody(instr.body as FuncBody<FuncReturn>, ctx, nestingLevel + 1);
         nodes.push(IR.loop(loopResult.nodes));
         next = gen.next();
         break;
       }
       case "block": {
-        const blockResult = interpretSubBody(instr.body as FuncBody<FuncReturn>, ctx);
+        const blockResult = interpretSubBody(instr.body as FuncBody<FuncReturn>, ctx, nestingLevel + 1);
         nodes.push(IR.block(blockResult.nodes));
         next = gen.next();
         break;
@@ -226,6 +274,7 @@ function collectAndInterpret(
   program: WasmProgram,
   shouldOptimize: boolean,
   optimizerConfig?: OptimizerConfig,
+  diagnosticCollector?: DiagnosticCollector,
 ) {
   const gen = program();
   const imports: ImportDef[] = [];
@@ -236,7 +285,9 @@ function collectAndInterpret(
   const tables: TableDef[] = [];
   const elementsArr: ElementDef[] = [];
   let memoryPages = 1;
+  let memoryDeclared = false;
   let funcIdx = 0;
+  let startFuncIdx: number | undefined;
   const exportNames = new Set<string>();
 
   // Phase 1: collect declarations
@@ -280,6 +331,7 @@ function collectAndInterpret(
       }
       case "memory": {
         memoryPages = instr.pages;
+        memoryDeclared = true;
         next = gen.next();
         break;
       }
@@ -294,6 +346,30 @@ function collectAndInterpret(
         elementsArr.push({ tableIdx, offset: 0, funcIndices: instr.funcIndices });
         next = gen.next(tableIdx);
         break;
+      }
+      case "start": {
+        startFuncIdx = instr.ref._idx;
+        next = gen.next();
+        break;
+      }
+    }
+  }
+
+  // V-07: Data segment overlap detection (boundary check is in V-01, after Phase 2)
+  if (diagnosticCollector) {
+    for (let i = 0; i < dataSegments.length; i++) {
+      const a = dataSegments[i]!;
+      const aEnd = a.offset + a.init.length;
+      for (let j = i + 1; j < dataSegments.length; j++) {
+        const b = dataSegments[j]!;
+        const bEnd = b.offset + b.init.length;
+        if (a.offset < bEnd && b.offset < aEnd) {
+          diagnosticCollector.add({
+            level: "warning",
+            code: "V-07",
+            message: `Data segments overlap: [${a.offset}, ${aEnd}) and [${b.offset}, ${bEnd})`,
+          });
+        }
       }
     }
   }
@@ -337,9 +413,10 @@ function collectAndInterpret(
     dataSegments,
     tables,
     elements: elementsArr,
+    startFuncIdx,
   };
 
-  return { funcs, moduleOptions };
+  return { funcs, moduleOptions, memoryDeclared };
 }
 
 /**
@@ -373,6 +450,8 @@ export interface CompileOptions extends DiagnosticOptions {
   optimize?: boolean;
   optimizerConfig?: OptimizerConfig;
   target?: FeatureSet;
+  /** BumpAllocator(s) to validate against declared memory pages. */
+  allocator?: BumpAllocator | BumpAllocator[];
 }
 
 /** Result of `compileWithDiagnostics()`. */
@@ -389,11 +468,45 @@ export function compile<T = Record<string, unknown>>(
     ? new DiagnosticCollector({ strict: options?.strict, warnings: options?.warnings })
     : undefined;
 
-  const { funcs, moduleOptions } = collectAndInterpret(
+  const { funcs, moduleOptions, memoryDeclared } = collectAndInterpret(
     program,
     options?.optimize !== false,
     options?.optimizerConfig,
+    collector,
   );
+
+  // V-01: Memory budget validation
+  if (options?.allocator) {
+    const allocators = Array.isArray(options.allocator) ? options.allocator : [options.allocator];
+    const maxRequired = Math.max(...allocators.map((a) => a.requiredPages));
+
+    if (!memoryDeclared) {
+      // Auto-adopt allocator's requiredPages when Mod.memory() is omitted
+      moduleOptions.memoryPages = maxRequired;
+    } else if (maxRequired > moduleOptions.memoryPages) {
+      const msg = `Memory budget exceeded: allocations require ${maxRequired} pages but only ${moduleOptions.memoryPages} pages declared`;
+      if (collector) {
+        collector.add({ level: "error", code: "V-01", message: msg });
+      } else {
+        throw new Error(msg);
+      }
+    }
+  }
+
+  // V-01: Data segment bounds validation
+  {
+    const maxBytes = moduleOptions.memoryPages * 65536;
+    for (const seg of moduleOptions.dataSegments ?? []) {
+      if (seg.offset + seg.init.length > maxBytes) {
+        const msg = `Data segment out of bounds: offset ${seg.offset} + ${seg.init.length} bytes exceeds ${moduleOptions.memoryPages} pages (${maxBytes} bytes)`;
+        if (collector) {
+          collector.add({ level: "error", code: "V-01", message: msg });
+        } else {
+          throw new Error(msg);
+        }
+      }
+    }
+  }
 
   if (options?.target) {
     const result = validateFeatures(funcs, options.target);
@@ -434,14 +547,18 @@ export function compileWithDiagnostics<T = Record<string, unknown>>(
   let funcs: FuncDef[];
   let moduleOptions: ReturnType<typeof collectAndInterpret>["moduleOptions"];
 
+  let memoryDeclared = false;
+
   try {
     const result = collectAndInterpret(
       program,
       options?.optimize !== false,
       options?.optimizerConfig,
+      collector,
     );
     funcs = result.funcs;
     moduleOptions = result.moduleOptions;
+    memoryDeclared = result.memoryDeclared;
   } catch (e) {
     collector.add({
       level: "error",
@@ -449,6 +566,36 @@ export function compileWithDiagnostics<T = Record<string, unknown>>(
       message: e instanceof Error ? e.message : String(e),
     });
     return { diagnostics: [...collector.all] };
+  }
+
+  // V-01: Memory budget validation
+  if (options?.allocator) {
+    const allocators = Array.isArray(options.allocator) ? options.allocator : [options.allocator];
+    const maxRequired = Math.max(...allocators.map((a) => a.requiredPages));
+
+    if (!memoryDeclared) {
+      moduleOptions.memoryPages = maxRequired;
+    } else if (maxRequired > moduleOptions.memoryPages) {
+      collector.add({
+        level: "error",
+        code: "V-01",
+        message: `Memory budget exceeded: allocations require ${maxRequired} pages but only ${moduleOptions.memoryPages} pages declared`,
+      });
+    }
+  }
+
+  // V-01: Data segment bounds validation
+  {
+    const maxBytes = moduleOptions.memoryPages * 65536;
+    for (const seg of moduleOptions.dataSegments ?? []) {
+      if (seg.offset + seg.init.length > maxBytes) {
+        collector.add({
+          level: "error",
+          code: "V-01",
+          message: `Data segment out of bounds: offset ${seg.offset} + ${seg.init.length} bytes exceeds ${moduleOptions.memoryPages} pages (${maxBytes} bytes)`,
+        });
+      }
+    }
   }
 
   if (options?.target) {

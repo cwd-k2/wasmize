@@ -32,4 +32,4 @@ import { Struct as _Struct } from "./struct";
 export const RGBA = _Struct({ r: "u8", g: "u8", b: "u8", a: "u8" });
 
 // Top-level constant helpers (chainable, shorter than Mem.i32/f64/i64)
-export { i32, i64, f64 } from "./namespaces";
+export { i32, i64, f32, f64 } from "./namespaces";

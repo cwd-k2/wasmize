@@ -289,4 +289,5 @@ export type ModuleInstruction =
   | { _type: "memory"; pages: number }
   | { _type: "global"; valType: WasmValType; init: number; mutable: boolean }
   | { _type: "data"; offset: number; init: Uint8Array }
-  | { _type: "table"; funcIndices: number[] };
+  | { _type: "table"; funcIndices: number[] }
+  | { _type: "start"; ref: FuncRef };

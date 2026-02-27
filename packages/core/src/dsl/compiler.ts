@@ -44,6 +44,7 @@ export {
   // Top-level constant helpers
   i32,
   i64,
+  f32,
   f64,
   // Compile-time macro helpers
   Meta,

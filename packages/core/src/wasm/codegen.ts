@@ -163,6 +163,12 @@ const convertTable: Record<string, number> = {
   i64_reinterpret_f64: OP.i64_reinterpret_f64,
   f32_reinterpret_i32: OP.f32_reinterpret_i32,
   f64_reinterpret_i64: OP.f64_reinterpret_i64,
+  // Sign-extension
+  i32_extend8_s: OP.i32_extend8_s,
+  i32_extend16_s: OP.i32_extend16_s,
+  i64_extend8_s: OP.i64_extend8_s,
+  i64_extend16_s: OP.i64_extend16_s,
+  i64_extend32_s: OP.i64_extend32_s,
 };
 
 const memLoadInfo: Record<string, { opcode: number; align: number }> = {

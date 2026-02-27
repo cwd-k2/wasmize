@@ -187,6 +187,8 @@ interface ModNamespace {
 
   memory(pages: number): ModuleGen<void>;
 
+  start(funcRef: FuncRef): ModuleGen<void>;
+
   global<GT extends WasmValType = "i32">(
     type: GT,
     init: number,
@@ -211,9 +213,11 @@ export const Mod = {
     bodyWithParams?: (...refs: WasmRef<any>[]) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc> {
     const body = buildBody(bodyOrParams, bodyWithParams);
+    const paramCount =
+      typeof bodyOrParams === "function" ? undefined : Object.keys(bodyOrParams).length;
     return (function* () {
       const r: FuncRef = yield { _type: "func", body };
-      return callableFunc(r._idx);
+      return callableFunc(r._idx, paramCount);
     })();
   },
   /** Exports a function with the given name. */
@@ -237,7 +241,7 @@ export const Mod = {
         params,
         results,
       };
-      return callableFunc(r._idx);
+      return callableFunc(r._idx, params.length, name);
     })();
   },
   /** Exports multiple functions at once. `Mod.exportAll({ add, sub })` */
@@ -264,9 +268,11 @@ export const Mod = {
     bodyWithParams?: (...refs: WasmRef<any>[]) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc> {
     const body = buildBody(bodyOrParams, bodyWithParams);
+    const paramCount =
+      typeof bodyOrParams === "function" ? undefined : Object.keys(bodyOrParams).length;
     return (function* () {
       const r: FuncRef = yield { _type: "func", body };
-      const fn = callableFunc(r._idx);
+      const fn = callableFunc(r._idx, paramCount, name);
       yield { _type: "export", name, ref: fn } as ModuleInstruction;
       return fn;
     })();
@@ -292,11 +298,13 @@ export const Mod = {
       ...refs: WasmRef<any>[]
     ) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc> {
+    const paramCount =
+      typeof bodyOrParams === "function" ? undefined : Object.keys(bodyOrParams).length;
     return (function* () {
       const r: FuncRef = yield {
         _type: "func",
         body: function* () {
-          const self = callableFunc(r._idx);
+          const self = callableFunc(r._idx, paramCount);
           if (typeof bodyOrParams === "function") {
             return yield* bodyOrParams(self);
           }
@@ -315,7 +323,7 @@ export const Mod = {
           return yield* bodyWithParams!(self, ...refs);
         },
       };
-      return callableFunc(r._idx);
+      return callableFunc(r._idx, paramCount);
     })();
   },
   /**
@@ -379,7 +387,7 @@ export const Mod = {
           params: spec.params,
           results: spec.results,
         };
-        result[name] = callableFunc(r._idx);
+        result[name] = callableFunc(r._idx, spec.params.length, name);
       }
       return result;
     })() as ModuleGen<Record<string, CallableFunc>>;
@@ -424,6 +432,12 @@ export const Mod = {
   memory(pages: number): ModuleGen<void> {
     return (function* () {
       yield { _type: "memory", pages } as ModuleInstruction;
+    })();
+  },
+  /** Sets the start function, which is called automatically on module instantiation. */
+  start(funcRef: FuncRef): ModuleGen<void> {
+    return (function* () {
+      yield { _type: "start", ref: funcRef } as ModuleInstruction;
     })();
   },
   /** Declares a global variable with the given type and initial value. */
@@ -673,6 +687,12 @@ export const Op = {
         "i64_reinterpret_f64",
         "f32_reinterpret_i32",
         "f64_reinterpret_i64",
+        // Sign-extension
+        "i32_extend8_s",
+        "i32_extend16_s",
+        "i64_extend8_s",
+        "i64_extend16_s",
+        "i64_extend32_s",
       ] as ConvertKind[]
     ).map((k) => [k, makeConvert(k)]),
   ) as Record<ConvertKind, (a: ExprInput) => FuncGen<WasmVal>>,
@@ -1070,6 +1090,48 @@ export const Mem = {
         new FieldAccessor(addrOf(x, y, z), "u8"),
     };
   },
+  /**
+   * Creates an f32 array helper that hides `.mul(4)` byte addressing.
+   *
+   * @param base - Base byte offset (default 0, can be a runtime expression)
+   * @returns Object with `load(idx)`, `store(idx, val)`, `at(idx)`
+   */
+  f32Array(base: ExprInput = 0): {
+    load(idx: ExprInput): ChainableExpr<"f32">;
+    store(idx: ExprInput, value: ExprInput): FuncGen<void>;
+    at(idx: ExprInput): FieldAccessor<"f32">;
+  } {
+    const addrOf = (idx: ExprInput): ChainableExpr => {
+      const scaled = new ChainableExpr(mul(idx, 4));
+      return typeof base === "number" && base === 0 ? scaled : scaled.add(base);
+    };
+    return {
+      load: (idx: ExprInput): ChainableExpr<"f32"> => Mem.loadF32(addrOf(idx)),
+      store: (idx: ExprInput, value: ExprInput): FuncGen<void> => Mem.storeF32(addrOf(idx), value),
+      at: (idx: ExprInput): FieldAccessor<"f32"> => new FieldAccessor(addrOf(idx), "f32"),
+    };
+  },
+  /**
+   * Creates an f64 array helper that hides `.mul(8)` byte addressing.
+   *
+   * @param base - Base byte offset (default 0, can be a runtime expression)
+   * @returns Object with `load(idx)`, `store(idx, val)`, `at(idx)`
+   */
+  f64Array(base: ExprInput = 0): {
+    load(idx: ExprInput): ChainableExpr<"f64">;
+    store(idx: ExprInput, value: ExprInput): FuncGen<void>;
+    at(idx: ExprInput): FieldAccessor<"f64">;
+  } {
+    const addrOf = (idx: ExprInput): ChainableExpr => {
+      const scaled = new ChainableExpr(mul(idx, 8));
+      return typeof base === "number" && base === 0 ? scaled : scaled.add(base);
+    };
+    return {
+      load: (idx: ExprInput): ChainableExpr<"f64"> => Mem.loadF64(addrOf(idx)),
+      store: (idx: ExprInput, value: ExprInput): FuncGen<void> => Mem.storeF64(addrOf(idx), value),
+      at: (idx: ExprInput): FieldAccessor<"f64"> => new FieldAccessor(addrOf(idx), "f64"),
+    };
+  },
 };
 
 // --- Switch builder ---
@@ -1420,6 +1482,9 @@ export const i32 = Mem.i32;
 
 /** Creates a chainable i64 constant. */
 export const i64 = Mem.i64;
+
+/** Creates a chainable f32 constant. */
+export const f32 = Mem.f32;
 
 /** Creates a chainable f64 constant. */
 export const f64 = Mem.f64;
