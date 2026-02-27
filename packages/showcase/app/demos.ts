@@ -1,6 +1,6 @@
 import "../ui/styles.css";
-import { main } from "../ui/renderer";
+import { renderNav } from "../ui/nav";
 import { renderRealworld } from "../ui/realworld";
 
-main();
+renderNav("demos");
 renderRealworld();

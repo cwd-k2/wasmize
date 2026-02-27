@@ -71,7 +71,20 @@ export type ConvertKind =
   | "i32_reinterpret_f32"
   | "i64_reinterpret_f64"
   | "f32_reinterpret_i32"
-  | "f64_reinterpret_i64";
+  | "f64_reinterpret_i64"
+  | "i32_extend8_s"
+  | "i32_extend16_s"
+  | "i64_extend8_s"
+  | "i64_extend16_s"
+  | "i64_extend32_s"
+  | "i32_trunc_sat_f32_s"
+  | "i32_trunc_sat_f32_u"
+  | "i32_trunc_sat_f64_s"
+  | "i32_trunc_sat_f64_u"
+  | "i64_trunc_sat_f32_s"
+  | "i64_trunc_sat_f32_u"
+  | "i64_trunc_sat_f64_s"
+  | "i64_trunc_sat_f64_u";
 
 /**
  * Discriminated union of all IR node types.
@@ -130,7 +143,15 @@ export type IRNode =
   | { op: "unreachable" }
   | { op: "nop" }
   | { op: "effect"; tag: number; payload: IRNode }
-  | { op: "call_indirect"; typeIdx: number; tableIdx: number; args: IRNode[]; indexExpr: IRNode };
+  | { op: "call_indirect"; typeIdx: number; tableIdx: number; args: IRNode[]; indexExpr: IRNode }
+  | { op: "memory_copy"; dst: IRNode; src: IRNode; len: IRNode }
+  | { op: "memory_fill"; dst: IRNode; val: IRNode; len: IRNode }
+  | { op: "memory_init"; segIdx: number; dst: IRNode; src: IRNode; len: IRNode }
+  | { op: "data_drop"; segIdx: number }
+  | { op: "return_call"; idx: number; args: IRNode[] }
+  | { op: "return_call_indirect"; typeIdx: number; tableIdx: number; args: IRNode[]; indexExpr: IRNode }
+  | { op: "multi_value"; values: IRNode[] }
+  | { op: "stack_local_set"; i: number };
 
 export const IR = {
   const_i32: (v: number): IRNode => ({ op: "const_i32", v }),
@@ -244,4 +265,40 @@ export const IR = {
     args,
     indexExpr,
   }),
+  memory_copy: (dst: IRNode, src: IRNode, len: IRNode): IRNode => ({
+    op: "memory_copy",
+    dst,
+    src,
+    len,
+  }),
+  memory_fill: (dst: IRNode, val: IRNode, len: IRNode): IRNode => ({
+    op: "memory_fill",
+    dst,
+    val,
+    len,
+  }),
+  memory_init: (segIdx: number, dst: IRNode, src: IRNode, len: IRNode): IRNode => ({
+    op: "memory_init",
+    segIdx,
+    dst,
+    src,
+    len,
+  }),
+  data_drop: (segIdx: number): IRNode => ({ op: "data_drop", segIdx }),
+  return_call: (idx: number, args: IRNode[]): IRNode => ({ op: "return_call", idx, args }),
+  return_call_indirect: (
+    typeIdx: number,
+    tableIdx: number,
+    args: IRNode[],
+    indexExpr: IRNode,
+  ): IRNode => ({
+    op: "return_call_indirect",
+    typeIdx,
+    tableIdx,
+    args,
+    indexExpr,
+  }),
+  multi_value: (values: IRNode[]): IRNode => ({ op: "multi_value", values }),
+  /** Bare local.set that pops a value already on the stack (for multi-value unpacking). */
+  stack_local_set: (i: number): IRNode => ({ op: "stack_local_set", i }),
 };

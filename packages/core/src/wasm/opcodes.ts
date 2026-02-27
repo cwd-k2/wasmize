@@ -24,6 +24,8 @@ export const OP = {
   return_: 0x0f,
   call: 0x10,
   call_indirect: 0x11,
+  return_call: 0x12,
+  return_call_indirect: 0x13,
 
   // Parametric
   drop: 0x1a,
@@ -213,6 +215,29 @@ export const OP = {
   i64_reinterpret_f64: 0xbd,
   f32_reinterpret_i32: 0xbe,
   f64_reinterpret_i64: 0xbf,
+
+  // Sign-extension
+  i32_extend8_s: 0xc0,
+  i32_extend16_s: 0xc1,
+  i64_extend8_s: 0xc2,
+  i64_extend16_s: 0xc3,
+  i64_extend32_s: 0xc4,
+
+  // FC prefix (bulk memory + saturating truncation)
+  fc_prefix: 0xfc,
+  prefix_fc: 0xfc, // alias
+  i32_trunc_sat_f32_s: 0x00,
+  i32_trunc_sat_f32_u: 0x01,
+  i32_trunc_sat_f64_s: 0x02,
+  i32_trunc_sat_f64_u: 0x03,
+  i64_trunc_sat_f32_s: 0x04,
+  i64_trunc_sat_f32_u: 0x05,
+  i64_trunc_sat_f64_s: 0x06,
+  i64_trunc_sat_f64_u: 0x07,
+  memory_init: 0x08,
+  data_drop: 0x09,
+  memory_copy: 0x0a,
+  memory_fill: 0x0b,
 } as const;
 
 export type WasmValType = "i32" | "i64" | "f32" | "f64";

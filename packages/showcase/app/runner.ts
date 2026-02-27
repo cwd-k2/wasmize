@@ -14,6 +14,7 @@ import {
   problem13_lis,
   problem14_nqueens,
   problem15_union_find,
+  problem16_edit_distance,
 } from "../examples/problems";
 import { instantiate } from "wasmize/runtime/instantiate";
 
@@ -530,6 +531,51 @@ export async function runTests(): Promise<ProblemResult[]> {
       wasmSize: wasm.length,
       wat: wasm.wat,
       tests: [{ input: "uf_count() after 3 unions on 5 elements", expected: 2, got: count }],
+    });
+  }
+
+  // --- Problem 16: Edit Distance ---
+  {
+    const wasm = problem16_edit_distance();
+    const {
+      exports: { editDistance },
+      mem,
+    } = await instantiate(wasm);
+
+    const testCases = [
+      { a: [1, 2, 3], b: [1, 3], expected: 1 },
+      { a: [1, 2, 3], b: [1, 2, 3], expected: 0 },
+      { a: [1, 2, 3], b: [4, 5, 6], expected: 3 },
+      { a: [], b: [1, 2], expected: 2 },
+      { a: [1, 2], b: [], expected: 2 },
+    ];
+
+    const got = testCases.map((tc) => {
+      tc.a.forEach((v, i) => {
+        mem![i] = v;
+      });
+      tc.b.forEach((v, i) => {
+        mem![4096 / 4 + i] = v;
+      });
+      return editDistance(tc.a.length, tc.b.length);
+    });
+
+    const pass = testCases.every((tc, i) => got[i] === tc.expected);
+    results.push({
+      num: 16,
+      title: "Edit Distance (Levenshtein, 2D DP)",
+      pass,
+      output: testCases
+        .map((tc, i) => `editDistance([${tc.a}], [${tc.b}]) = ${got[i]}`)
+        .join("\n"),
+      detail: pass ? "All test cases passed." : "Some cases failed.",
+      wasmSize: wasm.length,
+      wat: wasm.wat,
+      tests: testCases.map((tc, i) => ({
+        input: `editDistance([${tc.a}], [${tc.b}])`,
+        expected: tc.expected,
+        got: got[i]!,
+      })),
     });
   }
 

@@ -85,4 +85,4 @@ export function locals<const T extends LocalSpec[]>(
 }
 
 /** Wasm value type constants for use with `param()` and `local()`. */
-export const Type = { i32: "i32", i64: "i64", f64: "f64" } as const;
+export const Type = { i32: "i32", i64: "i64", f32: "f32", f64: "f64" } as const;

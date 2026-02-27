@@ -19,19 +19,91 @@ packages/
   core/                   # wasmize（npm publish 対象）
     src/
       dsl/                # Generator ベース DSL → Wasm バイナリのコンパイラ
+        compiler.ts       #   barrel（namespace, primitive, data structure re-exports）
+        interpreter.ts    #   3-phase module interpreter（宣言収集→body解釈→最適化&出力）
+        expr.ts           #   ChainableExpr, CallableFunc, resolve()
+        declarations.ts   #   param, local, locals, Type
+        namespaces.ts     #   Mod, Op, Mem, Ctrl, Loc, Tuple
+        primitives.ts     #   i32, i64, f32, f64 定数ヘルパ
+        struct.ts         #   Struct, FieldAccessor, StructArray
+        string.ts         #   Str（UTF-8 文字列埋め込み・ランタイム操作）
+        allocator.ts      #   BumpAllocator（コンパイル時メモリレイアウト）
+        meta.ts           #   Meta namespace（コンパイル時マクロ）
+        augment.ts        #   WasmRef prototype augmentation
+        types.ts          #   WasmRef, FuncGen, WasmBinary 等の型定義
+        intercept.ts      #   Generator intercept / compose / filter
+        instrument.ts     #   命令プロファイル
+        guard.ts          #   メモリ境界ガード
+        diagnostics.ts    #   統合診断 API（V-xx バリデーション基盤）
+        bounds.ts         #   境界チェック付き配列ヘルパ
+        # データ構造（Generator ファクトリ）
+        queue.ts, stack.ts, ringbuffer.ts, bitset.ts
+        minheap.ts, maxheap.ts, hashmap.ts, hashset.ts
+        deque.ts, union-find.ts, graph.ts
+        sorted-array.ts, segment-tree.ts, lru-cache.ts
       wasm/               # IR 定義・Codegen・Module Builder・Encoder・Opcodes
-      stdlib/             # 再利用可能 Wasm 関数ライブラリ
+        ir.ts             #   IRNode discriminated union
+        codegen.ts        #   IR → Wasm バイナリ変換
+        module.ts         #   ModuleBuilder（FuncDef, ModuleOptions）
+        encoder.ts        #   LEB128 / セクションエンコーダ
+        opcodes.ts        #   WasmValType, Wasm opcode 定数
+        optimize.ts       #   プラグイン式オプティマイザ
+        optimizer-passes.ts  # builtinPasses（9 パス）
+        optimizer-report.ts  # compileWithReport / formatReport
+        capabilities.ts   #   WasmFeature, FeatureSet, scanFeatures
+        ir-stats.ts       #   analyzeFunc / analyzeModule / formatStats
+        wat.ts            #   WAT テキスト出力（デバッグ用）
+        call-graph.ts     #   コールグラフ解析・再帰検出・未使用関数検出
+        dead-code.ts      #   デッドコード検出
+        source-map.ts     #   Source Map v3 生成（VLQ エンコーディング）
+      stdlib/             # 再利用可能 Wasm 関数ライブラリ（16 モジュール）
+        index.ts          #   StdlibFunc interface + barrel exports
+        math.ts           #   pow, clamp, abs, lerp, gcd, lcm, gcdI64
+        sort.ts           #   sortI32, sortWith, mergeSort
+        mem.ts            #   memcpy, memset, memcmp
+        bits.ts           #   isPowerOf2, log2Floor, nextPowerOf2Func, bswap32
+        search.ts         #   binarySearch, lowerBound, upperBound
+        prng.ts           #   usePrng（xorshift32 PRNG ハンドル）
+        trig.ts           #   sin, cos, tan, atan2
+        math-f64.ts       #   log, log2, exp, pow_f64
+        string-algo.ts    #   kmpBuildFailure, kmpSearch（KMP 文字列検索）
+        matrix.ts         #   matTranspose, matMulF64, matScale
+        color.ts          #   rgbToHsl, hslToRgb
+        fixed.ts          #   固定小数点演算（fromInt, fromF64, toF64, add/sub/mul/div）
+        modular.ts        #   modpow, modinv（モジュラ演算）
+        sort-int.ts       #   countingSort, radixSort
+        graph-algo.ts     #   BFS, DFS, Dijkstra
       runtime/            # ホスト統合ユーティリティ（Wasm 実行時）
+        instantiate.ts    #   instantiate, instantiateFromUrl, instantiateFromResponse
+        marshal.ts        #   writeI32Array, readI32Array, writeF64Array, readF64Array, writeString, readString, roundtrip
+        worker-pool.ts    #   WorkerPool（型安全, dedup オプション）
+        fuzz.ts           #   fuzz(), Gen（プロパティベーステスト）
+        assertions.ts     #   assertNoTraps, assertTraps
+        mock.ts           #   mockImports（import section パース + 自動スタブ生成）
+        async-bridge.ts   #   AsyncBridge（async JS ↔ sync Wasm effect protocol）
+        bench-history.ts  #   saveBenchmark, loadBenchmark, compareBenchmarks
+        canvas.ts         #   writeImageData, readImageData, syncCanvas
+        color.ts          #   rgbToHex, hexToRgb, lerpColor
+        debug-utils.ts    #   dumpMemory, snapshotMemory, diffMemory, formatDiff
+        graph-marshal.ts  #   buildCSR, buildWeightedCSR, buildUndirectedCSR, writeCSR
       __tests__/          # ライブラリテスト
       index.ts, debug.ts, inline.ts, declarative.ts, bench.ts, optimizer.ts, worker.ts
   showcase/               # @wasmize/showcase（private、core に依存）
-    app/                  # ブラウザアプリ
-    ui/                   # ブラウザ UI
+    app/                  # エントリスクリプト（landing, problems, demos）
+    ui/                   # ブラウザ UI（renderer, realworld, nav, styles）
     examples/             # 実例・アルゴリズム実装
+      problems/           #   18 アルゴリズム問題
+      realworld/          #   画像処理・シミュレーション（10 例）
+      features/           #   DSL 機能デモ（intercept, optimizer, struct 等）
+      declarative/        #   wasmize() 宣言的 API デモ
+      inline/             #   wasmFunc() インライン API デモ
     game/                 # Space Shooter（Wasm DSL）
     bench/                # パフォーマンスベンチマーク
     e2e/                  # Playwright E2E テスト
-    index.html, game.html
+    index.html            # ランディング
+    problems.html         # アルゴリズム問題ページ
+    demos.html            # Realworld デモページ
+    game.html             # Space Shooter
 docs/                     # 技術ドキュメント
 ```
 
@@ -61,7 +133,15 @@ docs/                     # 技術ドキュメント
 - RingBuffer ヘルパ: `const rb = yield* RingBuffer(base, capacity)` で固定容量循環バッファ生成。`rb.write(v)`, `rb.read(dst)`, `rb.isFull`, `rb.isEmpty`, `rb.reset()` を提供。capacity が 2 の冪なら `and` でラップ、それ以外は `rem_u`。内部で `head`/`tail`/`count` ローカル変数を確保
 - BitSet ヘルパ: `const bs = BitSet(base)` でビット配列生成（Generator 不要の plain function）。`bs.set(idx)`, `bs.get(idx)`, `bs.clear(idx)`, `bs.clearAll(bitCount)` を提供。`clearAll` はコンパイル時展開
 - MinHeap ヘルパ: `const heap = yield* MinHeap(base)` で (priority, value) ペアの min-heap 生成。`heap.insert(pri, val)`, `heap.extractMin(dstPri, dstVal)`, `heap.peekPriority()`, `heap.peekValue()`, `heap.notEmpty`, `heap.reset()`。interleaved メモリレイアウト `[pri0, val0, pri1, val1, ...]`
+- MaxHeap ヘルパ: `const heap = yield* MaxHeap(base)` で max-heap 生成。MinHeap と同一 API（`insert`, `extractMax`, `peekPriority`, `peekValue`, `notEmpty`, `reset`）
 - HashMap ヘルパ: `const map = yield* HashMap(base, capacity)` で open addressing + linear probing のハッシュマップ生成。**capacity は 2 の冪**（コンパイル時 assert）。`map.set(key, val)`, `map.get(key, dst)`, `map.has(key)`, `map.delete(key)`, `map.clear()`, `map.notEmpty`。3 並列配列（statuses, keys, values）
+- HashSet ヘルパ: `const hs = yield* HashSet(base, capacity)` で open addressing hash set。**capacity は 2 の冪**。`hs.add(key)`, `hs.has(key)`, `hs.delete(key)`, `hs.clear()`, `hs.notEmpty`
+- Deque ヘルパ: `const dq = yield* Deque(base, capacity)` で double-ended queue。`dq.pushFront(v)`, `dq.pushBack(v)`, `dq.popFront(dst)`, `dq.popBack(dst)`, `dq.notEmpty`, `dq.reset()`。circular buffer 実装
+- UnionFind ヘルパ: `const uf = yield* UnionFind(base)` で disjoint set。`uf.init(n)`, `uf.find(x, dst)`, `uf.union(x, y)`, `uf.same(x, y)`。path compression + union by rank
+- Graph ヘルパ: `const g = Graph(vertexBase, edgeBase)` で CSR 形式グラフ（Generator 不要）。`g.forEachNeighbor(v, callback)`, `g.degree(v)`, `g.edgeStart(v)`, `g.edgeEnd(v)`
+- SortedArray ヘルパ: `const sa = yield* SortedArray(base)` でソート済み配列。`sa.insert(v)`, `sa.has(v)`, `sa.delete(v)`, `sa.at(i)`, `sa.size`
+- SegmentTree ヘルパ: `const st = yield* SegmentTree(base, n)` で iterative bottom-up segment tree。`st.build(srcBase)`, `st.query(l, r)`, `st.update(i, val)`。range sum query 用
+- LRUCache ヘルパ: `const cache = yield* LRUCache(base, capacity)` で LRU キャッシュ。**capacity は 2 の冪**。`cache.get(key, dst)` → found フラグ, `cache.put(key, val)`, `cache.clear()`
 - 境界チェック糖衣: `x.inRange(lo, hi)` は `x.ge(lo).and(x.lt(hi))` の糖衣。`WasmRef` と `ChainableExpr` の両方で使用可。2D 境界チェックに `nx.inRange(0, w).and(ny.inRange(0, h))`
 - N 次元グリッドループ: `yield* Ctrl.grid([h, w], (y, x) => [...])` — ループ変数を自動確保し `Ctrl.range` を再帰的にネスト。0D（即実行）、1D、2D、3D 対応
 - Scope/defer: `Ctrl.scope(function* (scope) { scope.defer(cleanup); ... })` でスコープ付きリソース管理。defer は LIFO 順でクリーンアップ展開
@@ -91,11 +171,52 @@ docs/                     # 技術ドキュメント
 - Debug 統合: `traceBody(label, collector, body)` で関数 body をトレース付きラップ（`debug.ts` から export）
 - 命令プロファイル: `createProfile()` + `withProfiling(gen, profile)` でコンパイル時命令カウント。zero-overhead（`instrument.ts`）
 - メモリ境界ガード: `withBoundsCheck(gen, maxBytes)` で store/load に境界チェック挿入。OOB で `unreachable` トラップ。Production では外すだけ（`guard.ts`）
+- BumpAllocator: `new BumpAllocator()` でコンパイル時メモリレイアウト管理。`alloc.alloc(size, align)` で byte offset 取得。zero-overhead（全アドレスが i32 定数）。overlap 検出付き
+- Str ヘルパ: `Str.from(alloc, "hello")` でコンパイル時 UTF-8 埋め込み（data segment 経由）。`Str.len(ptr)`, `Str.eq(a, b)`, `Str.cmp(a, b)` でランタイム文字列操作
+- 境界チェック付き配列: `boundsCheckedArray(alloc, count)` で BumpAllocator ベースの安全な配列。OOB アクセスで unreachable トラップ
+- 統合診断 API: `compileWithDiagnostics(program, options)` で V-xx バリデーション結果を構造化収集。`DiagnosticCollector` + `Diagnostic` 型。エラーで即座に止めず全問題を報告
 - プラグイン式オプティマイザ: `OptimizerPass` interface（`name` + `transform(node): IRNode`）。`builtinPasses` に 9 パス。`createOptimizer(passes)` で bottom-up 最適化関数を生成。`withoutPasses(names)` でパス除外。`compile()` に `optimizerConfig: { passes?, iterations? }` オプション
 - Capability Tracking: `WasmFeature` 型（mvp, bulk-memory, multi-value 等 10 種）。`Features.MVP/Standard/All` プリセット。`scanFeatures(funcs)` で IR 走査・feature 検出（mutable-globals, multi-value, sign-extension, reference-types）。`compile()` に `target: FeatureSet` オプションで target validation。`describeFeature(f)` で human-readable 説明。`suggestTarget(funcs)` で最小プリセット推薦。`customFeatureSet(...features)` でカスタム FeatureSet 生成
 - IR 統計: `analyzeFunc(body)` / `analyzeModule(funcs)` で IRStats 取得（totalNodes, nodesByOp, maxDepth, memoryLoads/Stores, branches, calls, localAccesses）。`formatStats(stats)` で人間可読出力
 - 最適化レポート: `compileWithReport(program, options)` で最適化前後の IRStats 比較 + バイナリ出力。`formatReport(report)` でサマリー表示
+- コールグラフ解析: `buildCallGraph(funcs)` で関数間呼び出しグラフ構築。`findRecursion(graph)` で再帰検出、`findUnusedFunctions(graph, exports)` で未使用関数検出
+- デッドコード検出: `detectDeadCode(funcs)` で return/br/unreachable 後の到達不能コードを検出。`formatDeadCode(entries)` で人間可読レポート
+- Source Map: `compileWithSourceMap(program)` で Source Map v3 生成。`SourceMapCollector` + `buildSourceMap()` で VLQ エンコーディング。Wasm byte offset → DSL ソース位置マッピング
 - WorkerPool: `WorkerState` interface で型安全な状態管理（`(worker as any).__pending` を排除）。`dedup: true` オプションで同一引数の in-flight タスク重複排除
+
+### stdlib（Wasm 関数ライブラリ）
+
+`StdlibFunc` interface で定義。`Mod.use(stdlibFunc)` でモジュールに埋め込み、`CallableFunc` として呼び出し可能。
+
+- **math**: `pow`, `clamp`, `abs`, `lerp`, `gcd`, `lcm`, `gcdI64`
+- **sort**: `sortI32`（quicksort）, `sortWith`（比較関数カスタム）, `mergeSort`
+- **sort-int**: `countingSort`, `radixSort`（整数特化）
+- **mem**: `memcpy`, `memset`, `memcmp`
+- **bits**: `isPowerOf2`, `log2Floor`, `nextPowerOf2Func`, `bswap32`
+- **search**: `binarySearch`, `lowerBound`, `upperBound`
+- **prng**: `usePrng`（xorshift32 PRNG、Generator ファクトリで seed 管理）
+- **trig**: `sin`, `cos`, `tan`, `atan2`（Taylor 級数近似）
+- **math-f64**: `log`, `log2`, `exp`, `pow_f64`（f64 数学関数）
+- **string-algo**: `kmpBuildFailure`, `kmpSearch`（KMP 文字列検索）
+- **matrix**: `matTranspose`, `matMulF64`, `matScale`
+- **color**: `rgbToHsl`, `hslToRgb`
+- **fixed**: 固定小数点演算（`fixedFromInt`, `fixedFromF64`, `fixedToF64`, `fixedAdd/Sub/Mul/Div`）
+- **modular**: `modpow`, `modinv`（モジュラ演算）
+- **graph-algo**: BFS, DFS, Dijkstra（Graph CSR 形式と併用）
+
+### ランタイムユーティリティ
+
+- **instantiate**: `instantiate(binary)`, `instantiateFromUrl(url)`, `instantiateFromResponse(res)` — Wasm インスタンス化
+- **marshal**: `writeI32Array`, `readI32Array`, `writeF64Array`, `readF64Array`, `writeString`, `readString`, `roundtrip`
+- **fuzz**: `fuzz(binary, generators, options)` — プロパティベーステスト。`Gen.i32()`, `Gen.i32Range(lo, hi)` 等で入力生成
+- **assertions**: `assertNoTraps(fn)` / `assertTraps(fn)` — Wasm トラップ検証
+- **mock**: `mockImports(binary, overrides?)` — import section パース + 自動スタブ生成
+- **async-bridge**: `new AsyncBridge(binary)` — async JS ↔ sync Wasm effect protocol
+- **bench-history**: `saveBenchmark(result)`, `loadBenchmark(name)`, `compareBenchmarks(a, b)` — ベンチマーク永続化・比較
+- **canvas**: `writeImageData(mem, imageData)`, `readImageData(mem, imageData)`, `syncCanvas(mem, ctx)` — Canvas ピクセル同期
+- **color** (runtime): `rgbToHex`, `hexToRgb`, `lerpColor` — JS 側カラーユーティリティ
+- **debug-utils**: `dumpMemory`, `snapshotMemory`, `diffMemory`, `formatDiff` — メモリデバッグ
+- **graph-marshal**: `buildCSR`, `buildWeightedCSR`, `buildUndirectedCSR`, `writeCSR` — グラフ CSR マーシャリング
 
 ### JS メタプログラミング
 
@@ -148,7 +269,9 @@ import { instantiate } from "wasmize/runtime/instantiate";
 
 - [Architecture](docs/architecture.md) — コンパイルパイプライン詳細
 - [Metaprogramming](docs/metaprogramming.md) — JS メタプログラミングパターン
-- [Problems](docs/problems.md) — 15 問題のカタログ
+- [Problems](docs/problems.md) — 問題カタログ
 - [Testing](docs/testing.md) — テスト戦略・追加手順
 - [Workflow](docs/workflow.md) — コマンドの使い分け・開発フロー
 - [Roadmap](docs/roadmap.md) — DSL 改善・Spec Coverage 拡大方針
+- [Gap Spec](docs/gap-spec.md) — 全ギャップ仕様書（56 項目: W/D/S/R/T/V カテゴリ）
+- [Implementation Plan](docs/implementation-plan.md) — gap-spec 実装バッチ計画

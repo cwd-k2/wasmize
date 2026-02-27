@@ -20,6 +20,8 @@ import type {
   ImportDef,
   ExportDef,
   GlobalDef,
+  GlobalImportDef,
+  GlobalExportDef,
   DataSegment,
   TableDef,
   ElementDef,
@@ -33,6 +35,8 @@ import {
   type FeatureSet,
 } from "../wasm/capabilities";
 import type { WasmBinary } from "./types";
+import { DiagnosticCollector, type Diagnostic, type DiagnosticOptions } from "./diagnostics";
+import { type BumpAllocator, checkRegionOverlaps } from "./allocator";
 import {
   ref,
   val,
@@ -46,6 +50,7 @@ import {
   type FuncInstruction,
   type WasmProgram,
 } from "./types";
+import { _setAssertionsEnabled } from "./namespaces";
 
 // --- Type inference ---
 // Infers the Wasm value type of an IR node for determining function return
@@ -121,9 +126,20 @@ function inferType(node: IRNode, ctx?: FuncContext): WasmValType {
       return "i32"; // globals default to i32
     case "call":
       return "i32"; // calls default to i32 (safe fallback)
+    case "multi_value":
+      // For single-type context, return the first value's type
+      return node.values.length > 0 ? inferType(node.values[0]!, ctx) : "i32";
     default:
       return "i32";
   }
+}
+
+/** Infers all result types from a multi_value IR node. */
+function inferMultiTypes(node: IRNode, ctx?: FuncContext): WasmValType[] {
+  if (node.op === "multi_value") {
+    return node.values.map((v) => inferType(v, ctx));
+  }
+  return [inferType(node, ctx)];
 }
 
 // --- Function body interpreter ---
@@ -144,9 +160,56 @@ function coerceReturn(v: unknown): WasmVal | void {
   return undefined;
 }
 
+/** V-05: Validates br depth within nesting level. V-06: Validates local variable indices. */
+function validateIRNode(node: IRNode, nestingLevel: number, ctx: FuncContext): void {
+  switch (node.op) {
+    case "br":
+      if (node.depth >= nestingLevel) {
+        throw new Error(
+          `br depth ${node.depth} exceeds block nesting level ${nestingLevel}`,
+        );
+      }
+      break;
+    case "br_if":
+      if (node.depth >= nestingLevel) {
+        throw new Error(
+          `br depth ${node.depth} exceeds block nesting level ${nestingLevel}`,
+        );
+      }
+      break;
+    case "br_table":
+      for (const label of node.labels) {
+        if (label >= nestingLevel) {
+          throw new Error(
+            `br depth ${label} exceeds block nesting level ${nestingLevel}`,
+          );
+        }
+      }
+      if (node.default_ >= nestingLevel) {
+        throw new Error(
+          `br depth ${node.default_} exceeds block nesting level ${nestingLevel}`,
+        );
+      }
+      break;
+    case "local_get":
+    case "local_set":
+    case "local_tee": {
+      const maxIdx = ctx.paramCount + ctx.localCount;
+      if (node.i >= maxIdx) {
+        throw new Error(
+          `Local index ${node.i} out of range (${maxIdx} locals declared)`,
+        );
+      }
+      break;
+    }
+  }
+}
+
 function interpretSubBody(
   body: FuncBody<FuncReturn>,
   ctx: FuncContext,
+  nestingLevel = 0,
+  labelMap: Map<string, number> = new Map(),
 ): { nodes: IRNode[]; result: WasmVal | void } {
   const gen = body();
   const nodes: IRNode[] = [];
@@ -169,15 +232,38 @@ function interpretSubBody(
         break;
       }
       case "stmt": {
+        validateIRNode(instr.node, nestingLevel, ctx);
         nodes.push(instr.node);
         next = gen.next();
         break;
       }
+      case "br_label": {
+        const storedLevel = labelMap.get(instr.label);
+        if (storedLevel === undefined) {
+          throw new Error(`Unknown label '${instr.label}' in br`);
+        }
+        const depth = nestingLevel - storedLevel - 1;
+        validateIRNode(IR.br(depth), nestingLevel, ctx);
+        nodes.push(IR.br(depth));
+        next = gen.next();
+        break;
+      }
+      case "br_if_label": {
+        const storedLevel = labelMap.get(instr.label);
+        if (storedLevel === undefined) {
+          throw new Error(`Unknown label '${instr.label}' in br_if`);
+        }
+        const depth = nestingLevel - storedLevel - 1;
+        validateIRNode(IR.br_if(depth, instr.cond), nestingLevel, ctx);
+        nodes.push(IR.br_if(depth, instr.cond));
+        next = gen.next();
+        break;
+      }
       case "if": {
-        const thenResult = interpretSubBody(instr.then_, ctx);
+        const thenResult = interpretSubBody(instr.then_, ctx, nestingLevel + 1, labelMap);
         const hasElse = instr.else_ != null;
         const elseResult = hasElse
-          ? interpretSubBody(instr.else_!, ctx)
+          ? interpretSubBody(instr.else_!, ctx, nestingLevel + 1, labelMap)
           : { nodes: [] as IRNode[], result: undefined as WasmVal | void };
 
         const thenVal = isVal(thenResult.result) ? thenResult.result : null;
@@ -201,21 +287,293 @@ function interpretSubBody(
         break;
       }
       case "loop": {
-        const loopResult = interpretSubBody(instr.body as FuncBody<FuncReturn>, ctx);
+        const childLabelMap = instr.label
+          ? new Map([...labelMap, [instr.label, nestingLevel]])
+          : labelMap;
+        const loopResult = interpretSubBody(
+          instr.body as FuncBody<FuncReturn>,
+          ctx,
+          nestingLevel + 1,
+          childLabelMap,
+        );
         nodes.push(IR.loop(loopResult.nodes));
         next = gen.next();
         break;
       }
       case "block": {
-        const blockResult = interpretSubBody(instr.body as FuncBody<FuncReturn>, ctx);
+        const childLabelMap = instr.label
+          ? new Map([...labelMap, [instr.label, nestingLevel]])
+          : labelMap;
+        const blockResult = interpretSubBody(
+          instr.body as FuncBody<FuncReturn>,
+          ctx,
+          nestingLevel + 1,
+          childLabelMap,
+        );
         nodes.push(IR.block(blockResult.nodes));
         next = gen.next();
+        break;
+      }
+      case "tuple_unpack": {
+        // D-03: Unpack multi-value call result into locals
+        const refs: WasmRef[] = [];
+        for (const t of instr.types) {
+          const idx = ctx.paramCount + ctx.localCount++;
+          ctx.locals.push(t);
+          refs.push(ref(idx, t));
+        }
+        // Emit call (pushes N values on stack: v0 deepest, vN-1 on top)
+        // Then stack_local_set in reverse order to pop each value
+        nodes.push(instr.callNode);
+        for (let i = refs.length - 1; i >= 0; i--) {
+          nodes.push(IR.stack_local_set(refs[i]!._idx));
+        }
+        next = gen.next(refs);
         break;
       }
     }
   }
 
   return { nodes, result: coerceReturn(next.value) };
+}
+
+// --- V-12: Unused local variable detection ---
+
+/** Scans IR nodes recursively and counts local_get and local_set occurrences per local index. */
+function scanLocalUsage(
+  nodes: IRNode[],
+  gets: Map<number, number>,
+  sets: Map<number, number>,
+): void {
+  for (const node of nodes) {
+    switch (node.op) {
+      case "local_get":
+        gets.set(node.i, (gets.get(node.i) ?? 0) + 1);
+        break;
+      case "local_set":
+        sets.set(node.i, (sets.get(node.i) ?? 0) + 1);
+        scanLocalUsage([node.val], gets, sets);
+        break;
+      case "local_tee":
+        gets.set(node.i, (gets.get(node.i) ?? 0) + 1);
+        sets.set(node.i, (sets.get(node.i) ?? 0) + 1);
+        scanLocalUsage([node.val], gets, sets);
+        break;
+      case "stack_local_set":
+        sets.set(node.i, (sets.get(node.i) ?? 0) + 1);
+        break;
+      case "binop":
+        scanLocalUsage([node.a, node.b], gets, sets);
+        break;
+      case "cmp":
+        scanLocalUsage([node.a, node.b], gets, sets);
+        break;
+      case "unary":
+      case "convert":
+      case "eqz":
+      case "drop":
+      case "return":
+      case "f64_neg":
+      case "f64_abs":
+      case "i32_wrap_i64":
+      case "i64_extend_i32_s":
+      case "f64_convert_i32_s":
+      case "i32_trunc_f64_s":
+      case "global_set":
+        scanLocalUsage([node.val], gets, sets);
+        break;
+      case "memory_grow":
+        scanLocalUsage([node.pages], gets, sets);
+        break;
+      case "effect":
+        scanLocalUsage([node.payload], gets, sets);
+        break;
+      case "if":
+        scanLocalUsage([node.cond], gets, sets);
+        scanLocalUsage(node.then, gets, sets);
+        scanLocalUsage(node.else, gets, sets);
+        break;
+      case "loop":
+      case "block":
+        scanLocalUsage(node.body, gets, sets);
+        break;
+      case "seq":
+        scanLocalUsage(node.stmts, gets, sets);
+        break;
+      case "call":
+        scanLocalUsage(node.args, gets, sets);
+        break;
+      case "call_indirect":
+        scanLocalUsage(node.args, gets, sets);
+        scanLocalUsage([node.indexExpr], gets, sets);
+        break;
+      case "store_i32":
+      case "store_i32_8":
+      case "store_i64":
+      case "store_f64":
+      case "mem_store":
+        scanLocalUsage([node.addr, node.val], gets, sets);
+        break;
+      case "load_i32":
+      case "load_i32_8u":
+      case "load_i64":
+      case "load_f64":
+      case "mem_load":
+        scanLocalUsage([node.addr], gets, sets);
+        break;
+      case "select":
+        scanLocalUsage([node.a, node.b, node.cond], gets, sets);
+        break;
+      case "br_if":
+        scanLocalUsage([node.cond], gets, sets);
+        break;
+      case "br_table":
+        scanLocalUsage([node.val], gets, sets);
+        break;
+      case "memory_copy":
+        scanLocalUsage([node.dst, node.src, node.len], gets, sets);
+        break;
+      case "memory_fill":
+        scanLocalUsage([node.dst, node.val, node.len], gets, sets);
+        break;
+      case "memory_init":
+        scanLocalUsage([node.dst, node.src, node.len], gets, sets);
+        break;
+      case "multi_value":
+        scanLocalUsage(node.values, gets, sets);
+        break;
+      case "return_call":
+        scanLocalUsage(node.args, gets, sets);
+        break;
+      case "return_call_indirect":
+        scanLocalUsage(node.args, gets, sets);
+        scanLocalUsage([node.indexExpr], gets, sets);
+        break;
+      // Leaf nodes
+      case "const_i32":
+      case "const_i64":
+      case "const_f32":
+      case "const_f64":
+      case "global_get":
+      case "br":
+      case "memory_size":
+      case "unreachable":
+      case "nop":
+      case "data_drop":
+        break;
+    }
+  }
+}
+
+// --- V-13: Static constant address bounds check ---
+
+/** Returns the constant address value from an IR node, or undefined if dynamic. */
+function getConstAddr(node: IRNode): number | undefined {
+  if (node.op === "const_i32") return node.v;
+  if (node.op === "binop" && node.kind === "add") {
+    const a = getConstAddr(node.a);
+    const b = getConstAddr(node.b);
+    if (a !== undefined && b !== undefined) return a + b;
+  }
+  if (node.op === "binop" && node.kind === "mul") {
+    const a = getConstAddr(node.a);
+    const b = getConstAddr(node.b);
+    if (a !== undefined && b !== undefined) return a * b;
+  }
+  return undefined;
+}
+
+/** Size in bytes for each memory operation. */
+function memOpSize(op: string, kind?: string): number {
+  switch (op) {
+    case "store_i32":
+    case "load_i32":
+      return 4;
+    case "store_i32_8":
+    case "load_i32_8u":
+      return 1;
+    case "load_i64":
+    case "store_i64":
+      return 8;
+    case "load_f64":
+    case "store_f64":
+      return 8;
+    case "mem_load":
+    case "mem_store":
+      if (!kind) return 0;
+      if (kind.includes("8")) return 1;
+      if (kind.includes("16")) return 2;
+      if (kind.includes("32") || kind.startsWith("f32") || kind.startsWith("i32")) return 4;
+      if (kind.startsWith("f64") || kind.startsWith("i64")) return 8;
+      return 0;
+    default:
+      return 0;
+  }
+}
+
+/** Recursively checks IR nodes for constant-address memory accesses that exceed bounds. */
+function checkConstantAddressBounds(nodes: IRNode[], maxBytes: number): void {
+  for (const node of nodes) {
+    switch (node.op) {
+      case "store_i32":
+      case "load_i32":
+      case "store_i32_8":
+      case "load_i32_8u":
+      case "load_i64":
+      case "store_i64":
+      case "load_f64":
+      case "store_f64": {
+        const addr = getConstAddr(node.addr);
+        if (addr !== undefined) {
+          const size = memOpSize(node.op);
+          if (addr + size > maxBytes) {
+            throw new Error(
+              `Static memory access out of bounds: address ${addr} + ${size} bytes exceeds ${maxBytes} bytes (${maxBytes / 65536} pages)`,
+            );
+          }
+        }
+        break;
+      }
+      case "mem_load": {
+        const addr = getConstAddr(node.addr);
+        if (addr !== undefined) {
+          const size = memOpSize(node.op, node.kind);
+          if (addr + size > maxBytes) {
+            throw new Error(
+              `Static memory access out of bounds: address ${addr} + ${size} bytes exceeds ${maxBytes} bytes (${maxBytes / 65536} pages)`,
+            );
+          }
+        }
+        break;
+      }
+      case "mem_store": {
+        const addr = getConstAddr(node.addr);
+        if (addr !== undefined) {
+          const size = memOpSize(node.op, node.kind);
+          if (addr + size > maxBytes) {
+            throw new Error(
+              `Static memory access out of bounds: address ${addr} + ${size} bytes exceeds ${maxBytes} bytes (${maxBytes / 65536} pages)`,
+            );
+          }
+        }
+        break;
+      }
+    }
+    // Recurse into children
+    switch (node.op) {
+      case "if":
+        checkConstantAddressBounds(node.then, maxBytes);
+        checkConstantAddressBounds(node.else, maxBytes);
+        break;
+      case "loop":
+      case "block":
+        checkConstantAddressBounds(node.body, maxBytes);
+        break;
+      case "seq":
+        checkConstantAddressBounds(node.stmts, maxBytes);
+        break;
+    }
+  }
 }
 
 // --- Module interpreter ---
@@ -225,17 +583,26 @@ function collectAndInterpret(
   program: WasmProgram,
   shouldOptimize: boolean,
   optimizerConfig?: OptimizerConfig,
+  diagnosticCollector?: DiagnosticCollector,
 ) {
   const gen = program();
   const imports: ImportDef[] = [];
   const bodies: FuncBody<FuncReturn>[] = [];
+  const declaredResultsPerFunc: (WasmValType[] | undefined)[] = [];
   const exports_: ExportDef[] = [];
   const globals: GlobalDef[] = [];
+  const globalImports: GlobalImportDef[] = [];
+  const globalExports: GlobalExportDef[] = [];
   const dataSegments: DataSegment[] = [];
   const tables: TableDef[] = [];
   const elementsArr: ElementDef[] = [];
   let memoryPages = 1;
+  let memoryDeclared = false;
+  let memoryImported = false;
+  let memoryImport: { module: string; name: string; min: number; max?: number; shared?: boolean } | undefined;
   let funcIdx = 0;
+  let startFuncIdx: number | undefined;
+  const exportNames = new Set<string>();
 
   // Phase 1: collect declarations
   let next = gen.next();
@@ -256,24 +623,71 @@ function collectAndInterpret(
       }
       case "func": {
         bodies.push(instr.body);
+        declaredResultsPerFunc.push(instr.declaredResults);
         const fr: FuncRef = funcRef(funcIdx++);
         next = gen.next(fr);
         break;
       }
       case "export": {
+        if (exportNames.has(instr.name)) {
+          throw new Error(`Duplicate export name: '${instr.name}'`);
+        }
+        exportNames.add(instr.name);
         exports_.push({ name: instr.name, idx: instr.ref._idx });
         next = gen.next();
         break;
       }
       case "global": {
-        const idx = globals.length;
+        // Global index space: imported globals first, then module globals
+        const idx = globalImports.length + globals.length;
         globals.push({ type: instr.valType, mutable: instr.mutable, init: instr.init });
         const gr = globalRef(idx, instr.valType, instr.mutable);
         next = gen.next(gr);
         break;
       }
+      case "import_global": {
+        const idx = globalImports.length;
+        globalImports.push({
+          module: instr.module,
+          name: instr.name,
+          type: instr.valType,
+          mutable: instr.mutable,
+        });
+        const gr = globalRef(idx, instr.valType, instr.mutable);
+        next = gen.next(gr);
+        break;
+      }
+      case "export_global": {
+        if (exportNames.has(instr.name)) {
+          throw new Error(`Duplicate export name: '${instr.name}'`);
+        }
+        exportNames.add(instr.name);
+        globalExports.push({ name: instr.name, globalIdx: instr.globalIdx });
+        next = gen.next();
+        break;
+      }
       case "memory": {
+        if (memoryImported) {
+          throw new Error("Cannot declare memory: memory is already imported");
+        }
         memoryPages = instr.pages;
+        memoryDeclared = true;
+        next = gen.next();
+        break;
+      }
+      case "import_memory": {
+        if (memoryDeclared) {
+          throw new Error("Cannot import memory: memory is already declared");
+        }
+        memoryImported = true;
+        memoryPages = instr.min;
+        memoryImport = {
+          module: instr.module,
+          name: instr.name,
+          min: instr.min,
+          max: instr.max,
+          shared: instr.shared,
+        };
         next = gen.next();
         break;
       }
@@ -282,12 +696,42 @@ function collectAndInterpret(
         next = gen.next();
         break;
       }
+      case "data_passive": {
+        const segIdx = dataSegments.length;
+        dataSegments.push({ offset: 0, init: instr.init, mode: "passive" });
+        next = gen.next(segIdx);
+        break;
+      }
       case "table": {
         const tableIdx = tables.length;
         tables.push({ min: instr.funcIndices.length });
         elementsArr.push({ tableIdx, offset: 0, funcIndices: instr.funcIndices });
         next = gen.next(tableIdx);
         break;
+      }
+      case "start": {
+        startFuncIdx = instr.ref._idx;
+        next = gen.next();
+        break;
+      }
+    }
+  }
+
+  // V-07: Data segment overlap detection (boundary check is in V-01, after Phase 2)
+  if (diagnosticCollector) {
+    for (let i = 0; i < dataSegments.length; i++) {
+      const a = dataSegments[i]!;
+      const aEnd = a.offset + a.init.length;
+      for (let j = i + 1; j < dataSegments.length; j++) {
+        const b = dataSegments[j]!;
+        const bEnd = b.offset + b.init.length;
+        if (a.offset < bEnd && b.offset < aEnd) {
+          diagnosticCollector.add({
+            level: "warning",
+            code: "V-07",
+            message: `Data segments overlap: [${a.offset}, ${aEnd}) and [${b.offset}, ${bEnd})`,
+          });
+        }
       }
     }
   }
@@ -308,13 +752,67 @@ function collectAndInterpret(
       bodyNodes.push(result._node);
     }
 
+    // D-03: Handle multi_value return for Tuple.pack
+    const results = isVal(result) ? inferMultiTypes(result._node, ctx) : [];
+
     return {
       params: ctx.params,
-      results: isVal(result) ? [inferType(result._node, ctx)] : [],
+      results,
       locals: ctx.locals,
       body: bodyNodes,
     };
   });
+
+  // V-10: Function return type consistency check
+  for (let fi = 0; fi < funcs.length; fi++) {
+    const declared = declaredResultsPerFunc[fi];
+    if (!declared) continue;
+    const actual = funcs[fi]!.results;
+    const declStr = declared.length === 0 ? "void" : declared.join(", ");
+    const actStr = actual.length === 0 ? "void" : actual.join(", ");
+    if (declStr !== actStr) {
+      const msg = `Function return type mismatch: declared ${declStr} but body returns ${actStr}`;
+      if (diagnosticCollector) {
+        diagnosticCollector.add({ level: "error", code: "V-10", message: msg });
+      } else {
+        throw new Error(msg);
+      }
+    }
+  }
+
+  // V-12: Unused local variable warning
+  if (diagnosticCollector) {
+    for (let fi = 0; fi < funcs.length; fi++) {
+      const f = funcs[fi]!;
+      const gets = new Map<number, number>();
+      const sets = new Map<number, number>();
+      scanLocalUsage(f.body, gets, sets);
+
+      // Only check local variables (not params). Locals start at index paramCount.
+      const paramCount = f.params.length;
+      const locals = f.locals ?? [];
+      for (let li = 0; li < locals.length; li++) {
+        const idx = paramCount + li;
+        const getCount = gets.get(idx) ?? 0;
+        const setCount = sets.get(idx) ?? 0;
+        if (getCount === 0 && setCount === 0) {
+          diagnosticCollector.add({
+            level: "warning",
+            code: "V-12",
+            message: `Unused local variable at index ${idx} in function ${fi}`,
+          });
+        }
+      }
+    }
+  }
+
+  // V-13: Static constant address bounds check
+  {
+    const maxBytes = memoryPages * 65536;
+    for (const f of funcs) {
+      checkConstantAddressBounds(f.body, maxBytes);
+    }
+  }
 
   // Phase 2.5: optimize IR
   if (shouldOptimize) {
@@ -323,17 +821,34 @@ function collectAndInterpret(
     }
   }
 
-  const moduleOptions = {
+  const moduleOptions: {
+    imports: ImportDef[];
+    memoryPages: number;
+    exports: ExportDef[];
+    globals: GlobalDef[];
+    globalImports: GlobalImportDef[];
+    globalExports: GlobalExportDef[];
+    dataSegments: DataSegment[];
+    tables: TableDef[];
+    elements: ElementDef[];
+    startFuncIdx: number | undefined;
+    memoryImport: typeof memoryImport;
+    functionNames?: Map<number, string>;
+  } = {
     imports,
     memoryPages,
     exports: exports_,
     globals,
+    globalImports,
+    globalExports,
     dataSegments,
     tables,
     elements: elementsArr,
+    startFuncIdx,
+    memoryImport,
   };
 
-  return { funcs, moduleOptions };
+  return { funcs, moduleOptions, memoryDeclared, memoryImported };
 }
 
 /**
@@ -362,28 +877,241 @@ function collectAndInterpret(
  * exports.add(1, 2); // 3
  * ```
  */
+/** Options for `compile()`. */
+export interface CompileOptions extends DiagnosticOptions {
+  optimize?: boolean;
+  optimizerConfig?: OptimizerConfig;
+  target?: FeatureSet;
+  /** BumpAllocator(s) to validate against declared memory pages. */
+  allocator?: BumpAllocator | BumpAllocator[];
+  /** When false, all Ctrl.assert() calls become no-ops (default: true). */
+  assertions?: boolean;
+  /** When true, includes a name section with function names in the binary (debug info). */
+  debug?: boolean;
+}
+
+/** Result of `compileWithDiagnostics()`. */
+export interface DiagnosticResult<T> {
+  binary?: WasmBinary<T>;
+  diagnostics: Diagnostic[];
+}
+
 export function compile<T = Record<string, unknown>>(
   program: WasmProgram,
-  options?: { optimize?: boolean; optimizerConfig?: OptimizerConfig; target?: FeatureSet },
+  options?: CompileOptions,
 ): WasmBinary<T> {
-  const { funcs, moduleOptions } = collectAndInterpret(
-    program,
-    options?.optimize !== false,
-    options?.optimizerConfig,
-  );
+  // D-08: Set assertions flag before running the program
+  _setAssertionsEnabled(options?.assertions !== false);
+
+  try {
+    const collector = options?.diagnostics
+      ? new DiagnosticCollector({ strict: options?.strict, warnings: options?.warnings })
+      : undefined;
+
+    const { funcs, moduleOptions, memoryDeclared, memoryImported } = collectAndInterpret(
+      program,
+      options?.optimize !== false,
+      options?.optimizerConfig,
+      collector,
+    );
+
+    // V-01: Memory budget validation
+    if (options?.allocator) {
+      const allocators = Array.isArray(options.allocator) ? options.allocator : [options.allocator];
+      const maxRequired = Math.max(...allocators.map((a) => a.requiredPages));
+
+      if (!memoryDeclared && !memoryImported) {
+        // Auto-adopt allocator's requiredPages when Mod.memory() is omitted
+        moduleOptions.memoryPages = maxRequired;
+      } else if (maxRequired > moduleOptions.memoryPages) {
+        const msg = `Memory budget exceeded: allocations require ${maxRequired} pages but only ${moduleOptions.memoryPages} pages declared`;
+        if (collector) {
+          collector.add({ level: "error", code: "V-01", message: msg });
+        } else {
+          throw new Error(msg);
+        }
+      }
+    }
+
+    // V-08: Allocator region overlap detection
+    if (options?.allocator) {
+      const allocators = Array.isArray(options.allocator) ? options.allocator : [options.allocator];
+      const overlaps = checkRegionOverlaps(allocators);
+      for (const msg of overlaps) {
+        if (collector) {
+          collector.add({ level: "error", code: "V-08", message: msg });
+        } else {
+          throw new Error(msg);
+        }
+      }
+    }
+
+    // V-01: Data segment bounds validation
+    {
+      const maxBytes = moduleOptions.memoryPages * 65536;
+      for (const seg of moduleOptions.dataSegments ?? []) {
+        if (seg.offset + seg.init.length > maxBytes) {
+          const msg = `Data segment out of bounds: offset ${seg.offset} + ${seg.init.length} bytes exceeds ${moduleOptions.memoryPages} pages (${maxBytes} bytes)`;
+          if (collector) {
+            collector.add({ level: "error", code: "V-01", message: msg });
+          } else {
+            throw new Error(msg);
+          }
+        }
+      }
+    }
+
+    if (options?.target) {
+      const result = validateFeatures(funcs, options.target);
+      if (!result.valid) {
+        const details = result.missing.map((f) => `  - ${f}: ${describeFeature(f)}`).join("\n");
+        const suggestion = suggestTarget(funcs);
+        const msg = `Target does not support required features:\n${details}\nSuggested target: Features.${suggestion.name}`;
+        if (collector) {
+          collector.add({ level: "error", code: "W-TARGET", message: msg });
+        } else {
+          throw new Error(msg);
+        }
+      }
+    }
+
+    if (collector?.hasErrors) {
+      throw new Error(collector.errors[0]!.message);
+    }
+
+    // W-11: Add function names for name section when debug is enabled
+    if (options?.debug) {
+      const nameMap = new Map<number, string>();
+      const importCount = moduleOptions.imports?.length ?? 0;
+
+      // Import names: module.name
+      for (let i = 0; i < importCount; i++) {
+        const imp = moduleOptions.imports![i]!;
+        nameMap.set(i, `${imp.module}.${imp.name}`);
+      }
+
+      // Build export name lookup (funcIdx → export name)
+      const exportNameLookup = new Map<number, string>();
+      for (const exp of moduleOptions.exports ?? []) {
+        exportNameLookup.set(exp.idx, exp.name);
+      }
+
+      // Function names: export name or synthetic $fN
+      for (let i = 0; i < funcs.length; i++) {
+        const funcIdx = importCount + i;
+        const exportName = exportNameLookup.get(funcIdx);
+        nameMap.set(funcIdx, exportName ?? `$f${i}`);
+      }
+
+      moduleOptions.functionNames = nameMap;
+    }
+
+    return buildModule(funcs, moduleOptions) as WasmBinary<T>;
+  } finally {
+    // Restore assertions flag to default
+    _setAssertionsEnabled(true);
+  }
+}
+
+/**
+ * Compiles a program and returns diagnostics instead of throwing.
+ *
+ * If compilation succeeds (no errors), `binary` is set.
+ * If errors are present, `binary` is undefined.
+ */
+export function compileWithDiagnostics<T = Record<string, unknown>>(
+  program: WasmProgram,
+  options?: Omit<CompileOptions, "diagnostics">,
+): DiagnosticResult<T> {
+  const collector = new DiagnosticCollector({
+    strict: options?.strict,
+    warnings: options?.warnings,
+  });
+
+  let funcs: FuncDef[];
+  let moduleOptions: ReturnType<typeof collectAndInterpret>["moduleOptions"];
+
+  let memoryDeclared = false;
+  let memoryImported = false;
+
+  try {
+    const result = collectAndInterpret(
+      program,
+      options?.optimize !== false,
+      options?.optimizerConfig,
+      collector,
+    );
+    funcs = result.funcs;
+    moduleOptions = result.moduleOptions;
+    memoryDeclared = result.memoryDeclared;
+    memoryImported = result.memoryImported;
+  } catch (e) {
+    collector.add({
+      level: "error",
+      code: "COMPILE",
+      message: e instanceof Error ? e.message : String(e),
+    });
+    return { diagnostics: [...collector.all] };
+  }
+
+  // V-01: Memory budget validation
+  if (options?.allocator) {
+    const allocators = Array.isArray(options.allocator) ? options.allocator : [options.allocator];
+    const maxRequired = Math.max(...allocators.map((a) => a.requiredPages));
+
+    if (!memoryDeclared && !memoryImported) {
+      moduleOptions.memoryPages = maxRequired;
+    } else if (maxRequired > moduleOptions.memoryPages) {
+      collector.add({
+        level: "error",
+        code: "V-01",
+        message: `Memory budget exceeded: allocations require ${maxRequired} pages but only ${moduleOptions.memoryPages} pages declared`,
+      });
+    }
+  }
+
+  // V-08: Allocator region overlap detection
+  if (options?.allocator) {
+    const allocators = Array.isArray(options.allocator) ? options.allocator : [options.allocator];
+    const overlaps = checkRegionOverlaps(allocators);
+    for (const msg of overlaps) {
+      collector.add({ level: "error", code: "V-08", message: msg });
+    }
+  }
+
+  // V-01: Data segment bounds validation
+  {
+    const maxBytes = moduleOptions.memoryPages * 65536;
+    for (const seg of moduleOptions.dataSegments ?? []) {
+      if (seg.offset + seg.init.length > maxBytes) {
+        collector.add({
+          level: "error",
+          code: "V-01",
+          message: `Data segment out of bounds: offset ${seg.offset} + ${seg.init.length} bytes exceeds ${moduleOptions.memoryPages} pages (${maxBytes} bytes)`,
+        });
+      }
+    }
+  }
 
   if (options?.target) {
     const result = validateFeatures(funcs, options.target);
     if (!result.valid) {
-      const details = result.missing.map((f) => `  - ${f}: ${describeFeature(f)}`).join("\n");
-      const suggestion = suggestTarget(funcs);
-      throw new Error(
-        `Target does not support required features:\n${details}\nSuggested target: Features.${suggestion.name}`,
-      );
+      for (const f of result.missing) {
+        collector.add({
+          level: "error",
+          code: "W-TARGET",
+          message: `Unsupported feature: ${f} — ${describeFeature(f)}`,
+        });
+      }
     }
   }
 
-  return buildModule(funcs, moduleOptions) as WasmBinary<T>;
+  if (collector.hasErrors) {
+    return { diagnostics: [...collector.all] };
+  }
+
+  const binary = buildModule(funcs, moduleOptions) as WasmBinary<T>;
+  return { binary, diagnostics: [...collector.all] };
 }
 
 /**

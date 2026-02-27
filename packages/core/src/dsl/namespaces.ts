@@ -77,6 +77,15 @@ import { param as declareParam, local as declareLocal, Type } from "./declaratio
 
 // --- Helpers ---
 
+// --- Compile-time configuration ---
+/** Internal flag: when false, Ctrl.assert() becomes a no-op. Set by compile(). */
+let _assertionsEnabled = true;
+
+/** Sets the assertions flag. Called from compile() before running the program. */
+export function _setAssertionsEnabled(enabled: boolean): void {
+  _assertionsEnabled = enabled;
+}
+
 /** Normalizes a VoidBody (generator or array form) into a FuncBody<void>. */
 function toBody(body: VoidBody): FuncBody<void> {
   return function* () {
@@ -87,6 +96,24 @@ function toBody(body: VoidBody): FuncBody<void> {
       yield* r;
     }
   };
+}
+
+/** Auto-incrementing counter for unique loop labels. */
+let loopLabelCounter = 0;
+
+/** Handle passed to loop body for break/continue support. */
+export interface LoopHandle {
+  /** Breaks out of the loop (br to outer block). */
+  break(): FuncGen<void>;
+  /** Continues to the next iteration (br to loop head). */
+  continue(): FuncGen<void>;
+}
+
+/** Detects if body is a function expecting a LoopHandle (has 1 parameter). */
+function isLoopBodyWithHandle(
+  body: VoidBody | ((loop: LoopHandle) => Generator<FuncInstruction, void, any>),
+): body is (loop: LoopHandle) => Generator<FuncInstruction, void, any> {
+  return typeof body === "function" && body.length === 1;
 }
 
 /** Builds a FuncBody from either a plain body or a params record + callback. */
@@ -122,11 +149,17 @@ function buildBody(
  * the `& ExprInput[]` intersection in CallableFunc makes it invariant in
  * Params, so `CallableFunc` (wide) is not assignable to `CallableFunc<[]>`.
  */
+/** Options for Mod.func / Mod.exportFunc to declare expected return type (V-10). */
+interface FuncOptions {
+  results?: WasmValType[];
+}
+
 interface ModNamespace {
   func(body: FuncBody<FuncReturn>): ModuleGen<CallableFunc<[]>>;
   func<A extends WasmRef<any>[]>(
     params: Record<string, WasmValType>,
     body: (...refs: A) => Generator<FuncInstruction, FuncReturn, any>,
+    options?: FuncOptions,
   ): ModuleGen<CallableFunc<{ [K in keyof A]: WasmValType }>>;
 
   export(name: string, funcref: FuncRef): ModuleGen<void>;
@@ -145,6 +178,7 @@ interface ModNamespace {
     name: string,
     params: Record<string, WasmValType>,
     body: (...refs: A) => Generator<FuncInstruction, FuncReturn, any>,
+    options?: FuncOptions,
   ): ModuleGen<CallableFunc<{ [K in keyof A]: WasmValType }>>;
 
   /**
@@ -165,6 +199,7 @@ interface ModNamespace {
   ): ModuleGen<CallableFunc<{ [K in keyof A]: WasmValType }>>;
 
   data(offset: number, bytes: Uint8Array): ModuleGen<void>;
+  dataPassive(bytes: Uint8Array): ModuleGen<number>;
   dataString(offset: number, str: string): ModuleGen<void>;
 
   allocator(): BumpAllocator;
@@ -176,6 +211,10 @@ interface ModNamespace {
 
   use(fn: { body: FuncBody<FuncReturn> }): ModuleGen<CallableFunc>;
 
+  useAll<S extends Record<string, { body: FuncBody<FuncReturn> }>>(
+    fns: S,
+  ): ModuleGen<{ [K in keyof S]: CallableFunc }>;
+
   importGroup<S extends Record<string, { params: WasmValType[]; results: WasmValType[] }>>(
     moduleName: string,
     specs: S,
@@ -183,14 +222,39 @@ interface ModNamespace {
 
   memory(pages: number): ModuleGen<void>;
 
+  importMemory(
+    module: string,
+    name: string,
+    opts: { min: number; max?: number; shared?: boolean },
+  ): ModuleGen<void>;
+
+  start(funcRef: FuncRef): ModuleGen<void>;
+
   global<GT extends WasmValType = "i32">(
     type: GT,
     init: number,
     mutable?: boolean,
   ): ModuleGen<{
+    _globalIdx: number;
     get(): ChainableExpr<GT>;
     set(value: ExprInput): FuncGen<void>;
   }>;
+
+  importGlobal<GT extends WasmValType = "i32">(
+    module: string,
+    name: string,
+    type: GT,
+    mutable?: boolean,
+  ): ModuleGen<{
+    _globalIdx: number;
+    get(): ChainableExpr<GT>;
+    set(value: ExprInput): FuncGen<void>;
+  }>;
+
+  exportGlobal(
+    name: string,
+    globalHandle: { _globalIdx: number },
+  ): ModuleGen<void>;
 }
 
 /** Module-level declarations: functions, exports, imports, memory, globals. */
@@ -205,11 +269,15 @@ export const Mod = {
   func(
     bodyOrParams: FuncBody<FuncReturn> | Record<string, WasmValType>,
     bodyWithParams?: (...refs: WasmRef<any>[]) => Generator<FuncInstruction, FuncReturn, any>,
+    options?: { results?: WasmValType[] },
   ): ModuleGen<CallableFunc> {
     const body = buildBody(bodyOrParams, bodyWithParams);
+    const paramCount =
+      typeof bodyOrParams === "function" ? undefined : Object.keys(bodyOrParams).length;
+    const declaredResults = options?.results;
     return (function* () {
-      const r: FuncRef = yield { _type: "func", body };
-      return callableFunc(r._idx);
+      const r: FuncRef = yield { _type: "func", body, declaredResults };
+      return callableFunc(r._idx, paramCount);
     })();
   },
   /** Exports a function with the given name. */
@@ -233,7 +301,7 @@ export const Mod = {
         params,
         results,
       };
-      return callableFunc(r._idx);
+      return callableFunc(r._idx, params.length, name);
     })();
   },
   /** Exports multiple functions at once. `Mod.exportAll({ add, sub })` */
@@ -258,11 +326,15 @@ export const Mod = {
     name: string,
     bodyOrParams: FuncBody<FuncReturn> | Record<string, WasmValType>,
     bodyWithParams?: (...refs: WasmRef<any>[]) => Generator<FuncInstruction, FuncReturn, any>,
+    options?: { results?: WasmValType[] },
   ): ModuleGen<CallableFunc> {
     const body = buildBody(bodyOrParams, bodyWithParams);
+    const paramCount =
+      typeof bodyOrParams === "function" ? undefined : Object.keys(bodyOrParams).length;
+    const declaredResults = options?.results;
     return (function* () {
-      const r: FuncRef = yield { _type: "func", body };
-      const fn = callableFunc(r._idx);
+      const r: FuncRef = yield { _type: "func", body, declaredResults };
+      const fn = callableFunc(r._idx, paramCount, name);
       yield { _type: "export", name, ref: fn } as ModuleInstruction;
       return fn;
     })();
@@ -288,11 +360,13 @@ export const Mod = {
       ...refs: WasmRef<any>[]
     ) => Generator<FuncInstruction, FuncReturn, any>,
   ): ModuleGen<CallableFunc> {
+    const paramCount =
+      typeof bodyOrParams === "function" ? undefined : Object.keys(bodyOrParams).length;
     return (function* () {
       const r: FuncRef = yield {
         _type: "func",
         body: function* () {
-          const self = callableFunc(r._idx);
+          const self = callableFunc(r._idx, paramCount);
           if (typeof bodyOrParams === "function") {
             return yield* bodyOrParams(self);
           }
@@ -311,7 +385,7 @@ export const Mod = {
           return yield* bodyWithParams!(self, ...refs);
         },
       };
-      return callableFunc(r._idx);
+      return callableFunc(r._idx, paramCount);
     })();
   },
   /**
@@ -375,7 +449,7 @@ export const Mod = {
           params: spec.params,
           results: spec.results,
         };
-        result[name] = callableFunc(r._idx);
+        result[name] = callableFunc(r._idx, spec.params.length, name);
       }
       return result;
     })() as ModuleGen<Record<string, CallableFunc>>;
@@ -387,6 +461,19 @@ export const Mod = {
       return callableFunc(r._idx);
     })() as ModuleGen<CallableFunc>;
   },
+  /** Embeds multiple stdlib functions into the current module at once. */
+  useAll<S extends Record<string, { body: FuncBody<FuncReturn> }>>(
+    fns: S,
+  ): ModuleGen<{ [K in keyof S]: CallableFunc }> {
+    return (function* () {
+      const result = {} as { [K in keyof S]: CallableFunc };
+      for (const [name, fn] of Object.entries(fns)) {
+        const r: FuncRef = yield { _type: "func", body: fn.body };
+        (result as any)[name] = callableFunc(r._idx);
+      }
+      return result;
+    })() as ModuleGen<{ [K in keyof S]: CallableFunc }>;
+  },
   /** Creates a compile-time bump allocator for automatic memory layout. */
   allocator(): BumpAllocator {
     return new BumpAllocator();
@@ -396,6 +483,13 @@ export const Mod = {
     return (function* () {
       yield { _type: "data", offset, init: bytes } as ModuleInstruction;
     })();
+  },
+  /** Declares a passive data segment (not copied at init). Returns segment index. Use with `Mem.init()`. */
+  dataPassive(bytes: Uint8Array): ModuleGen<number> {
+    return (function* () {
+      const segIdx: number = yield { _type: "data_passive", init: bytes } as ModuleInstruction;
+      return segIdx;
+    })() as ModuleGen<number>;
   },
   /** Embeds a UTF-8 string into linear memory at the given offset via a data segment. */
   dataString(offset: number, str: string): ModuleGen<void> {
@@ -409,6 +503,29 @@ export const Mod = {
       yield { _type: "memory", pages } as ModuleInstruction;
     })();
   },
+  /** Imports memory from the host environment. Mutually exclusive with `Mod.memory()`. */
+  importMemory(
+    module: string,
+    name: string,
+    opts: { min: number; max?: number; shared?: boolean },
+  ): ModuleGen<void> {
+    return (function* () {
+      yield {
+        _type: "import_memory",
+        module,
+        name,
+        min: opts.min,
+        max: opts.max,
+        shared: opts.shared,
+      } as ModuleInstruction;
+    })();
+  },
+  /** Sets the start function, which is called automatically on module instantiation. */
+  start(funcRef: FuncRef): ModuleGen<void> {
+    return (function* () {
+      yield { _type: "start", ref: funcRef } as ModuleInstruction;
+    })();
+  },
   /** Declares a global variable with the given type and initial value. */
   global(type: WasmValType, init: number, mutable: boolean = true) {
     return (function* () {
@@ -419,6 +536,7 @@ export const Mod = {
         mutable,
       } as ModuleInstruction;
       return {
+        _globalIdx: ref._idx,
         get() {
           return new ChainableExpr(
             (function* () {
@@ -434,6 +552,45 @@ export const Mod = {
           })();
         },
       };
+    })();
+  },
+  /** Imports a global variable from the host environment. */
+  importGlobal(module: string, name: string, type: WasmValType, mutable: boolean = false) {
+    return (function* () {
+      const ref: GlobalRef = yield {
+        _type: "import_global",
+        module,
+        name,
+        valType: type,
+        mutable,
+      } as ModuleInstruction;
+      return {
+        _globalIdx: ref._idx,
+        get() {
+          return new ChainableExpr(
+            (function* () {
+              return val(IR.global_get(ref._idx));
+            })(),
+            type,
+          );
+        },
+        set(value: ExprInput): FuncGen<void> {
+          return (function* () {
+            const vv = yield* resolve(value);
+            yield { _type: "stmt", node: IR.global_set(ref._idx, vv._node) } as FuncInstruction;
+          })();
+        },
+      };
+    })();
+  },
+  /** Exports a global variable with the given name. */
+  exportGlobal(name: string, globalHandle: { _globalIdx: number }): ModuleGen<void> {
+    return (function* () {
+      yield {
+        _type: "export_global",
+        name,
+        globalIdx: globalHandle._globalIdx,
+      } as ModuleInstruction;
     })();
   },
 } as unknown as ModNamespace;
@@ -656,6 +813,21 @@ export const Op = {
         "i64_reinterpret_f64",
         "f32_reinterpret_i32",
         "f64_reinterpret_i64",
+        // Sign-extension
+        "i32_extend8_s",
+        "i32_extend16_s",
+        "i64_extend8_s",
+        "i64_extend16_s",
+        "i64_extend32_s",
+        // Saturating truncation
+        "i32_trunc_sat_f32_s",
+        "i32_trunc_sat_f32_u",
+        "i32_trunc_sat_f64_s",
+        "i32_trunc_sat_f64_u",
+        "i64_trunc_sat_f32_s",
+        "i64_trunc_sat_f32_u",
+        "i64_trunc_sat_f64_s",
+        "i64_trunc_sat_f64_u",
       ] as ConvertKind[]
     ).map((k) => [k, makeConvert(k)]),
   ) as Record<ConvertKind, (a: ExprInput) => FuncGen<WasmVal>>,
@@ -697,8 +869,11 @@ export const Mem = {
       yield { _type: "stmt", node: IR.store_i32_8(va._node, vv._node) };
     })();
   },
-  /** Creates a chainable i32 constant expression. */
+  /** Creates a chainable i32 constant expression. Throws if value overflows i32 range. */
   i32(v: number): ChainableExpr {
+    if (v > 2147483647 || v < -2147483648) {
+      throw new Error(`i32 constant overflow: ${v} is outside the range [-2147483648, 2147483647]`);
+    }
     return new ChainableExpr(
       (function* () {
         return val(IR.const_i32(v));
@@ -904,6 +1079,39 @@ export const Mem = {
       return val(IR.memory_grow(vp._node));
     })();
   },
+  /** Copies `len` bytes from `src` to `dst` in linear memory (bulk memory operation). */
+  copy(dst: ExprInput, src: ExprInput, len: ExprInput): FuncGen<void> {
+    return (function* () {
+      const vd = yield* resolve(dst);
+      const vs = yield* resolve(src);
+      const vl = yield* resolve(len);
+      yield { _type: "stmt", node: IR.memory_copy(vd._node, vs._node, vl._node) } as FuncInstruction;
+    })();
+  },
+  /** Fills `len` bytes starting at `dst` with byte value `val` (bulk memory operation). */
+  fill(dst: ExprInput, value: ExprInput, len: ExprInput): FuncGen<void> {
+    return (function* () {
+      const vd = yield* resolve(dst);
+      const vv = yield* resolve(value);
+      const vl = yield* resolve(len);
+      yield { _type: "stmt", node: IR.memory_fill(vd._node, vv._node, vl._node) } as FuncInstruction;
+    })();
+  },
+  /** Copies bytes from a passive data segment to memory. `memory.init segIdx dst src len`. */
+  init(segIdx: number, dst: ExprInput, src: ExprInput, len: ExprInput): FuncGen<void> {
+    return (function* () {
+      const vd = yield* resolve(dst);
+      const vs = yield* resolve(src);
+      const vl = yield* resolve(len);
+      yield { _type: "stmt", node: IR.memory_init(segIdx, vd._node, vs._node, vl._node) };
+    })();
+  },
+  /** Drops a passive data segment so it can no longer be used. `data.drop segIdx`. */
+  dataDrop(segIdx: number): FuncGen<void> {
+    return (function* () {
+      yield { _type: "stmt", node: IR.data_drop(segIdx) };
+    })();
+  },
   /**
    * Creates an i32 array helper that hides `.mul(4)` byte addressing.
    *
@@ -1053,6 +1261,95 @@ export const Mem = {
         new FieldAccessor(addrOf(x, y, z), "u8"),
     };
   },
+  /**
+   * Creates an f32 array helper that hides `.mul(4)` byte addressing.
+   *
+   * @param base - Base byte offset (default 0, can be a runtime expression)
+   * @returns Object with `load(idx)`, `store(idx, val)`, `at(idx)`
+   */
+  f32Array(base: ExprInput = 0): {
+    load(idx: ExprInput): ChainableExpr<"f32">;
+    store(idx: ExprInput, value: ExprInput): FuncGen<void>;
+    at(idx: ExprInput): FieldAccessor<"f32">;
+  } {
+    const addrOf = (idx: ExprInput): ChainableExpr => {
+      const scaled = new ChainableExpr(mul(idx, 4));
+      return typeof base === "number" && base === 0 ? scaled : scaled.add(base);
+    };
+    return {
+      load: (idx: ExprInput): ChainableExpr<"f32"> => Mem.loadF32(addrOf(idx)),
+      store: (idx: ExprInput, value: ExprInput): FuncGen<void> => Mem.storeF32(addrOf(idx), value),
+      at: (idx: ExprInput): FieldAccessor<"f32"> => new FieldAccessor(addrOf(idx), "f32"),
+    };
+  },
+  /**
+   * Creates an f64 array helper that hides `.mul(8)` byte addressing.
+   *
+   * @param base - Base byte offset (default 0, can be a runtime expression)
+   * @returns Object with `load(idx)`, `store(idx, val)`, `at(idx)`
+   */
+  f64Array(base: ExprInput = 0): {
+    load(idx: ExprInput): ChainableExpr<"f64">;
+    store(idx: ExprInput, value: ExprInput): FuncGen<void>;
+    at(idx: ExprInput): FieldAccessor<"f64">;
+  } {
+    const addrOf = (idx: ExprInput): ChainableExpr => {
+      const scaled = new ChainableExpr(mul(idx, 8));
+      return typeof base === "number" && base === 0 ? scaled : scaled.add(base);
+    };
+    return {
+      load: (idx: ExprInput): ChainableExpr<"f64"> => Mem.loadF64(addrOf(idx)),
+      store: (idx: ExprInput, value: ExprInput): FuncGen<void> => Mem.storeF64(addrOf(idx), value),
+      at: (idx: ExprInput): FieldAccessor<"f64"> => new FieldAccessor(addrOf(idx), "f64"),
+    };
+  },
+  /**
+   * Creates an i16 array helper that hides `.mul(2)` byte addressing.
+   * Uses i32_load16_u / i32_store16 internally (zero-extended to i32 on the Wasm stack).
+   *
+   * @param base - Base byte offset (default 0, can be a runtime expression)
+   * @returns Object with `load(idx)`, `loadSigned(idx)`, `store(idx, val)`, `at(idx)`
+   */
+  i16Array(base: ExprInput = 0): {
+    load(idx: ExprInput): ChainableExpr;
+    loadSigned(idx: ExprInput): ChainableExpr;
+    store(idx: ExprInput, value: ExprInput): FuncGen<void>;
+    at(idx: ExprInput): FieldAccessor<"i32">;
+  } {
+    const addrOf = (idx: ExprInput): ChainableExpr => {
+      const scaled = new ChainableExpr(mul(idx, 2));
+      return typeof base === "number" && base === 0 ? scaled : scaled.add(base);
+    };
+    return {
+      load: (idx: ExprInput): ChainableExpr => Mem.load16u(addrOf(idx)),
+      loadSigned: (idx: ExprInput): ChainableExpr => Mem.load16s(addrOf(idx)),
+      store: (idx: ExprInput, value: ExprInput): FuncGen<void> => Mem.store16(addrOf(idx), value),
+      at: (idx: ExprInput): FieldAccessor<"i32"> => new FieldAccessor(addrOf(idx), "u16"),
+    };
+  },
+  /**
+   * Creates an i8 array helper with stride=1 byte addressing.
+   * Uses i32_load8_u / i32_store8 internally (zero-extended to i32 on the Wasm stack).
+   *
+   * @param base - Base byte offset (default 0, can be a runtime expression)
+   * @returns Object with `load(idx)`, `store(idx, val)`, `at(idx)`
+   */
+  i8Array(base: ExprInput = 0): {
+    load(idx: ExprInput): ChainableExpr;
+    store(idx: ExprInput, value: ExprInput): FuncGen<void>;
+    at(idx: ExprInput): FieldAccessor<"i32">;
+  } {
+    const addrOf = (idx: ExprInput): ChainableExpr => {
+      return typeof base === "number" && base === 0
+        ? new ChainableExpr(resolve(idx))
+        : new ChainableExpr(add(idx, base));
+    };
+    return {
+      load: (idx: ExprInput): ChainableExpr => Mem.load8(addrOf(idx)),
+      store: (idx: ExprInput, value: ExprInput): FuncGen<void> => Mem.store8(addrOf(idx), value),
+      at: (idx: ExprInput): FieldAccessor<"i32"> => new FieldAccessor(addrOf(idx), "u8"),
+    };
+  },
 };
 
 // --- Switch builder ---
@@ -1184,29 +1481,50 @@ export const Ctrl = {
   if(cond: ExprInput): IfBuilder {
     return new IfBuilder(cond);
   },
-  /** Raw Wasm loop block. Prefer `Ctrl.for` or `Ctrl.while` for structured loops. */
-  loop(body: VoidBody): FuncGen<void> {
+  /** Raw Wasm loop block. Optionally accepts a label string as first argument (D-02). */
+  loop(labelOrBody: string | VoidBody, maybeBody?: VoidBody): FuncGen<void> {
+    if (typeof labelOrBody === "string") {
+      return (function* () {
+        yield { _type: "loop", body: toBody(maybeBody!), label: labelOrBody };
+      })();
+    }
     return (function* () {
-      yield { _type: "loop", body: toBody(body) };
+      yield { _type: "loop", body: toBody(labelOrBody) };
     })();
   },
-  /** Raw Wasm block. Use `br(depth)` to break out. */
-  block(body: VoidBody): FuncGen<void> {
+  /** Raw Wasm block. Optionally accepts a label string as first argument (D-02). */
+  block(labelOrBody: string | VoidBody, maybeBody?: VoidBody): FuncGen<void> {
+    if (typeof labelOrBody === "string") {
+      return (function* () {
+        yield { _type: "block", body: toBody(maybeBody!), label: labelOrBody };
+      })();
+    }
     return (function* () {
-      yield { _type: "block", body: toBody(body) };
+      yield { _type: "block", body: toBody(labelOrBody) };
     })();
   },
-  /** Unconditional branch to the enclosing block/loop at the given depth. */
-  br(depth: number): FuncGen<void> {
+  /** Unconditional branch. Accepts a numeric depth or a label string (D-02). */
+  br(depthOrLabel: number | string): FuncGen<void> {
+    if (typeof depthOrLabel === "string") {
+      return (function* () {
+        yield { _type: "br_label", label: depthOrLabel } as FuncInstruction;
+      })();
+    }
     return (function* () {
-      yield { _type: "stmt", node: IR.br(depth) };
+      yield { _type: "stmt", node: IR.br(depthOrLabel) };
     })();
   },
-  /** Conditional branch. Branches if `cond` is truthy. */
-  br_if(depth: number, cond: ExprInput): FuncGen<void> {
+  /** Conditional branch. Accepts a numeric depth or a label string (D-02). */
+  br_if(depthOrLabel: number | string, cond: ExprInput): FuncGen<void> {
+    if (typeof depthOrLabel === "string") {
+      return (function* () {
+        const vc = yield* resolve(cond);
+        yield { _type: "br_if_label", label: depthOrLabel, cond: vc._node } as FuncInstruction;
+      })();
+    }
     return (function* () {
       const vc = yield* resolve(cond);
-      yield { _type: "stmt", node: IR.br_if(depth, vc._node) };
+      yield { _type: "stmt", node: IR.br_if(depthOrLabel, vc._node) };
     })();
   },
   /** Multi-way branch table. Branches to `labels[expr]` or `default_` if out of range. */
@@ -1216,15 +1534,38 @@ export const Ctrl = {
       yield { _type: "stmt", node: IR.br_table(labels, default_, ve._node) };
     })();
   },
-  /** While loop. Repeats `body` as long as `cond` is truthy. Expands to `block { loop { br_if; ...; br } }`. */
-  while(cond: ExprInput, body: VoidBody): FuncGen<void> {
-    const nb = toBody(body);
+  /**
+   * While loop. Repeats `body` as long as `cond` is truthy. Expands to `block { loop { br_if; ...; br } }`.
+   *
+   * Body can optionally receive a `loop` handle with `.break()` and `.continue()` methods:
+   * ```ts
+   * Ctrl.while(cond, function* (loop) {
+   *   yield* loop.break();     // → br(1) to outer block
+   *   yield* loop.continue();  // → br(0) to loop head
+   * })
+   * ```
+   */
+  while(cond: ExprInput, body: VoidBody | ((loop: LoopHandle) => Generator<FuncInstruction, void, any>)): FuncGen<void> {
+    const id = loopLabelCounter++;
+    const blockLabel = `__while_block_${id}`;
+    const loopLabel = `__while_loop_${id}`;
+    const handle: LoopHandle = {
+      break: () => (function* () {
+        yield { _type: "br_label" as const, label: blockLabel } as FuncInstruction;
+      })(),
+      continue: () => (function* () {
+        yield { _type: "br_label" as const, label: loopLabel } as FuncInstruction;
+      })(),
+    };
+    const nb = isLoopBodyWithHandle(body) ? () => body(handle) : toBody(body as VoidBody);
     return (function* () {
       yield {
         _type: "block" as const,
+        label: blockLabel,
         body: function* () {
           yield {
             _type: "loop" as const,
+            label: loopLabel,
             body: function* () {
               const vc = yield* resolve(cond);
               yield { _type: "stmt" as const, node: IR.br_if(1, IR.eqz(vc._node)) };
@@ -1239,27 +1580,43 @@ export const Ctrl = {
   /**
    * For loop sugar. `Ctrl.for(i, 0, i.lt(n), i.add(1), body)` is equivalent to `for (i = 0; i < n; i++)`.
    *
+   * Body can optionally receive a `loop` handle with `.break()` and `.continue()` methods.
+   * Note: `loop.continue()` jumps to the step+condition, not the loop head.
+   *
    * @param variable - Loop variable (must be a declared local)
    * @param start - Initial value
    * @param cond - Continue condition (checked before each iteration)
    * @param step - Step expression (applied after each iteration)
-   * @param body - Loop body
+   * @param body - Loop body (or function receiving LoopHandle)
    */
   for(
     variable: WasmRef,
     start: ExprInput,
     cond: ExprInput,
     step: ExprInput,
-    body: VoidBody,
+    body: VoidBody | ((loop: LoopHandle) => Generator<FuncInstruction, void, any>),
   ): FuncGen<void> {
-    const nb = toBody(body);
+    const id = loopLabelCounter++;
+    const blockLabel = `__for_block_${id}`;
+    const loopLabel = `__for_loop_${id}`;
+    const handle: LoopHandle = {
+      break: () => (function* () {
+        yield { _type: "br_label" as const, label: blockLabel } as FuncInstruction;
+      })(),
+      continue: () => (function* () {
+        yield { _type: "br_label" as const, label: loopLabel } as FuncInstruction;
+      })(),
+    };
+    const nb = isLoopBodyWithHandle(body) ? () => body(handle) : toBody(body as VoidBody);
     return (function* () {
       yield* set(variable, start);
       yield {
         _type: "block" as const,
+        label: blockLabel,
         body: function* () {
           yield {
             _type: "loop" as const,
+            label: loopLabel,
             body: function* () {
               const vc = yield* resolve(cond);
               yield { _type: "stmt" as const, node: IR.br_if(1, IR.eqz(vc._node)) };
@@ -1363,6 +1720,81 @@ export const Ctrl = {
     })();
   },
   /**
+   * Short-circuit logical AND. `if(a) { return b } else { return 0 }`.
+   * Returns `ChainableExpr<"i32">`. The second argument is not evaluated if the first is falsy.
+   */
+  logicalAnd(a: ExprInput, b: ExprInput): ChainableExpr<"i32"> {
+    return new ChainableExpr(
+      (function* () {
+        const va = yield* resolve(a);
+        const result: WasmVal | void = yield {
+          _type: "if" as const,
+          cond: va._node,
+          then_: function* () {
+            return yield* resolve(b);
+          },
+          else_: function* () {
+            return val(IR.const_i32(0));
+          },
+        };
+        return result as WasmVal;
+      })(),
+      "i32",
+    );
+  },
+  /**
+   * Short-circuit logical OR. `if(a) { return 1 } else { return b }`.
+   * Returns `ChainableExpr<"i32">`. The second argument is not evaluated if the first is truthy.
+   */
+  logicalOr(a: ExprInput, b: ExprInput): ChainableExpr<"i32"> {
+    return new ChainableExpr(
+      (function* () {
+        const va = yield* resolve(a);
+        const result: WasmVal | void = yield {
+          _type: "if" as const,
+          cond: va._node,
+          then_: function* () {
+            return val(IR.const_i32(1));
+          },
+          else_: function* () {
+            return yield* resolve(b);
+          },
+        };
+        return result as WasmVal;
+      })(),
+      "i32",
+    );
+  },
+  /**
+   * Debug assertion. If `cond` is false (zero), emits `unreachable` trap.
+   * Optionally writes `errorCode` to memory[0] before trapping.
+   *
+   * Use `compile({ assertions: false })` to strip all asserts from production builds.
+   *
+   * @param cond - Condition that must be truthy
+   * @param errorCode - Optional error code written to memory[0] before trap
+   */
+  assert(cond: ExprInput, errorCode?: number): FuncGen<void> {
+    if (!_assertionsEnabled) {
+      return (function* () {
+        // assertions disabled — no-op
+      })();
+    }
+    return (function* () {
+      const vc = yield* resolve(cond);
+      yield {
+        _type: "if" as const,
+        cond: IR.eqz(vc._node),
+        then_: function* () {
+          if (errorCode !== undefined) {
+            yield { _type: "stmt" as const, node: IR.store_i32(IR.const_i32(0), IR.const_i32(errorCode)) };
+          }
+          yield { _type: "stmt" as const, node: IR.unreachable() };
+        },
+      };
+    })();
+  },
+  /**
    * Scoped resource management with deferred cleanup.
    *
    * `scope.defer(cleanup)` registers a generator to run when the scope exits (LIFO order).
@@ -1396,6 +1828,62 @@ export const Ctrl = {
   },
 };
 
+// --- Tuple namespace (D-03: Multi-Value Sugar) ---
+
+/**
+ * Multi-value helpers for functions returning multiple values.
+ *
+ * - `Tuple.pack(a, b, ...)` — places multiple values on the stack (for multi-value return)
+ * - `Tuple.unpack(callExpr, types)` — destructures multi-value call into locals
+ */
+export const Tuple = {
+  /**
+   * Packs multiple values for multi-value function return.
+   * Returns a WasmVal wrapping a `multi_value` IR node.
+   *
+   * @example
+   * ```ts
+   * yield* Mod.exportFunc("swap", { a: Type.i32, b: Type.i32 }, function* (a, b) {
+   *   return yield* Tuple.pack(b, a);
+   * });
+   * ```
+   */
+  pack(...exprs: ExprInput[]): FuncGen<WasmVal> {
+    return (function* () {
+      const resolved: WasmVal[] = [];
+      for (const e of exprs) {
+        resolved.push(yield* resolve(e));
+      }
+      return val(IR.multi_value(resolved.map((v) => v._node)));
+    })();
+  },
+
+  /**
+   * Unpacks a multi-value call result into local variables.
+   * Declares locals for each return type and stores the call results.
+   *
+   * @param callExpr - A call expression that returns multiple values
+   * @param types - Array of Wasm value types for each return value
+   * @returns Array of WasmRef for each unpacked local
+   *
+   * @example
+   * ```ts
+   * const [x, y] = yield* Tuple.unpack(swap(a, b), [Type.i32, Type.i32]);
+   * ```
+   */
+  unpack(callExpr: FuncGen<WasmVal>, types: WasmValType[]): FuncGen<WasmRef[]> {
+    return (function* () {
+      const callVal: WasmVal = yield* callExpr;
+      const refs: WasmRef[] = yield {
+        _type: "tuple_unpack" as const,
+        callNode: callVal._node,
+        types,
+      };
+      return refs;
+    })() as FuncGen<WasmRef[]>;
+  },
+};
+
 // --- Top-level constant helpers ---
 
 /** Creates a chainable i32 constant. `i32(1).shl(col)` instead of `Mem.i32(1).shl(col)`. */
@@ -1403,6 +1891,9 @@ export const i32 = Mem.i32;
 
 /** Creates a chainable i64 constant. */
 export const i64 = Mem.i64;
+
+/** Creates a chainable f32 constant. */
+export const f32 = Mem.f32;
 
 /** Creates a chainable f64 constant. */
 export const f64 = Mem.f64;

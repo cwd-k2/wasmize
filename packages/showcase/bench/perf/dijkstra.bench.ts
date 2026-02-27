@@ -1,5 +1,5 @@
 import { bench, describe } from "vitest";
-import { minheapDijkstra } from "../../examples/advanced/minheap-dijkstra";
+import { minheapDijkstra } from "../../examples/features/minheap-dijkstra";
 import { jsDijkstra } from "../js-impls";
 
 const W = 32;

@@ -7,15 +7,15 @@ wasmize ライブラリのデモ・教材・ベンチマーク集。
 
 | ディレクトリ          | 内容                                                    |
 | --------------------- | ------------------------------------------------------- |
-| `examples/problems/`  | 16 のアルゴリズム問題（Layer 1: 低レベル DSL）          |
-| `examples/layer3/`    | Layer 3 API（`wasmFunc()`）による単一関数 Wasm 化       |
-| `examples/layer2/`    | Layer 2 API（`wasmize()`）による宣言的モジュール        |
-| `examples/advanced/`  | 高度機能デモ（Struct, stdlib, intercept, optimizer 等） |
-| `examples/realworld/` | 実用ユースケース（画像処理, Game of Life, CRC32 等）    |
-| `bench/`              | パフォーマンスベンチマーク・Spec カバレッジ             |
-| `app/`                | ブラウザアプリのエントリーポイント                      |
-| `ui/`                 | ブラウザ UI（renderer, styles, realworld デモ）         |
-| `e2e/`                | Playwright E2E テスト                                   |
+| `examples/problems/`    | 18 のアルゴリズム問題（低レベル DSL）                    |
+| `examples/inline/`      | `wasmFunc()` インライン API デモ                        |
+| `examples/declarative/` | `wasmize()` 宣言的 API デモ                             |
+| `examples/features/`    | DSL 機能デモ（Struct, stdlib, intercept, optimizer 等） |
+| `examples/realworld/`   | 実用ユースケース（画像処理, Game of Life, CRC32 等）    |
+| `bench/`                | パフォーマンスベンチマーク・Spec カバレッジ             |
+| `app/`                  | エントリスクリプト（landing, problems, demos）          |
+| `ui/`                   | ブラウザ UI（renderer, nav, styles, realworld デモ）    |
+| `e2e/`                  | Playwright E2E テスト                                   |
 
 ## 実行方法
 

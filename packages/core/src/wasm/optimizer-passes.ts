@@ -146,6 +146,37 @@ export function visitChildren(node: IRNode, visit: (n: IRNode) => IRNode): IRNod
     case "seq":
       return IR.seq(node.stmts.map(visit));
 
+    // Bulk memory (three children)
+    case "memory_copy":
+      return IR.memory_copy(visit(node.dst), visit(node.src), visit(node.len));
+    case "memory_fill":
+      return IR.memory_fill(visit(node.dst), visit(node.val), visit(node.len));
+
+    // Bulk-memory operations
+    case "memory_init":
+      return IR.memory_init(node.segIdx, visit(node.dst), visit(node.src), visit(node.len));
+    case "data_drop":
+      return node; // leaf node (no child IR nodes)
+
+    // Tail calls
+    case "return_call":
+      return IR.return_call(node.idx, node.args.map(visit));
+    case "return_call_indirect":
+      return IR.return_call_indirect(
+        node.typeIdx,
+        node.tableIdx,
+        node.args.map(visit),
+        visit(node.indexExpr),
+      );
+
+    // Multi-value
+    case "multi_value":
+      return IR.multi_value(node.values.map(visit));
+
+    // Stack-based local.set (no child value node)
+    case "stack_local_set":
+      return node;
+
     default: {
       const _exhaustive: never = node;
       return _exhaustive;
@@ -713,6 +744,49 @@ const conditionElimination: OptimizerPass = {
     }
   },
 };
+
+/** Callback type for reporting optimizer warnings (e.g. overflow detection). */
+export type OptimizerWarningCallback = (message: string) => void;
+
+/**
+ * Creates a constant-folding pass that reports i32 overflow warnings.
+ * When the raw arithmetic result exceeds i32 range before wrapping, the
+ * callback is invoked with a descriptive message.
+ */
+export function createConstantFoldingWithWarnings(warn: OptimizerWarningCallback): OptimizerPass {
+  return {
+    name: "constant-folding",
+    transform(node) {
+      // Delegate to the regular constant-folding logic, but check for overflow on binop
+      if (node.op === "binop") {
+        const type = node.type || "i32";
+        if (type === "i32" && node.a.op === "const_i32" && node.b.op === "const_i32") {
+          const rawResult = foldBinopRaw(node.kind, node.a.v, node.b.v);
+          if (rawResult !== null && (rawResult > 2147483647 || rawResult < -2147483648)) {
+            warn(
+              `Constant fold overflow: ${node.kind}(${node.a.v}, ${node.b.v}) = ${rawResult} (wraps to ${toI32(rawResult)})`,
+            );
+          }
+        }
+      }
+      return constantFolding.transform(node);
+    },
+  };
+}
+
+/** Raw (unwrapped) binary operation for overflow detection. */
+function foldBinopRaw(kind: BinopKind, a: number, b: number): number | null {
+  switch (kind) {
+    case "add":
+      return a + b;
+    case "sub":
+      return a - b;
+    case "mul":
+      return a * b;
+    default:
+      return null;
+  }
+}
 
 // ── Builtin pass list ───────────────────────────────────────────────
 

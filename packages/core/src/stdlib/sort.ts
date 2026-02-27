@@ -1,6 +1,6 @@
 import { param, local, Type } from "../dsl/declarations";
-import { Mem, Ctrl, Mod } from "../dsl/namespaces";
-import { le } from "../dsl/expr";
+import { Mem, Ctrl, Mod, Op } from "../dsl/namespaces";
+import { le, set } from "../dsl/expr";
 import type { CallableFunc } from "../dsl/expr";
 import type { FuncRef, ModuleGen } from "../dsl/types";
 import type { StdlibFunc } from "./index";
@@ -126,3 +126,84 @@ export function sortWith(comparators: FuncRef[]): ModuleGen<CallableFunc> {
     return sortFn;
   })() as ModuleGen<CallableFunc>;
 }
+
+/**
+ * Bottom-up iterative merge sort for i32 arrays. Stable sort.
+ *
+ * Params:
+ * - base (i32): byte offset of the array to sort
+ * - len (i32): number of i32 elements
+ * - tmpBase (i32): byte offset for temporary work area (needs len * 4 bytes)
+ *
+ * Algorithm: iterates over increasing widths (1, 2, 4, ...), merging
+ * adjacent pairs of subarrays into the tmp buffer, then copying back.
+ */
+export const mergeSort: StdlibFunc = {
+  params: ["i32", "i32", "i32"],
+  results: [],
+  body: function* () {
+    const base = yield* param(Type.i32);
+    const len = yield* param(Type.i32);
+    const tmpBase = yield* param(Type.i32);
+
+    const arr = Mem.i32Array(base);
+    const tmp = Mem.i32Array(tmpBase);
+
+    const width = yield* local(Type.i32);
+    const lo = yield* local(Type.i32);
+    const mid = yield* local(Type.i32);
+    const hi = yield* local(Type.i32);
+    const i = yield* local(Type.i32);
+    const j = yield* local(Type.i32);
+    const k = yield* local(Type.i32);
+
+    // Outer loop: width = 1, 2, 4, ... while width < len
+    yield* Ctrl.for(width, 1, width.lt(len), width.mul(2), function* () {
+      // Inner loop: merge pairs starting at lo, step = 2*width
+      yield* Ctrl.for(lo, 0, lo.lt(len), lo.add(width.mul(2)), function* () {
+        // mid = min(lo + width, len)
+        yield* mid.set(yield* Op.min(lo.add(width), len));
+        // hi = min(lo + 2*width, len)
+        yield* hi.set(yield* Op.min(lo.add(width.mul(2)), len));
+
+        // Merge arr[lo..mid) and arr[mid..hi) into tmp[lo..hi)
+        yield* set(i, lo);
+        yield* set(j, mid);
+        yield* set(k, lo);
+
+        // Merge while both halves have elements
+        yield* Ctrl.while(i.lt(mid).and(j.lt(hi)), function* () {
+          yield* Ctrl.if(arr.load(i).le(arr.load(j)))
+            .then(() => [
+              tmp.store(k, arr.load(i)),
+              i.incrBy(1),
+            ])
+            .else(() => [
+              tmp.store(k, arr.load(j)),
+              j.incrBy(1),
+            ]);
+          yield* k.incrBy(1);
+        });
+
+        // Copy remaining left half
+        yield* Ctrl.while(i.lt(mid), () => [
+          tmp.store(k, arr.load(i)),
+          i.incrBy(1),
+          k.incrBy(1),
+        ]);
+
+        // Copy remaining right half
+        yield* Ctrl.while(j.lt(hi), () => [
+          tmp.store(k, arr.load(j)),
+          j.incrBy(1),
+          k.incrBy(1),
+        ]);
+
+        // Copy tmp[lo..hi) back to arr[lo..hi)
+        yield* Ctrl.for(k, lo, k.lt(hi), k.add(1), () => [
+          arr.store(k, tmp.load(k)),
+        ]);
+      });
+    });
+  },
+};

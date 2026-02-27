@@ -10,3 +10,6 @@ playwright-report/
 *.swp
 *~
 .DS_Store
+
+# Claude Code Locals
+.claude

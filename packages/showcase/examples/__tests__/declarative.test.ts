@@ -1,9 +1,9 @@
 import { describe, test, expect } from "vitest";
-import { kadane } from "../layer2/kadane";
-import { binarySearch } from "../layer2/binary-search";
-import { arrayStats } from "../layer2/array-stats";
+import { kadane } from "../declarative/kadane";
+import { binarySearch } from "../declarative/binary-search";
+import { arrayStats } from "../declarative/array-stats";
 
-describe("Layer 2: wasmize()", () => {
+describe("Declarative API: wasmize()", () => {
   describe("kadane", () => {
     test.each([
       { arr: [-2, 1, -3, 4, -1, 2, 1, -5, 4], expected: 6 },

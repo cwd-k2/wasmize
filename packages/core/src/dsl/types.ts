@@ -210,6 +210,8 @@ export interface LoopInstruction {
   _type: "loop";
   /** The loop body factory. */
   body: FuncBody<void>;
+  /** Optional label for named branching (D-02). */
+  label?: string;
 }
 
 /**
@@ -221,6 +223,34 @@ export interface BlockInstruction {
   _type: "block";
   /** The block body factory. */
   body: FuncBody<void>;
+  /** Optional label for named branching (D-02). */
+  label?: string;
+}
+
+/** Branch by label name (D-02). Resolved to depth by the interpreter. */
+export interface BrLabelInstruction {
+  _type: "br_label";
+  label: string;
+}
+
+/** Conditional branch by label name (D-02). Resolved to depth by the interpreter. */
+export interface BrIfLabelInstruction {
+  _type: "br_if_label";
+  label: string;
+  cond: IRNode;
+}
+
+/**
+ * Instruction for unpacking a multi-value call result into local variables.
+ * Yielded by `Tuple.unpack()`; the interpreter creates locals and emits
+ * local_set instructions for each return value.
+ */
+export interface TupleUnpackInstruction {
+  _type: "tuple_unpack";
+  /** The call expression that produces multiple values. */
+  callNode: IRNode;
+  /** Types of each return value. */
+  types: WasmValType[];
 }
 
 /**
@@ -232,7 +262,10 @@ export type FuncInstruction =
   | StmtInstruction
   | IfInstruction
   | LoopInstruction
-  | BlockInstruction;
+  | BlockInstruction
+  | BrLabelInstruction
+  | BrIfLabelInstruction
+  | TupleUnpackInstruction;
 
 /**
  * Opaque reference to a global variable by its index in the module.
@@ -284,9 +317,27 @@ export type ModuleInstruction =
       params: WasmValType[];
       results: WasmValType[];
     }
-  | { _type: "func"; body: FuncBody<FuncReturn> }
+  | { _type: "func"; body: FuncBody<FuncReturn>; declaredResults?: WasmValType[] }
   | { _type: "export"; name: string; ref: FuncRef }
   | { _type: "memory"; pages: number }
+  | {
+      _type: "import_memory";
+      module: string;
+      name: string;
+      min: number;
+      max?: number;
+      shared?: boolean;
+    }
   | { _type: "global"; valType: WasmValType; init: number; mutable: boolean }
+  | {
+      _type: "import_global";
+      module: string;
+      name: string;
+      valType: WasmValType;
+      mutable: boolean;
+    }
+  | { _type: "export_global"; name: string; globalIdx: number }
   | { _type: "data"; offset: number; init: Uint8Array }
-  | { _type: "table"; funcIndices: number[] };
+  | { _type: "data_passive"; init: Uint8Array }
+  | { _type: "table"; funcIndices: number[] }
+  | { _type: "start"; ref: FuncRef };

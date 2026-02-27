@@ -45,7 +45,9 @@ E2E テストは Vite dev server を自動起動して Playwright で検証す�
 
 Vite dev server を `http://localhost:5173` で起動します（`packages/showcase` を対象）。
 
-- `index.html` → `showcase/app/main.ts` → `runner.ts` が全問題を実行
+- 4 ページ MPA 構成: landing (`/`), problems (`/problems.html`), demos (`/demos.html`), game (`/game.html`)
+- `problems.html` → `app/problems.ts` → `runner.ts` が全問題を実行
+- `demos.html` → `app/demos.ts` → `realworld-runner.ts` がデモを実行
 - 各問題の PASS/FAIL 状態とテストケース結果がブラウザに表示される
 - HMR（Hot Module Replacement）対応 — コード変更が即座に反映
 

@@ -163,6 +163,24 @@ const convertTable: Record<string, number> = {
   i64_reinterpret_f64: OP.i64_reinterpret_f64,
   f32_reinterpret_i32: OP.f32_reinterpret_i32,
   f64_reinterpret_i64: OP.f64_reinterpret_i64,
+  // Sign-extension
+  i32_extend8_s: OP.i32_extend8_s,
+  i32_extend16_s: OP.i32_extend16_s,
+  i64_extend8_s: OP.i64_extend8_s,
+  i64_extend16_s: OP.i64_extend16_s,
+  i64_extend32_s: OP.i64_extend32_s,
+};
+
+/** Saturating truncation: 0xFC prefix + index byte */
+const satTruncTable: Record<string, number> = {
+  i32_trunc_sat_f32_s: OP.i32_trunc_sat_f32_s,
+  i32_trunc_sat_f32_u: OP.i32_trunc_sat_f32_u,
+  i32_trunc_sat_f64_s: OP.i32_trunc_sat_f64_s,
+  i32_trunc_sat_f64_u: OP.i32_trunc_sat_f64_u,
+  i64_trunc_sat_f32_s: OP.i64_trunc_sat_f32_s,
+  i64_trunc_sat_f32_u: OP.i64_trunc_sat_f32_u,
+  i64_trunc_sat_f64_s: OP.i64_trunc_sat_f64_s,
+  i64_trunc_sat_f64_u: OP.i64_trunc_sat_f64_u,
 };
 
 const memLoadInfo: Record<string, { opcode: number; align: number }> = {
@@ -243,10 +261,17 @@ export function emitIR(enc: WasmEncoder, node: IRNode | undefined): void {
       emitIR(enc, node.val);
       enc.byte(unaryTable[node.type || "i32"]![node.kind]!);
       break;
-    case "convert":
+    case "convert": {
       emitIR(enc, node.val);
-      enc.byte(convertTable[node.kind]!);
+      const satIdx = satTruncTable[node.kind];
+      if (satIdx !== undefined) {
+        enc.byte(OP.fc_prefix);
+        enc.u32(satIdx);
+      } else {
+        enc.byte(convertTable[node.kind]!);
+      }
       break;
+    }
     case "if":
       emitIR(enc, node.cond);
       enc.byte(OP.if_);
@@ -460,6 +485,56 @@ export function emitIR(enc: WasmEncoder, node: IRNode | undefined): void {
       enc.byte(OP.call_indirect);
       enc.u32(node.typeIdx);
       enc.u32(node.tableIdx);
+      break;
+    case "memory_copy":
+      emitIR(enc, node.dst);
+      emitIR(enc, node.src);
+      emitIR(enc, node.len);
+      enc.byte(OP.fc_prefix);
+      enc.u32(OP.memory_copy);
+      enc.byte(0x00); // src memory index
+      enc.byte(0x00); // dst memory index
+      break;
+    case "memory_fill":
+      emitIR(enc, node.dst);
+      emitIR(enc, node.val);
+      emitIR(enc, node.len);
+      enc.byte(OP.fc_prefix);
+      enc.u32(OP.memory_fill);
+      enc.byte(0x00); // memory index
+      break;
+    case "memory_init":
+      emitIR(enc, node.dst);
+      emitIR(enc, node.src);
+      emitIR(enc, node.len);
+      enc.byte(OP.prefix_fc);
+      enc.u32(OP.memory_init);
+      enc.u32(node.segIdx); // segment index
+      enc.byte(0x00); // memory index (always 0)
+      break;
+    case "data_drop":
+      enc.byte(OP.prefix_fc);
+      enc.u32(OP.data_drop);
+      enc.u32(node.segIdx);
+      break;
+    case "return_call":
+      (node.args || []).forEach((a) => emitIR(enc, a));
+      enc.byte(OP.return_call);
+      enc.u32(node.idx);
+      break;
+    case "return_call_indirect":
+      (node.args || []).forEach((a) => emitIR(enc, a));
+      emitIR(enc, node.indexExpr);
+      enc.byte(OP.return_call_indirect);
+      enc.u32(node.typeIdx);
+      enc.u32(node.tableIdx);
+      break;
+    case "multi_value":
+      node.values.forEach((v) => emitIR(enc, v));
+      break;
+    case "stack_local_set":
+      enc.byte(OP.local_set);
+      enc.u32(node.i);
       break;
   }
 }

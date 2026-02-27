@@ -1,11 +1,11 @@
 import { describe, test, expect } from "vitest";
-import { structPoints } from "../advanced/struct-points";
-import { stdlibSort } from "../advanced/stdlib-sort";
-import { benchSieve } from "../advanced/bench-sieve";
-import { minheapDijkstra } from "../advanced/minheap-dijkstra";
-import { hashmapFrequency } from "../advanced/hashmap-frequency";
+import { structPoints } from "../features/struct-points";
+import { stdlibSort } from "../features/stdlib-sort";
+import { benchSieve } from "../features/bench-sieve";
+import { minheapDijkstra } from "../features/minheap-dijkstra";
+import { hashmapFrequency } from "../features/hashmap-frequency";
 
-describe("Advanced features", () => {
+describe("DSL features", () => {
   describe("Struct: point Manhattan distance", () => {
     test("path through 3 points", async () => {
       const { setPoint, manhattanPath } = await structPoints();

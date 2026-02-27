@@ -19,7 +19,8 @@
  * });
  * ```
  */
-export { compile } from "./interpreter";
+export { compile, compileWithDiagnostics, type CompileOptions, type DiagnosticResult } from "./interpreter";
+export { DiagnosticCollector, type Diagnostic, type DiagnosticLevel, type DiagnosticOptions } from "./diagnostics";
 export {
   // Declarations
   param,
@@ -40,9 +41,11 @@ export {
   Mem,
   Ctrl,
   Loc,
+  Tuple,
   // Top-level constant helpers
   i32,
   i64,
+  f32,
   f64,
   // Compile-time macro helpers
   Meta,
@@ -54,7 +57,15 @@ export {
   RingBuffer,
   BitSet,
   MinHeap,
+  MaxHeap,
   HashMap,
+  UnionFind,
+  Deque,
+  HashSet,
+  Graph,
+  SortedArray,
+  SegmentTree,
+  LRUCache,
 } from "./primitives";
 export {
   WasmRef,

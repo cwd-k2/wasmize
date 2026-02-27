@@ -70,3 +70,79 @@ export const lerp: StdlibFunc = {
     return yield* a.add(b.sub(a).mul(t));
   },
 };
+
+/**
+ * gcd(a, b) — greatest common divisor via Euclidean algorithm.
+ * Params: a (i32), b (i32). Returns i32.
+ */
+export const gcd: StdlibFunc = {
+  params: ["i32", "i32"],
+  results: ["i32"],
+  body: function* () {
+    const a = yield* param(Type.i32);
+    const b = yield* param(Type.i32);
+    const aa = yield* local(Type.i32, a);
+    const bb = yield* local(Type.i32, b);
+    const tmp = yield* local(Type.i32);
+    yield* Ctrl.while(bb.ne(0), () => [
+      tmp.set(bb),
+      bb.set(Op.rem_u(aa, bb)),
+      aa.set(tmp),
+    ]);
+    return aa;
+  },
+};
+
+/**
+ * lcm(a, b) — least common multiple: a / gcd(a, b) * b.
+ * Division first to reduce overflow risk.
+ * Params: a (i32), b (i32). Returns i32.
+ */
+export const lcm: StdlibFunc = {
+  params: ["i32", "i32"],
+  results: ["i32"],
+  body: function* () {
+    const a = yield* param(Type.i32);
+    const b = yield* param(Type.i32);
+    // Compute gcd inline
+    const aa = yield* local(Type.i32, a);
+    const bb = yield* local(Type.i32, b);
+    const tmp = yield* local(Type.i32);
+    yield* Ctrl.while(bb.ne(0), () => [
+      tmp.set(bb),
+      bb.set(Op.rem_u(aa, bb)),
+      aa.set(tmp),
+    ]);
+    // gcd is now in aa. If gcd == 0, return 0
+    return yield* Ctrl.if(aa.eqz())
+      .then(function* () { return 0; })
+      .else(function* () {
+        // a / gcd * b (division first to reduce overflow)
+        const q = yield* local(Type.i32, Op.div_u(a, aa));
+        return yield* q.mul(b);
+      });
+  },
+};
+
+/**
+ * gcdI64(a, b) — greatest common divisor for i64 values.
+ * Params: a (i64), b (i64). Returns i64.
+ */
+export const gcdI64: StdlibFunc = {
+  params: ["i64", "i64"],
+  results: ["i64"],
+  body: function* () {
+    const a = yield* param(Type.i64);
+    const b = yield* param(Type.i64);
+    const aa = yield* local(Type.i64, a);
+    const bb = yield* local(Type.i64, b);
+    const tmp = yield* local(Type.i64);
+    // bb.eqz().eqz() = (i64.eqz(bb) == 0) = (bb != 0)
+    yield* Ctrl.while(bb.eqz().eqz(), () => [
+      tmp.set(bb),
+      bb.set(Op.i64.rem_u(aa, bb)),
+      aa.set(tmp),
+    ]);
+    return aa;
+  },
+};
