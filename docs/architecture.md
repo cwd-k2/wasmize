@@ -2,6 +2,8 @@
 
 wasmize のコンパイルパイプラインは 5 つのコアステージ + 最適化 + 高レベル API で構成されます。
 
+> **Note:** 本ドキュメント内のファイルパス（`src/dsl/...` 等）は `packages/core/` からの相対パスです。showcase のファイルは `packages/showcase/` に配置されています。
+
 ```
 WasmProgram ─→ compile() ─→ optimize() ─→ emitIR() ─→ buildModule() ─→ WasmBinary<T>
   (1. DSL)   (2. Interpreter)  (3. Optimizer)  (4. Codegen)  (5. Module + Encoder)
@@ -620,7 +622,7 @@ UTF-8 文字列操作。`Str.from()` は data segment に埋め込み、`Str.len
 
 ### Realworld Examples
 
-**ファイル:** `examples/realworld/`
+**ファイル:** `packages/showcase/examples/realworld/`
 
 実用的なユースケースを示す 4 つの例。ブラウザ UI でインタラクティブに動作するデモ付き。
 
