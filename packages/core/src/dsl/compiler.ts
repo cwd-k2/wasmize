@@ -19,7 +19,8 @@
  * });
  * ```
  */
-export { compile } from "./interpreter";
+export { compile, compileWithDiagnostics, type CompileOptions, type DiagnosticResult } from "./interpreter";
+export { DiagnosticCollector, type Diagnostic, type DiagnosticLevel, type DiagnosticOptions } from "./diagnostics";
 export {
   // Declarations
   param,

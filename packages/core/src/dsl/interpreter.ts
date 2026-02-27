@@ -33,6 +33,7 @@ import {
   type FeatureSet,
 } from "../wasm/capabilities";
 import type { WasmBinary } from "./types";
+import { DiagnosticCollector, type Diagnostic, type DiagnosticOptions } from "./diagnostics";
 import {
   ref,
   val,
@@ -236,6 +237,7 @@ function collectAndInterpret(
   const elementsArr: ElementDef[] = [];
   let memoryPages = 1;
   let funcIdx = 0;
+  const exportNames = new Set<string>();
 
   // Phase 1: collect declarations
   let next = gen.next();
@@ -261,6 +263,10 @@ function collectAndInterpret(
         break;
       }
       case "export": {
+        if (exportNames.has(instr.name)) {
+          throw new Error(`Duplicate export name: '${instr.name}'`);
+        }
+        exportNames.add(instr.name);
         exports_.push({ name: instr.name, idx: instr.ref._idx });
         next = gen.next();
         break;
@@ -362,10 +368,27 @@ function collectAndInterpret(
  * exports.add(1, 2); // 3
  * ```
  */
+/** Options for `compile()`. */
+export interface CompileOptions extends DiagnosticOptions {
+  optimize?: boolean;
+  optimizerConfig?: OptimizerConfig;
+  target?: FeatureSet;
+}
+
+/** Result of `compileWithDiagnostics()`. */
+export interface DiagnosticResult<T> {
+  binary?: WasmBinary<T>;
+  diagnostics: Diagnostic[];
+}
+
 export function compile<T = Record<string, unknown>>(
   program: WasmProgram,
-  options?: { optimize?: boolean; optimizerConfig?: OptimizerConfig; target?: FeatureSet },
+  options?: CompileOptions,
 ): WasmBinary<T> {
+  const collector = options?.diagnostics
+    ? new DiagnosticCollector({ strict: options?.strict, warnings: options?.warnings })
+    : undefined;
+
   const { funcs, moduleOptions } = collectAndInterpret(
     program,
     options?.optimize !== false,
@@ -377,13 +400,76 @@ export function compile<T = Record<string, unknown>>(
     if (!result.valid) {
       const details = result.missing.map((f) => `  - ${f}: ${describeFeature(f)}`).join("\n");
       const suggestion = suggestTarget(funcs);
-      throw new Error(
-        `Target does not support required features:\n${details}\nSuggested target: Features.${suggestion.name}`,
-      );
+      const msg = `Target does not support required features:\n${details}\nSuggested target: Features.${suggestion.name}`;
+      if (collector) {
+        collector.add({ level: "error", code: "W-TARGET", message: msg });
+      } else {
+        throw new Error(msg);
+      }
     }
   }
 
+  if (collector?.hasErrors) {
+    throw new Error(collector.errors[0]!.message);
+  }
+
   return buildModule(funcs, moduleOptions) as WasmBinary<T>;
+}
+
+/**
+ * Compiles a program and returns diagnostics instead of throwing.
+ *
+ * If compilation succeeds (no errors), `binary` is set.
+ * If errors are present, `binary` is undefined.
+ */
+export function compileWithDiagnostics<T = Record<string, unknown>>(
+  program: WasmProgram,
+  options?: Omit<CompileOptions, "diagnostics">,
+): DiagnosticResult<T> {
+  const collector = new DiagnosticCollector({
+    strict: options?.strict,
+    warnings: options?.warnings,
+  });
+
+  let funcs: FuncDef[];
+  let moduleOptions: ReturnType<typeof collectAndInterpret>["moduleOptions"];
+
+  try {
+    const result = collectAndInterpret(
+      program,
+      options?.optimize !== false,
+      options?.optimizerConfig,
+    );
+    funcs = result.funcs;
+    moduleOptions = result.moduleOptions;
+  } catch (e) {
+    collector.add({
+      level: "error",
+      code: "COMPILE",
+      message: e instanceof Error ? e.message : String(e),
+    });
+    return { diagnostics: [...collector.all] };
+  }
+
+  if (options?.target) {
+    const result = validateFeatures(funcs, options.target);
+    if (!result.valid) {
+      for (const f of result.missing) {
+        collector.add({
+          level: "error",
+          code: "W-TARGET",
+          message: `Unsupported feature: ${f} — ${describeFeature(f)}`,
+        });
+      }
+    }
+  }
+
+  if (collector.hasErrors) {
+    return { diagnostics: [...collector.all] };
+  }
+
+  const binary = buildModule(funcs, moduleOptions) as WasmBinary<T>;
+  return { binary, diagnostics: [...collector.all] };
 }
 
 /**

@@ -176,6 +176,10 @@ interface ModNamespace {
 
   use(fn: { body: FuncBody<FuncReturn> }): ModuleGen<CallableFunc>;
 
+  useAll<S extends Record<string, { body: FuncBody<FuncReturn> }>>(
+    fns: S,
+  ): ModuleGen<{ [K in keyof S]: CallableFunc }>;
+
   importGroup<S extends Record<string, { params: WasmValType[]; results: WasmValType[] }>>(
     moduleName: string,
     specs: S,
@@ -386,6 +390,19 @@ export const Mod = {
       const r: FuncRef = yield { _type: "func", body: fn.body };
       return callableFunc(r._idx);
     })() as ModuleGen<CallableFunc>;
+  },
+  /** Embeds multiple stdlib functions into the current module at once. */
+  useAll<S extends Record<string, { body: FuncBody<FuncReturn> }>>(
+    fns: S,
+  ): ModuleGen<{ [K in keyof S]: CallableFunc }> {
+    return (function* () {
+      const result = {} as { [K in keyof S]: CallableFunc };
+      for (const [name, fn] of Object.entries(fns)) {
+        const r: FuncRef = yield { _type: "func", body: fn.body };
+        (result as any)[name] = callableFunc(r._idx);
+      }
+      return result;
+    })() as ModuleGen<{ [K in keyof S]: CallableFunc }>;
   },
   /** Creates a compile-time bump allocator for automatic memory layout. */
   allocator(): BumpAllocator {

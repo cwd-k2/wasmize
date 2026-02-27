@@ -13,6 +13,13 @@ import "./dsl/augment";
 // Core DSL (re-export from compiler barrel)
 export {
   compile,
+  compileWithDiagnostics,
+  DiagnosticCollector,
+  type Diagnostic,
+  type DiagnosticLevel,
+  type DiagnosticOptions,
+  type CompileOptions,
+  type DiagnosticResult,
   param,
   local,
   Type,

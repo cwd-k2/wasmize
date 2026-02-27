@@ -184,17 +184,33 @@ export type StructAccessor<F extends FieldSpec> = {
   readonly [K in keyof F]: FieldAccessor<FieldResultType<F[K]>>;
 };
 
+// Properties that should not trigger field-typo errors on Proxy access
+const PROXY_SKIP = new Set([
+  "then", "toJSON", "toString", "valueOf", "constructor",
+  "__proto__", "$$typeof", "asymmetricMatch", "nodeType",
+  "@@__IMMUTABLE_ITERABLE__@@", "@@__IMMUTABLE_RECORD__@@",
+]);
+
+function validateField(fields: object, name: string): void {
+  if (!(name in fields)) {
+    const available = Object.keys(fields).join(", ");
+    throw new Error(`Unknown field '${name}' on Struct. Available fields: ${available}`);
+  }
+}
+
 function makeAccessor<F extends FieldSpec>(
   fields: { [K in keyof F]: FieldInfo<F[K]> },
   addrOf: (fieldName: string) => ExprInput,
 ): StructAccessor<F> {
   return new Proxy({} as StructAccessor<F>, {
-    get(_, prop: string) {
+    get(_, prop: string | symbol) {
+      if (typeof prop === "symbol") return undefined;
       if (prop in (fields as object)) {
         const f = (fields as any)[prop] as FieldInfo;
         return new FieldAccessor(addrOf(prop), f.type);
       }
-      return undefined;
+      if (PROXY_SKIP.has(prop)) return undefined;
+      validateField(fields as object, prop);
     },
   });
 }
@@ -253,6 +269,7 @@ function makeStructArray<F extends FieldSpec>(
       index: ExprInput,
       field: K,
     ): ChainableExpr<FieldResultType<F[K]>> {
+      validateField(fields as object, field);
       const f = (fields as any)[field] as FieldInfo<F[K]>;
       return loadTyped(elementAddr(index, field), f.type);
     },
@@ -262,6 +279,7 @@ function makeStructArray<F extends FieldSpec>(
       field: K,
       value: ExprInput,
     ): FuncGen<void> {
+      validateField(fields as object, field);
       const f = (fields as any)[field] as FieldInfo<F[K]>;
       return storeTyped(elementAddr(index, field), value, f.type);
     },
@@ -389,11 +407,13 @@ export function Struct<F extends FieldSpec>(spec: F): StructType<F> {
       base: ExprInput,
       field: K,
     ): ChainableExpr<FieldResultType<F[K]>> {
+      validateField(fields as object, field);
       const f = (fields as any)[field] as FieldInfo<F[K]>;
       return loadTyped(fieldAddr(base, field), f.type);
     },
 
     set<K extends keyof F & string>(base: ExprInput, field: K, value: ExprInput): FuncGen<void> {
+      validateField(fields as object, field);
       const f = (fields as any)[field] as FieldInfo<F[K]>;
       return storeTyped(fieldAddr(base, field), value, f.type);
     },
