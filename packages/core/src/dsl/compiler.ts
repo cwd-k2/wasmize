@@ -61,6 +61,7 @@ export {
   UnionFind,
   Deque,
   HashSet,
+  Graph,
 } from "./primitives";
 export {
   WasmRef,

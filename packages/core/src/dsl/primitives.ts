@@ -29,6 +29,7 @@ export { HashMap, type HashMapHandle } from "./hashmap";
 export { UnionFind, type UnionFindHandle } from "./union-find";
 export { Deque, type DequeHandle } from "./deque";
 export { HashSet, type HashSetHandle } from "./hashset";
+export { Graph, type GraphHandle } from "./graph";
 export { type ScopeHandle } from "./types";
 
 /** RGBA pixel Struct preset (4 packed u8 fields). `RGBA.at(offset)` returns a proxy with `.r`, `.g`, `.b`, `.a` FieldAccessors. */
