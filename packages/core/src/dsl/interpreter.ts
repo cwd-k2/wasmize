@@ -34,7 +34,7 @@ import {
 } from "../wasm/capabilities";
 import type { WasmBinary } from "./types";
 import { DiagnosticCollector, type Diagnostic, type DiagnosticOptions } from "./diagnostics";
-import type { BumpAllocator } from "./allocator";
+import { type BumpAllocator, checkRegionOverlaps } from "./allocator";
 import {
   ref,
   val,
@@ -279,6 +279,7 @@ function collectAndInterpret(
   const gen = program();
   const imports: ImportDef[] = [];
   const bodies: FuncBody<FuncReturn>[] = [];
+  const declaredResultsPerFunc: (WasmValType[] | undefined)[] = [];
   const exports_: ExportDef[] = [];
   const globals: GlobalDef[] = [];
   const dataSegments: DataSegment[] = [];
@@ -309,6 +310,7 @@ function collectAndInterpret(
       }
       case "func": {
         bodies.push(instr.body);
+        declaredResultsPerFunc.push(instr.declaredResults);
         const fr: FuncRef = funcRef(funcIdx++);
         next = gen.next(fr);
         break;
@@ -397,6 +399,23 @@ function collectAndInterpret(
       body: bodyNodes,
     };
   });
+
+  // V-10: Function return type consistency check
+  for (let fi = 0; fi < funcs.length; fi++) {
+    const declared = declaredResultsPerFunc[fi];
+    if (!declared) continue;
+    const actual = funcs[fi]!.results;
+    const declStr = declared.length === 0 ? "void" : declared.join(", ");
+    const actStr = actual.length === 0 ? "void" : actual.join(", ");
+    if (declStr !== actStr) {
+      const msg = `Function return type mismatch: declared ${declStr} but body returns ${actStr}`;
+      if (diagnosticCollector) {
+        diagnosticCollector.add({ level: "error", code: "V-10", message: msg });
+      } else {
+        throw new Error(msg);
+      }
+    }
+  }
 
   // Phase 2.5: optimize IR
   if (shouldOptimize) {
@@ -493,6 +512,19 @@ export function compile<T = Record<string, unknown>>(
     }
   }
 
+  // V-08: Allocator region overlap detection
+  if (options?.allocator) {
+    const allocators = Array.isArray(options.allocator) ? options.allocator : [options.allocator];
+    const overlaps = checkRegionOverlaps(allocators);
+    for (const msg of overlaps) {
+      if (collector) {
+        collector.add({ level: "error", code: "V-08", message: msg });
+      } else {
+        throw new Error(msg);
+      }
+    }
+  }
+
   // V-01: Data segment bounds validation
   {
     const maxBytes = moduleOptions.memoryPages * 65536;
@@ -581,6 +613,15 @@ export function compileWithDiagnostics<T = Record<string, unknown>>(
         code: "V-01",
         message: `Memory budget exceeded: allocations require ${maxRequired} pages but only ${moduleOptions.memoryPages} pages declared`,
       });
+    }
+  }
+
+  // V-08: Allocator region overlap detection
+  if (options?.allocator) {
+    const allocators = Array.isArray(options.allocator) ? options.allocator : [options.allocator];
+    const overlaps = checkRegionOverlaps(allocators);
+    for (const msg of overlaps) {
+      collector.add({ level: "error", code: "V-08", message: msg });
     }
   }
 

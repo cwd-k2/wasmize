@@ -126,8 +126,10 @@ export function scanFeatures(funcs: FuncDef[]): Set<WasmFeature> {
       features.add("reference-types");
     }
 
-    // Future: bulk-memory (memory.copy, memory.fill IR nodes)
-    // Future: SIMD (v128.* IR nodes)
+    // Bulk memory: memory.copy, memory.fill
+    if (node.op === "memory_copy" || node.op === "memory_fill") {
+      features.add("bulk-memory");
+    }
 
     visitChildren(node, scanNode);
     return node;

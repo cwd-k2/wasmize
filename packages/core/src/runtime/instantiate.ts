@@ -12,14 +12,22 @@ export async function instantiate<T = Record<string, unknown>>(
   exports: T & { memory?: WebAssembly.Memory };
   mem: Int32Array | null;
   bytes: Uint8Array | null;
+  refreshViews(): void;
 }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: any = await WebAssembly.instantiate(binary, imports);
   const exp = result.instance.exports;
   const memory = exp.memory as WebAssembly.Memory | undefined;
-  return {
+  const out = {
     exports: exp,
     mem: memory ? new Int32Array(memory.buffer) : null,
     bytes: memory ? new Uint8Array(memory.buffer) : null,
+    refreshViews() {
+      if (memory) {
+        out.mem = new Int32Array(memory.buffer);
+        out.bytes = new Uint8Array(memory.buffer);
+      }
+    },
   };
+  return out;
 }

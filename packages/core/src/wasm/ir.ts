@@ -135,7 +135,9 @@ export type IRNode =
   | { op: "unreachable" }
   | { op: "nop" }
   | { op: "effect"; tag: number; payload: IRNode }
-  | { op: "call_indirect"; typeIdx: number; tableIdx: number; args: IRNode[]; indexExpr: IRNode };
+  | { op: "call_indirect"; typeIdx: number; tableIdx: number; args: IRNode[]; indexExpr: IRNode }
+  | { op: "memory_copy"; dst: IRNode; src: IRNode; len: IRNode }
+  | { op: "memory_fill"; dst: IRNode; val: IRNode; len: IRNode };
 
 export const IR = {
   const_i32: (v: number): IRNode => ({ op: "const_i32", v }),
@@ -248,5 +250,17 @@ export const IR = {
     tableIdx,
     args,
     indexExpr,
+  }),
+  memory_copy: (dst: IRNode, src: IRNode, len: IRNode): IRNode => ({
+    op: "memory_copy",
+    dst,
+    src,
+    len,
+  }),
+  memory_fill: (dst: IRNode, val: IRNode, len: IRNode): IRNode => ({
+    op: "memory_fill",
+    dst,
+    val,
+    len,
   }),
 };

@@ -146,6 +146,12 @@ export function visitChildren(node: IRNode, visit: (n: IRNode) => IRNode): IRNod
     case "seq":
       return IR.seq(node.stmts.map(visit));
 
+    // Bulk memory (three children)
+    case "memory_copy":
+      return IR.memory_copy(visit(node.dst), visit(node.src), visit(node.len));
+    case "memory_fill":
+      return IR.memory_fill(visit(node.dst), visit(node.val), visit(node.len));
+
     default: {
       const _exhaustive: never = node;
       return _exhaustive;

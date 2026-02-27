@@ -284,7 +284,7 @@ export type ModuleInstruction =
       params: WasmValType[];
       results: WasmValType[];
     }
-  | { _type: "func"; body: FuncBody<FuncReturn> }
+  | { _type: "func"; body: FuncBody<FuncReturn>; declaredResults?: WasmValType[] }
   | { _type: "export"; name: string; ref: FuncRef }
   | { _type: "memory"; pages: number }
   | { _type: "global"; valType: WasmValType; init: number; mutable: boolean }

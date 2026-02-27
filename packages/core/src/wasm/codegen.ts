@@ -467,5 +467,22 @@ export function emitIR(enc: WasmEncoder, node: IRNode | undefined): void {
       enc.u32(node.typeIdx);
       enc.u32(node.tableIdx);
       break;
+    case "memory_copy":
+      emitIR(enc, node.dst);
+      emitIR(enc, node.src);
+      emitIR(enc, node.len);
+      enc.byte(OP.fc_prefix);
+      enc.u32(OP.memory_copy);
+      enc.byte(0x00); // src memory index
+      enc.byte(0x00); // dst memory index
+      break;
+    case "memory_fill":
+      emitIR(enc, node.dst);
+      emitIR(enc, node.val);
+      emitIR(enc, node.len);
+      enc.byte(OP.fc_prefix);
+      enc.u32(OP.memory_fill);
+      enc.byte(0x00); // memory index
+      break;
   }
 }

@@ -192,6 +192,10 @@ export function irToWAT(node: IRNode, depth: number = 0): string {
       lines.push(indent(`return`, depth));
       return lines.join("\n");
     }
+    case "memory_copy":
+      return [irToWAT(node.dst, depth), irToWAT(node.src, depth), irToWAT(node.len, depth), indent("memory.copy", depth)].join("\n");
+    case "memory_fill":
+      return [irToWAT(node.dst, depth), irToWAT(node.val, depth), irToWAT(node.len, depth), indent("memory.fill", depth)].join("\n");
   }
 }
 

@@ -53,6 +53,8 @@ export {
   type VoidStmt,
   type ModuleGen,
   type WasmProgram,
+  Deque,
+  HashSet,
   intercept,
   interceptIR,
   withTrace,

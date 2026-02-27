@@ -220,6 +220,13 @@ export const OP = {
   i64_extend8_s: 0xc2,
   i64_extend16_s: 0xc3,
   i64_extend32_s: 0xc4,
+
+  // FC prefix (bulk memory)
+  fc_prefix: 0xfc,
+  memory_init: 0x08,
+  data_drop: 0x09,
+  memory_copy: 0x0a,
+  memory_fill: 0x0b,
 } as const;
 
 export type WasmValType = "i32" | "i64" | "f32" | "f64";

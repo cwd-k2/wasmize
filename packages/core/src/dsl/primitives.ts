@@ -15,7 +15,7 @@ export { type ExprInput, type CallableFunc, ChainableExpr, ThenBuilder, ElseIfBu
 export { param, local, locals, Type } from "./declarations";
 
 export { Mod, Op, Mem, Ctrl, Loc, SwitchCaseBuilder, SwitchDefaultBuilder } from "./namespaces";
-export { BumpAllocator } from "./allocator";
+export { BumpAllocator, checkRegionOverlaps, type MemoryRegion } from "./allocator";
 export { Struct, FieldAccessor, type FieldType, type FieldResultType } from "./struct";
 export { Str } from "./string";
 export { Meta } from "./meta";
@@ -24,7 +24,11 @@ export { Stack, type StackHandle } from "./stack";
 export { RingBuffer, type RingBufferHandle } from "./ringbuffer";
 export { BitSet, type BitSetHandle } from "./bitset";
 export { MinHeap, type MinHeapHandle } from "./minheap";
+export { MaxHeap, type MaxHeapHandle } from "./maxheap";
 export { HashMap, type HashMapHandle } from "./hashmap";
+export { UnionFind, type UnionFindHandle } from "./union-find";
+export { Deque, type DequeHandle } from "./deque";
+export { HashSet, type HashSetHandle } from "./hashset";
 export { type ScopeHandle } from "./types";
 
 /** RGBA pixel Struct preset (4 packed u8 fields). `RGBA.at(offset)` returns a proxy with `.r`, `.g`, `.b`, `.a` FieldAccessors. */

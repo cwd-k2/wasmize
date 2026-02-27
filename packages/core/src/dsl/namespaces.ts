@@ -122,11 +122,17 @@ function buildBody(
  * the `& ExprInput[]` intersection in CallableFunc makes it invariant in
  * Params, so `CallableFunc` (wide) is not assignable to `CallableFunc<[]>`.
  */
+/** Options for Mod.func / Mod.exportFunc to declare expected return type (V-10). */
+interface FuncOptions {
+  results?: WasmValType[];
+}
+
 interface ModNamespace {
   func(body: FuncBody<FuncReturn>): ModuleGen<CallableFunc<[]>>;
   func<A extends WasmRef<any>[]>(
     params: Record<string, WasmValType>,
     body: (...refs: A) => Generator<FuncInstruction, FuncReturn, any>,
+    options?: FuncOptions,
   ): ModuleGen<CallableFunc<{ [K in keyof A]: WasmValType }>>;
 
   export(name: string, funcref: FuncRef): ModuleGen<void>;
@@ -145,6 +151,7 @@ interface ModNamespace {
     name: string,
     params: Record<string, WasmValType>,
     body: (...refs: A) => Generator<FuncInstruction, FuncReturn, any>,
+    options?: FuncOptions,
   ): ModuleGen<CallableFunc<{ [K in keyof A]: WasmValType }>>;
 
   /**
@@ -211,12 +218,14 @@ export const Mod = {
   func(
     bodyOrParams: FuncBody<FuncReturn> | Record<string, WasmValType>,
     bodyWithParams?: (...refs: WasmRef<any>[]) => Generator<FuncInstruction, FuncReturn, any>,
+    options?: { results?: WasmValType[] },
   ): ModuleGen<CallableFunc> {
     const body = buildBody(bodyOrParams, bodyWithParams);
     const paramCount =
       typeof bodyOrParams === "function" ? undefined : Object.keys(bodyOrParams).length;
+    const declaredResults = options?.results;
     return (function* () {
-      const r: FuncRef = yield { _type: "func", body };
+      const r: FuncRef = yield { _type: "func", body, declaredResults };
       return callableFunc(r._idx, paramCount);
     })();
   },
@@ -266,12 +275,14 @@ export const Mod = {
     name: string,
     bodyOrParams: FuncBody<FuncReturn> | Record<string, WasmValType>,
     bodyWithParams?: (...refs: WasmRef<any>[]) => Generator<FuncInstruction, FuncReturn, any>,
+    options?: { results?: WasmValType[] },
   ): ModuleGen<CallableFunc> {
     const body = buildBody(bodyOrParams, bodyWithParams);
     const paramCount =
       typeof bodyOrParams === "function" ? undefined : Object.keys(bodyOrParams).length;
+    const declaredResults = options?.results;
     return (function* () {
-      const r: FuncRef = yield { _type: "func", body };
+      const r: FuncRef = yield { _type: "func", body, declaredResults };
       const fn = callableFunc(r._idx, paramCount, name);
       yield { _type: "export", name, ref: fn } as ModuleInstruction;
       return fn;
@@ -939,6 +950,24 @@ export const Mem = {
     return (function* () {
       const vp = yield* resolve(pages);
       return val(IR.memory_grow(vp._node));
+    })();
+  },
+  /** Copies `len` bytes from `src` to `dst` in linear memory (bulk memory operation). */
+  copy(dst: ExprInput, src: ExprInput, len: ExprInput): FuncGen<void> {
+    return (function* () {
+      const vd = yield* resolve(dst);
+      const vs = yield* resolve(src);
+      const vl = yield* resolve(len);
+      yield { _type: "stmt", node: IR.memory_copy(vd._node, vs._node, vl._node) } as FuncInstruction;
+    })();
+  },
+  /** Fills `len` bytes starting at `dst` with byte value `val` (bulk memory operation). */
+  fill(dst: ExprInput, value: ExprInput, len: ExprInput): FuncGen<void> {
+    return (function* () {
+      const vd = yield* resolve(dst);
+      const vv = yield* resolve(value);
+      const vl = yield* resolve(len);
+      yield { _type: "stmt", node: IR.memory_fill(vd._node, vv._node, vl._node) } as FuncInstruction;
     })();
   },
   /**

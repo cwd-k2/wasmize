@@ -56,7 +56,11 @@ export {
   RingBuffer,
   BitSet,
   MinHeap,
+  MaxHeap,
   HashMap,
+  UnionFind,
+  Deque,
+  HashSet,
 } from "./primitives";
 export {
   WasmRef,
