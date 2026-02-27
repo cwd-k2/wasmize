@@ -62,6 +62,9 @@ export {
   Deque,
   HashSet,
   Graph,
+  SortedArray,
+  SegmentTree,
+  LRUCache,
 } from "./primitives";
 export {
   WasmRef,

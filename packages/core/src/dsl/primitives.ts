@@ -30,6 +30,9 @@ export { UnionFind, type UnionFindHandle } from "./union-find";
 export { Deque, type DequeHandle } from "./deque";
 export { HashSet, type HashSetHandle } from "./hashset";
 export { Graph, type GraphHandle } from "./graph";
+export { SortedArray, type SortedArrayHandle } from "./sorted-array";
+export { SegmentTree, type SegmentTreeHandle } from "./segment-tree";
+export { LRUCache, type LRUCacheHandle } from "./lru-cache";
 export { type ScopeHandle } from "./types";
 
 /** RGBA pixel Struct preset (4 packed u8 fields). `RGBA.at(offset)` returns a proxy with `.r`, `.g`, `.b`, `.a` FieldAccessors. */
