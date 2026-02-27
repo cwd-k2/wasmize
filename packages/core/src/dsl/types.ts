@@ -241,6 +241,19 @@ export interface BrIfLabelInstruction {
 }
 
 /**
+ * Instruction for unpacking a multi-value call result into local variables.
+ * Yielded by `Tuple.unpack()`; the interpreter creates locals and emits
+ * local_set instructions for each return value.
+ */
+export interface TupleUnpackInstruction {
+  _type: "tuple_unpack";
+  /** The call expression that produces multiple values. */
+  callNode: IRNode;
+  /** Types of each return value. */
+  types: WasmValType[];
+}
+
+/**
  * Discriminated union of all function-level instructions.
  * The `_type` field determines which variant is active.
  */
@@ -251,7 +264,8 @@ export type FuncInstruction =
   | LoopInstruction
   | BlockInstruction
   | BrLabelInstruction
-  | BrIfLabelInstruction;
+  | BrIfLabelInstruction
+  | TupleUnpackInstruction;
 
 /**
  * Opaque reference to a global variable by its index in the module.

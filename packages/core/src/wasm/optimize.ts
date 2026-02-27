@@ -16,8 +16,8 @@ import {
 } from "./optimizer-passes";
 
 export { eliminateDeadCode } from "./optimizer-passes";
-export type { OptimizerPass, OptimizerConfig } from "./optimizer-passes";
-export { visitChildren, builtinPasses, createOptimizer, withoutPasses } from "./optimizer-passes";
+export type { OptimizerPass, OptimizerConfig, OptimizerWarningCallback } from "./optimizer-passes";
+export { visitChildren, builtinPasses, createOptimizer, withoutPasses, createConstantFoldingWithWarnings } from "./optimizer-passes";
 
 // --- Public API ---
 

@@ -14,7 +14,7 @@ export { type ExprInput, type CallableFunc, ChainableExpr, ThenBuilder, ElseIfBu
 
 export { param, local, locals, Type } from "./declarations";
 
-export { Mod, Op, Mem, Ctrl, Loc, SwitchCaseBuilder, SwitchDefaultBuilder } from "./namespaces";
+export { Mod, Op, Mem, Ctrl, Loc, Tuple, SwitchCaseBuilder, SwitchDefaultBuilder } from "./namespaces";
 export { BumpAllocator, checkRegionOverlaps, type MemoryRegion } from "./allocator";
 export { Struct, FieldAccessor, type FieldType, type FieldResultType } from "./struct";
 export { Str } from "./string";

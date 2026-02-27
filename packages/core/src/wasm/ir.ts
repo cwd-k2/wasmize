@@ -149,7 +149,9 @@ export type IRNode =
   | { op: "memory_init"; segIdx: number; dst: IRNode; src: IRNode; len: IRNode }
   | { op: "data_drop"; segIdx: number }
   | { op: "return_call"; idx: number; args: IRNode[] }
-  | { op: "return_call_indirect"; typeIdx: number; tableIdx: number; args: IRNode[]; indexExpr: IRNode };
+  | { op: "return_call_indirect"; typeIdx: number; tableIdx: number; args: IRNode[]; indexExpr: IRNode }
+  | { op: "multi_value"; values: IRNode[] }
+  | { op: "stack_local_set"; i: number };
 
 export const IR = {
   const_i32: (v: number): IRNode => ({ op: "const_i32", v }),
@@ -296,4 +298,7 @@ export const IR = {
     args,
     indexExpr,
   }),
+  multi_value: (values: IRNode[]): IRNode => ({ op: "multi_value", values }),
+  /** Bare local.set that pops a value already on the stack (for multi-value unpacking). */
+  stack_local_set: (i: number): IRNode => ({ op: "stack_local_set", i }),
 };

@@ -635,15 +635,40 @@ export function select_(cond: ExprInput, ifTrue: ExprInput, ifFalse: ExprInput):
  *
  * - `FuncBody<FuncReturn>` — `function*() { ... }` (can return a value)
  * - `() => VoidStmt[]` — `() => [a, b]` (void shorthand)
+ * - `() => [...VoidStmt[], ExprInput]` — array form with value return (D-04)
  */
-type IfBodyInput = FuncBody<FuncReturn> | (() => VoidStmt[]);
+type IfBodyInput = FuncBody<FuncReturn> | (() => (VoidStmt | ExprInput)[]);
+
+/**
+ * Detects if a value is an expression input (number, WasmRef, WasmVal)
+ * that should be treated as a return value when it's the last element
+ * of an array body. ChainableExpr and ThenBuilder are also ExprInput
+ * but they double as VoidStmt — when they appear as the last element,
+ * they are treated as return values.
+ */
+function isExprValue(v: unknown): boolean {
+  if (typeof v === "number") return true;
+  if (v instanceof WasmRef) return true;
+  if (v instanceof ChainableExpr) return true;
+  if (v instanceof ThenBuilder) return true;
+  if (v != null && typeof v === "object" && "_tag" in v && (v as any)._tag === "val") return true;
+  return false;
+}
 
 /** Normalizes an IfBodyInput into a FuncBody<FuncReturn>. */
 function normalizeIfBody(body: IfBodyInput): FuncBody<FuncReturn> {
   return function* () {
     const r = (body as () => any)();
     if (Array.isArray(r)) {
-      for (const s of r as VoidStmt[]) yield* s;
+      const items = r as any[];
+      if (items.length > 0 && isExprValue(items[items.length - 1])) {
+        // D-04: Last element is an expression — yield* all but last, then resolve and return last
+        for (let i = 0; i < items.length - 1; i++) {
+          yield* items[i] as VoidStmt;
+        }
+        return yield* resolve(items[items.length - 1] as ExprInput);
+      }
+      for (const s of items as VoidStmt[]) yield* s;
     } else {
       return yield* r;
     }

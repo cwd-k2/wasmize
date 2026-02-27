@@ -88,6 +88,8 @@ export interface ModuleOptions {
   tables?: TableDef[];
   elements?: ElementDef[];
   startFuncIdx?: number;
+  /** Function names for the name section (debug info). Index maps to function index (imports + funcs). */
+  functionNames?: Map<number, string>;
 }
 
 /**
@@ -113,6 +115,7 @@ export function buildModule(
     tables = [],
     elements = [],
     startFuncIdx,
+    functionNames,
   }: ModuleOptions = {},
 ): Uint8Array {
   const enc = new WasmEncoder();
@@ -134,6 +137,133 @@ export function buildModule(
   // Register types
   imports.forEach((im) => getTypeIdx(im.params, im.results));
   funcs.forEach((f) => getTypeIdx(f.params, f.results));
+
+  // Build funcIdx → typeIdx map for call_indirect fixup
+  // Function index space: imports first, then module-defined funcs
+  const funcIdxToTypeIdx = new Map<number, number>();
+  imports.forEach((im, i) => {
+    funcIdxToTypeIdx.set(i, getTypeIdx(im.params, im.results));
+  });
+  funcs.forEach((f, i) => {
+    funcIdxToTypeIdx.set(imports.length + i, getTypeIdx(f.params, f.results));
+  });
+
+  // Fix up call_indirect/return_call_indirect typeIdx fields.
+  // The DSL passes the function index of the first table entry as typeIdx,
+  // but the Wasm binary needs the actual type section index.
+  function fixupCallIndirect(node: IRNode): void {
+    switch (node.op) {
+      case "call_indirect": {
+        const typeIdx = funcIdxToTypeIdx.get(node.typeIdx);
+        if (typeIdx !== undefined) (node as { typeIdx: number }).typeIdx = typeIdx;
+        node.args.forEach(fixupCallIndirect);
+        fixupCallIndirect(node.indexExpr);
+        break;
+      }
+      case "return_call_indirect": {
+        const typeIdx = funcIdxToTypeIdx.get(node.typeIdx);
+        if (typeIdx !== undefined) (node as { typeIdx: number }).typeIdx = typeIdx;
+        node.args.forEach(fixupCallIndirect);
+        fixupCallIndirect(node.indexExpr);
+        break;
+      }
+      case "if":
+        fixupCallIndirect(node.cond);
+        node.then.forEach(fixupCallIndirect);
+        node.else.forEach(fixupCallIndirect);
+        break;
+      case "loop":
+      case "block":
+        node.body.forEach(fixupCallIndirect);
+        break;
+      case "seq":
+        node.stmts.forEach(fixupCallIndirect);
+        break;
+      case "binop":
+      case "cmp":
+        fixupCallIndirect(node.a);
+        fixupCallIndirect(node.b);
+        break;
+      case "select":
+        fixupCallIndirect(node.a);
+        fixupCallIndirect(node.b);
+        fixupCallIndirect(node.cond);
+        break;
+      case "unary":
+      case "convert":
+      case "eqz":
+      case "drop":
+      case "return":
+      case "f64_neg":
+      case "f64_abs":
+      case "i32_wrap_i64":
+      case "i64_extend_i32_s":
+      case "f64_convert_i32_s":
+      case "i32_trunc_f64_s":
+        fixupCallIndirect(node.val);
+        break;
+      case "local_set":
+      case "local_tee":
+        fixupCallIndirect(node.val);
+        break;
+      case "global_set":
+        fixupCallIndirect(node.val);
+        break;
+      case "store_i32":
+      case "store_i32_8":
+      case "store_i64":
+      case "store_f64":
+      case "mem_store":
+        fixupCallIndirect(node.addr);
+        fixupCallIndirect(node.val);
+        break;
+      case "load_i32":
+      case "load_i32_8u":
+      case "load_i64":
+      case "load_f64":
+      case "mem_load":
+        fixupCallIndirect(node.addr);
+        break;
+      case "call":
+        node.args.forEach(fixupCallIndirect);
+        break;
+      case "return_call":
+        node.args.forEach(fixupCallIndirect);
+        break;
+      case "br_if":
+        fixupCallIndirect(node.cond);
+        break;
+      case "br_table":
+        fixupCallIndirect(node.val);
+        break;
+      case "memory_grow":
+        fixupCallIndirect(node.pages);
+        break;
+      case "effect":
+        fixupCallIndirect(node.payload);
+        break;
+      case "memory_copy":
+        fixupCallIndirect(node.dst);
+        fixupCallIndirect(node.src);
+        fixupCallIndirect(node.len);
+        break;
+      case "memory_fill":
+        fixupCallIndirect(node.dst);
+        fixupCallIndirect(node.val);
+        fixupCallIndirect(node.len);
+        break;
+      case "memory_init":
+        fixupCallIndirect(node.dst);
+        fixupCallIndirect(node.src);
+        fixupCallIndirect(node.len);
+        break;
+      case "multi_value":
+        node.values.forEach(fixupCallIndirect);
+        break;
+      // Leaf nodes: const_*, local_get, global_get, br, nop, unreachable, memory_size, data_drop, stack_local_set
+    }
+  }
+  funcs.forEach((f) => f.body.forEach(fixupCallIndirect));
 
   // Type section
   enc.section(1, (s) => {
@@ -291,12 +421,21 @@ export function buildModule(
     enc.section(9, (s) => {
       s.u32(elements.length);
       elements.forEach((el) => {
-        s.byte(0x00); // active, table 0
+        if (el.tableIdx === 0) {
+          s.byte(0x00); // active, table 0
+        } else {
+          // Active element segment with explicit table index
+          s.byte(0x02); // active, explicit table index
+          s.u32(el.tableIdx);
+        }
         // offset init expression
         s.byte(OP.i32_const);
         s.i32(el.offset);
         s.byte(OP.end);
         // func indices
+        if (el.tableIdx !== 0) {
+          s.byte(0x00); // elemkind: funcref
+        }
         s.u32(el.funcIndices.length);
         el.funcIndices.forEach((idx) => s.u32(idx));
       });
@@ -362,6 +501,32 @@ export function buildModule(
           s.raw([...seg.init]);
         }
       });
+    });
+  }
+
+  // Name section (custom section 0, debug info)
+  if (functionNames && functionNames.size > 0) {
+    enc.section(0, (s) => {
+      // Custom section name: "name"
+      const nameStr = new TextEncoder().encode("name");
+      s.u32(nameStr.length);
+      s.raw([...nameStr]);
+
+      // Sub-section 1: Function names
+      const subEnc = new WasmEncoder();
+      // Sort entries by function index
+      const entries = [...functionNames.entries()].sort((a, b) => a[0] - b[0]);
+      subEnc.u32(entries.length);
+      for (const [idx, name] of entries) {
+        subEnc.u32(idx);
+        const nameBytes = new TextEncoder().encode(name);
+        subEnc.u32(nameBytes.length);
+        subEnc.raw([...nameBytes]);
+      }
+
+      s.byte(0x01); // sub-section ID: function names
+      s.u32(subEnc.bytes.length);
+      s.raw(subEnc.bytes);
     });
   }
 

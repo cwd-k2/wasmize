@@ -41,6 +41,7 @@ export {
   Mem,
   Ctrl,
   Loc,
+  Tuple,
   // Top-level constant helpers
   i32,
   i64,

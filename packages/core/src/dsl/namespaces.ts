@@ -869,8 +869,11 @@ export const Mem = {
       yield { _type: "stmt", node: IR.store_i32_8(va._node, vv._node) };
     })();
   },
-  /** Creates a chainable i32 constant expression. */
+  /** Creates a chainable i32 constant expression. Throws if value overflows i32 range. */
   i32(v: number): ChainableExpr {
+    if (v > 2147483647 || v < -2147483648) {
+      throw new Error(`i32 constant overflow: ${v} is outside the range [-2147483648, 2147483647]`);
+    }
     return new ChainableExpr(
       (function* () {
         return val(IR.const_i32(v));
@@ -1298,6 +1301,53 @@ export const Mem = {
       load: (idx: ExprInput): ChainableExpr<"f64"> => Mem.loadF64(addrOf(idx)),
       store: (idx: ExprInput, value: ExprInput): FuncGen<void> => Mem.storeF64(addrOf(idx), value),
       at: (idx: ExprInput): FieldAccessor<"f64"> => new FieldAccessor(addrOf(idx), "f64"),
+    };
+  },
+  /**
+   * Creates an i16 array helper that hides `.mul(2)` byte addressing.
+   * Uses i32_load16_u / i32_store16 internally (zero-extended to i32 on the Wasm stack).
+   *
+   * @param base - Base byte offset (default 0, can be a runtime expression)
+   * @returns Object with `load(idx)`, `loadSigned(idx)`, `store(idx, val)`, `at(idx)`
+   */
+  i16Array(base: ExprInput = 0): {
+    load(idx: ExprInput): ChainableExpr;
+    loadSigned(idx: ExprInput): ChainableExpr;
+    store(idx: ExprInput, value: ExprInput): FuncGen<void>;
+    at(idx: ExprInput): FieldAccessor<"i32">;
+  } {
+    const addrOf = (idx: ExprInput): ChainableExpr => {
+      const scaled = new ChainableExpr(mul(idx, 2));
+      return typeof base === "number" && base === 0 ? scaled : scaled.add(base);
+    };
+    return {
+      load: (idx: ExprInput): ChainableExpr => Mem.load16u(addrOf(idx)),
+      loadSigned: (idx: ExprInput): ChainableExpr => Mem.load16s(addrOf(idx)),
+      store: (idx: ExprInput, value: ExprInput): FuncGen<void> => Mem.store16(addrOf(idx), value),
+      at: (idx: ExprInput): FieldAccessor<"i32"> => new FieldAccessor(addrOf(idx), "u16"),
+    };
+  },
+  /**
+   * Creates an i8 array helper with stride=1 byte addressing.
+   * Uses i32_load8_u / i32_store8 internally (zero-extended to i32 on the Wasm stack).
+   *
+   * @param base - Base byte offset (default 0, can be a runtime expression)
+   * @returns Object with `load(idx)`, `store(idx, val)`, `at(idx)`
+   */
+  i8Array(base: ExprInput = 0): {
+    load(idx: ExprInput): ChainableExpr;
+    store(idx: ExprInput, value: ExprInput): FuncGen<void>;
+    at(idx: ExprInput): FieldAccessor<"i32">;
+  } {
+    const addrOf = (idx: ExprInput): ChainableExpr => {
+      return typeof base === "number" && base === 0
+        ? new ChainableExpr(resolve(idx))
+        : new ChainableExpr(add(idx, base));
+    };
+    return {
+      load: (idx: ExprInput): ChainableExpr => Mem.load8(addrOf(idx)),
+      store: (idx: ExprInput, value: ExprInput): FuncGen<void> => Mem.store8(addrOf(idx), value),
+      at: (idx: ExprInput): FieldAccessor<"i32"> => new FieldAccessor(addrOf(idx), "u8"),
     };
   },
 };
@@ -1775,6 +1825,62 @@ export const Ctrl = {
         yield* deferred[i]!;
       }
     })();
+  },
+};
+
+// --- Tuple namespace (D-03: Multi-Value Sugar) ---
+
+/**
+ * Multi-value helpers for functions returning multiple values.
+ *
+ * - `Tuple.pack(a, b, ...)` — places multiple values on the stack (for multi-value return)
+ * - `Tuple.unpack(callExpr, types)` — destructures multi-value call into locals
+ */
+export const Tuple = {
+  /**
+   * Packs multiple values for multi-value function return.
+   * Returns a WasmVal wrapping a `multi_value` IR node.
+   *
+   * @example
+   * ```ts
+   * yield* Mod.exportFunc("swap", { a: Type.i32, b: Type.i32 }, function* (a, b) {
+   *   return yield* Tuple.pack(b, a);
+   * });
+   * ```
+   */
+  pack(...exprs: ExprInput[]): FuncGen<WasmVal> {
+    return (function* () {
+      const resolved: WasmVal[] = [];
+      for (const e of exprs) {
+        resolved.push(yield* resolve(e));
+      }
+      return val(IR.multi_value(resolved.map((v) => v._node)));
+    })();
+  },
+
+  /**
+   * Unpacks a multi-value call result into local variables.
+   * Declares locals for each return type and stores the call results.
+   *
+   * @param callExpr - A call expression that returns multiple values
+   * @param types - Array of Wasm value types for each return value
+   * @returns Array of WasmRef for each unpacked local
+   *
+   * @example
+   * ```ts
+   * const [x, y] = yield* Tuple.unpack(swap(a, b), [Type.i32, Type.i32]);
+   * ```
+   */
+  unpack(callExpr: FuncGen<WasmVal>, types: WasmValType[]): FuncGen<WasmRef[]> {
+    return (function* () {
+      const callVal: WasmVal = yield* callExpr;
+      const refs: WasmRef[] = yield {
+        _type: "tuple_unpack" as const,
+        callNode: callVal._node,
+        types,
+      };
+      return refs;
+    })() as FuncGen<WasmRef[]>;
   },
 };
 

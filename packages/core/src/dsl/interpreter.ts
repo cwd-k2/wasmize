@@ -126,9 +126,20 @@ function inferType(node: IRNode, ctx?: FuncContext): WasmValType {
       return "i32"; // globals default to i32
     case "call":
       return "i32"; // calls default to i32 (safe fallback)
+    case "multi_value":
+      // For single-type context, return the first value's type
+      return node.values.length > 0 ? inferType(node.values[0]!, ctx) : "i32";
     default:
       return "i32";
   }
+}
+
+/** Infers all result types from a multi_value IR node. */
+function inferMultiTypes(node: IRNode, ctx?: FuncContext): WasmValType[] {
+  if (node.op === "multi_value") {
+    return node.values.map((v) => inferType(v, ctx));
+  }
+  return [inferType(node, ctx)];
 }
 
 // --- Function body interpreter ---
@@ -303,10 +314,155 @@ function interpretSubBody(
         next = gen.next();
         break;
       }
+      case "tuple_unpack": {
+        // D-03: Unpack multi-value call result into locals
+        const refs: WasmRef[] = [];
+        for (const t of instr.types) {
+          const idx = ctx.paramCount + ctx.localCount++;
+          ctx.locals.push(t);
+          refs.push(ref(idx, t));
+        }
+        // Emit call (pushes N values on stack: v0 deepest, vN-1 on top)
+        // Then stack_local_set in reverse order to pop each value
+        nodes.push(instr.callNode);
+        for (let i = refs.length - 1; i >= 0; i--) {
+          nodes.push(IR.stack_local_set(refs[i]!._idx));
+        }
+        next = gen.next(refs);
+        break;
+      }
     }
   }
 
   return { nodes, result: coerceReturn(next.value) };
+}
+
+// --- V-12: Unused local variable detection ---
+
+/** Scans IR nodes recursively and counts local_get and local_set occurrences per local index. */
+function scanLocalUsage(
+  nodes: IRNode[],
+  gets: Map<number, number>,
+  sets: Map<number, number>,
+): void {
+  for (const node of nodes) {
+    switch (node.op) {
+      case "local_get":
+        gets.set(node.i, (gets.get(node.i) ?? 0) + 1);
+        break;
+      case "local_set":
+        sets.set(node.i, (sets.get(node.i) ?? 0) + 1);
+        scanLocalUsage([node.val], gets, sets);
+        break;
+      case "local_tee":
+        gets.set(node.i, (gets.get(node.i) ?? 0) + 1);
+        sets.set(node.i, (sets.get(node.i) ?? 0) + 1);
+        scanLocalUsage([node.val], gets, sets);
+        break;
+      case "stack_local_set":
+        sets.set(node.i, (sets.get(node.i) ?? 0) + 1);
+        break;
+      case "binop":
+        scanLocalUsage([node.a, node.b], gets, sets);
+        break;
+      case "cmp":
+        scanLocalUsage([node.a, node.b], gets, sets);
+        break;
+      case "unary":
+      case "convert":
+      case "eqz":
+      case "drop":
+      case "return":
+      case "f64_neg":
+      case "f64_abs":
+      case "i32_wrap_i64":
+      case "i64_extend_i32_s":
+      case "f64_convert_i32_s":
+      case "i32_trunc_f64_s":
+      case "global_set":
+        scanLocalUsage([node.val], gets, sets);
+        break;
+      case "memory_grow":
+        scanLocalUsage([node.pages], gets, sets);
+        break;
+      case "effect":
+        scanLocalUsage([node.payload], gets, sets);
+        break;
+      case "if":
+        scanLocalUsage([node.cond], gets, sets);
+        scanLocalUsage(node.then, gets, sets);
+        scanLocalUsage(node.else, gets, sets);
+        break;
+      case "loop":
+      case "block":
+        scanLocalUsage(node.body, gets, sets);
+        break;
+      case "seq":
+        scanLocalUsage(node.stmts, gets, sets);
+        break;
+      case "call":
+        scanLocalUsage(node.args, gets, sets);
+        break;
+      case "call_indirect":
+        scanLocalUsage(node.args, gets, sets);
+        scanLocalUsage([node.indexExpr], gets, sets);
+        break;
+      case "store_i32":
+      case "store_i32_8":
+      case "store_i64":
+      case "store_f64":
+      case "mem_store":
+        scanLocalUsage([node.addr, node.val], gets, sets);
+        break;
+      case "load_i32":
+      case "load_i32_8u":
+      case "load_i64":
+      case "load_f64":
+      case "mem_load":
+        scanLocalUsage([node.addr], gets, sets);
+        break;
+      case "select":
+        scanLocalUsage([node.a, node.b, node.cond], gets, sets);
+        break;
+      case "br_if":
+        scanLocalUsage([node.cond], gets, sets);
+        break;
+      case "br_table":
+        scanLocalUsage([node.val], gets, sets);
+        break;
+      case "memory_copy":
+        scanLocalUsage([node.dst, node.src, node.len], gets, sets);
+        break;
+      case "memory_fill":
+        scanLocalUsage([node.dst, node.val, node.len], gets, sets);
+        break;
+      case "memory_init":
+        scanLocalUsage([node.dst, node.src, node.len], gets, sets);
+        break;
+      case "multi_value":
+        scanLocalUsage(node.values, gets, sets);
+        break;
+      case "return_call":
+        scanLocalUsage(node.args, gets, sets);
+        break;
+      case "return_call_indirect":
+        scanLocalUsage(node.args, gets, sets);
+        scanLocalUsage([node.indexExpr], gets, sets);
+        break;
+      // Leaf nodes
+      case "const_i32":
+      case "const_i64":
+      case "const_f32":
+      case "const_f64":
+      case "global_get":
+      case "br":
+      case "memory_size":
+      case "unreachable":
+      case "nop":
+      case "data_drop":
+        break;
+    }
+  }
 }
 
 // --- V-13: Static constant address bounds check ---
@@ -596,9 +752,12 @@ function collectAndInterpret(
       bodyNodes.push(result._node);
     }
 
+    // D-03: Handle multi_value return for Tuple.pack
+    const results = isVal(result) ? inferMultiTypes(result._node, ctx) : [];
+
     return {
       params: ctx.params,
-      results: isVal(result) ? [inferType(result._node, ctx)] : [],
+      results,
       locals: ctx.locals,
       body: bodyNodes,
     };
@@ -621,6 +780,32 @@ function collectAndInterpret(
     }
   }
 
+  // V-12: Unused local variable warning
+  if (diagnosticCollector) {
+    for (let fi = 0; fi < funcs.length; fi++) {
+      const f = funcs[fi]!;
+      const gets = new Map<number, number>();
+      const sets = new Map<number, number>();
+      scanLocalUsage(f.body, gets, sets);
+
+      // Only check local variables (not params). Locals start at index paramCount.
+      const paramCount = f.params.length;
+      const locals = f.locals ?? [];
+      for (let li = 0; li < locals.length; li++) {
+        const idx = paramCount + li;
+        const getCount = gets.get(idx) ?? 0;
+        const setCount = sets.get(idx) ?? 0;
+        if (getCount === 0 && setCount === 0) {
+          diagnosticCollector.add({
+            level: "warning",
+            code: "V-12",
+            message: `Unused local variable at index ${idx} in function ${fi}`,
+          });
+        }
+      }
+    }
+  }
+
   // V-13: Static constant address bounds check
   {
     const maxBytes = memoryPages * 65536;
@@ -636,7 +821,20 @@ function collectAndInterpret(
     }
   }
 
-  const moduleOptions = {
+  const moduleOptions: {
+    imports: ImportDef[];
+    memoryPages: number;
+    exports: ExportDef[];
+    globals: GlobalDef[];
+    globalImports: GlobalImportDef[];
+    globalExports: GlobalExportDef[];
+    dataSegments: DataSegment[];
+    tables: TableDef[];
+    elements: ElementDef[];
+    startFuncIdx: number | undefined;
+    memoryImport: typeof memoryImport;
+    functionNames?: Map<number, string>;
+  } = {
     imports,
     memoryPages,
     exports: exports_,
@@ -688,6 +886,8 @@ export interface CompileOptions extends DiagnosticOptions {
   allocator?: BumpAllocator | BumpAllocator[];
   /** When false, all Ctrl.assert() calls become no-ops (default: true). */
   assertions?: boolean;
+  /** When true, includes a name section with function names in the binary (debug info). */
+  debug?: boolean;
 }
 
 /** Result of `compileWithDiagnostics()`. */
@@ -777,6 +977,33 @@ export function compile<T = Record<string, unknown>>(
 
     if (collector?.hasErrors) {
       throw new Error(collector.errors[0]!.message);
+    }
+
+    // W-11: Add function names for name section when debug is enabled
+    if (options?.debug) {
+      const nameMap = new Map<number, string>();
+      const importCount = moduleOptions.imports?.length ?? 0;
+
+      // Import names: module.name
+      for (let i = 0; i < importCount; i++) {
+        const imp = moduleOptions.imports![i]!;
+        nameMap.set(i, `${imp.module}.${imp.name}`);
+      }
+
+      // Build export name lookup (funcIdx → export name)
+      const exportNameLookup = new Map<number, string>();
+      for (const exp of moduleOptions.exports ?? []) {
+        exportNameLookup.set(exp.idx, exp.name);
+      }
+
+      // Function names: export name or synthetic $fN
+      for (let i = 0; i < funcs.length; i++) {
+        const funcIdx = importCount + i;
+        const exportName = exportNameLookup.get(funcIdx);
+        nameMap.set(funcIdx, exportName ?? `$f${i}`);
+      }
+
+      moduleOptions.functionNames = nameMap;
     }
 
     return buildModule(funcs, moduleOptions) as WasmBinary<T>;

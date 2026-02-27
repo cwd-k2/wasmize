@@ -216,6 +216,10 @@ export function irToWAT(node: IRNode, depth: number = 0): string {
         irToWAT(node.indexExpr, depth),
         indent(`return_call_indirect (type ${node.typeIdx})`, depth),
       ].join("\n");
+    case "multi_value":
+      return node.values.map((v) => irToWAT(v, depth)).join("\n");
+    case "stack_local_set":
+      return indent(`local.set ${node.i}`, depth);
   }
 }
 

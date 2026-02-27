@@ -529,5 +529,12 @@ export function emitIR(enc: WasmEncoder, node: IRNode | undefined): void {
       enc.u32(node.typeIdx);
       enc.u32(node.tableIdx);
       break;
+    case "multi_value":
+      node.values.forEach((v) => emitIR(enc, v));
+      break;
+    case "stack_local_set":
+      enc.byte(OP.local_set);
+      enc.u32(node.i);
+      break;
   }
 }
