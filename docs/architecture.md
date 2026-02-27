@@ -17,7 +17,7 @@ WasmProgram ─→ compile() ─→ optimize() ─→ emitIR() ─→ buildModul
 
 ## 1. DSL 層
 
-**ファイル:** `src/dsl/types.ts`, `src/dsl/expr.ts`, `src/dsl/declarations.ts`, `src/dsl/namespaces.ts`, `src/dsl/augment.ts`, `src/dsl/interpreter.ts`, `src/dsl/compiler.ts`, `src/dsl/allocator.ts`, `src/dsl/struct.ts`, `src/dsl/string.ts`, `src/dsl/intercept.ts`, `src/dsl/minheap.ts`, `src/dsl/hashmap.ts`
+**ファイル:** `src/dsl/types.ts`, `src/dsl/expr.ts`, `src/dsl/declarations.ts`, `src/dsl/namespaces.ts`, `src/dsl/augment.ts`, `src/dsl/interpreter.ts`, `src/dsl/compiler.ts`, `src/dsl/allocator.ts`, `src/dsl/struct.ts`, `src/dsl/string.ts`, `src/dsl/intercept.ts`, `src/dsl/diagnostics.ts`, `src/dsl/meta.ts`, `src/dsl/queue.ts`, `src/dsl/stack.ts`, `src/dsl/ringbuffer.ts`, `src/dsl/bitset.ts`, `src/dsl/minheap.ts`, `src/dsl/maxheap.ts`, `src/dsl/hashmap.ts`, `src/dsl/union-find.ts`, `src/dsl/deque.ts`, `src/dsl/hashset.ts`, `src/dsl/graph.ts`, `src/dsl/sorted-array.ts`, `src/dsl/segment-tree.ts`, `src/dsl/lru-cache.ts`
 
 Generator ベースの DSL。`yield*` による直感的な合成と、ローカル変数の自動管理を提供します。
 
@@ -212,49 +212,65 @@ Mem.store(0, n.add(1)) の処理フロー:
 
 ### IRNode
 
-36 種の discriminated union（`op` フィールドで判別）。
+41 種の discriminated union（`op` フィールドで判別）。
 
-| op                  | フィールド                                 | 説明                            |
-| ------------------- | ------------------------------------------ | ------------------------------- |
-| `const_i32`         | `v: number`                                | i32 定数                        |
-| `const_i64`         | `v: number`                                | i64 定数                        |
-| `const_f64`         | `v: number`                                | f64 定数                        |
-| `local_get`         | `i: number`                                | ローカル変数読み取り            |
-| `local_set`         | `i: number`, `val: IRNode`                 | ローカル変数書き込み            |
-| `local_tee`         | `i: number`, `val: IRNode`                 | 書き込み + スタックに値を残す   |
-| `binop`             | `kind`, `a`, `b`, `type?`                  | 二項演算（type: i32/i64/f64）   |
-| `cmp`               | `kind`, `a`, `b`, `type?`                  | 比較演算（type: i32）           |
-| `if`                | `cond`, `then`, `else`, `type`             | 条件分岐                        |
-| `loop`              | `body: IRNode[]`                           | ループブロック                  |
-| `br_if`             | `depth: number`, `cond`                    | 条件付きブレーク                |
-| `br`                | `depth: number`                            | 無条件ブレーク                  |
-| `block`             | `body: IRNode[]`                           | ブロックスコープ                |
-| `seq`               | `stmts: IRNode[]`                          | 逐次実行                        |
-| `call`              | `idx: number`, `args: IRNode[]`            | 関数呼び出し                    |
-| `call_indirect`     | `typeIdx`, `tableIdx`, `args`, `indexExpr` | テーブル経由の間接呼び出し      |
-| `drop`              | `val: IRNode`                              | 値を破棄                        |
-| `return`            | `val: IRNode`                              | 関数から返る                    |
-| `store_i32`         | `addr`, `val`                              | メモリ書き込み (i32)            |
-| `load_i32`          | `addr`                                     | メモリ読み取り (i32)            |
-| `store_i32_8`       | `addr`, `val`                              | メモリ書き込み (1 byte)         |
-| `load_i32_8u`       | `addr`                                     | メモリ読み取り (1 byte, 零拡張) |
-| `load_i64`          | `addr`                                     | メモリ読み取り (i64)            |
-| `store_i64`         | `addr`, `val`                              | メモリ書き込み (i64)            |
-| `load_f64`          | `addr`                                     | メモリ読み取り (f64)            |
-| `store_f64`         | `addr`, `val`                              | メモリ書き込み (f64)            |
-| `select`            | `a`, `b`, `cond`                           | 三項選択 `cond ? a : b`         |
-| `eqz`               | `val`, `type?`                             | == 0 判定（i32/i64）            |
-| `f64_neg`           | `val`                                      | f64 符号反転                    |
-| `f64_abs`           | `val`                                      | f64 絶対値                      |
-| `i32_wrap_i64`      | `val`                                      | i64 → i32 変換                  |
-| `i64_extend_i32_s`  | `val`                                      | i32 → i64 変換（符号拡張）      |
-| `f64_convert_i32_s` | `val`                                      | i32 → f64 変換                  |
-| `i32_trunc_f64_s`   | `val`                                      | f64 → i32 変換（切り捨て）      |
-| `memory_size`       | —                                          | メモリサイズ（ページ数）        |
-| `memory_grow`       | `pages`                                    | メモリ拡張                      |
-| `unreachable`       | —                                          | トラップ                        |
-| `nop`               | —                                          | 何もしない                      |
-| `effect`            | `tag: number`, `payload`                   | エフェクト発行                  |
+| op                       | フィールド                                 | 説明                               |
+| ------------------------ | ------------------------------------------ | ---------------------------------- |
+| `const_i32`              | `v: number`                                | i32 定数                           |
+| `const_i64`              | `v: number`                                | i64 定数                           |
+| `const_f32`              | `v: number`                                | f32 定数                           |
+| `const_f64`              | `v: number`                                | f64 定数                           |
+| `local_get`              | `i: number`                                | ローカル変数読み取り               |
+| `local_set`              | `i: number`, `val: IRNode`                 | ローカル変数書き込み               |
+| `local_tee`              | `i: number`, `val: IRNode`                 | 書き込み + スタックに値を残す      |
+| `global_get`             | `i: number`                                | グローバル変数読み取り             |
+| `global_set`             | `i: number`, `val: IRNode`                 | グローバル変数書き込み             |
+| `binop`                  | `kind`, `a`, `b`, `type?`                  | 二項演算（type: i32/i64/f64）      |
+| `cmp`                    | `kind`, `a`, `b`, `type?`                  | 比較演算（type: i32）              |
+| `unary`                  | `kind`, `val`, `type?`                     | 単項演算（clz, ctz, popcnt 等）    |
+| `convert`                | `kind`, `val`                              | 型変換（sign-ext, sat trunc 含む） |
+| `if`                     | `cond`, `then`, `else`, `type`             | 条件分岐                           |
+| `loop`                   | `body: IRNode[]`                           | ループブロック                     |
+| `br_if`                  | `depth: number`, `cond`                    | 条件付きブレーク                   |
+| `br`                     | `depth: number`                            | 無条件ブレーク                     |
+| `br_table`               | `labels`, `default`, `index`               | 多方向分岐テーブル                 |
+| `block`                  | `body: IRNode[]`                           | ブロックスコープ                   |
+| `seq`                    | `stmts: IRNode[]`                          | 逐次実行                           |
+| `call`                   | `idx: number`, `args: IRNode[]`            | 関数呼び出し                       |
+| `call_indirect`          | `typeIdx`, `tableIdx`, `args`, `indexExpr` | テーブル経由の間接呼び出し         |
+| `return_call`            | `idx`, `args`                              | 末尾呼び出し（tail call）          |
+| `return_call_indirect`   | `typeIdx`, `tableIdx`, `args`, `indexExpr` | 末尾間接呼び出し                   |
+| `drop`                   | `val: IRNode`                              | 値を破棄                           |
+| `return`                 | `val: IRNode`                              | 関数から返る                       |
+| `store_i32`              | `addr`, `val`                              | メモリ書き込み (i32)               |
+| `load_i32`               | `addr`                                     | メモリ読み取り (i32)               |
+| `store_i32_8`            | `addr`, `val`                              | メモリ書き込み (1 byte)            |
+| `load_i32_8u`            | `addr`                                     | メモリ読み取り (1 byte, 零拡張)    |
+| `mem_load`               | `addr`, `kind`, `align`                    | 汎用メモリ読み取り（i16 等）       |
+| `mem_store`              | `addr`, `val`, `kind`, `align`             | 汎用メモリ書き込み（i16 等）       |
+| `load_i64`               | `addr`                                     | メモリ読み取り (i64)               |
+| `store_i64`              | `addr`, `val`                              | メモリ書き込み (i64)               |
+| `load_f64`               | `addr`                                     | メモリ読み取り (f64)               |
+| `store_f64`              | `addr`, `val`                              | メモリ書き込み (f64)               |
+| `select`                 | `a`, `b`, `cond`                           | 三項選択 `cond ? a : b`            |
+| `eqz`                    | `val`, `type?`                             | == 0 判定（i32/i64）               |
+| `f64_neg`                | `val`                                      | f64 符号反転                       |
+| `f64_abs`                | `val`                                      | f64 絶対値                         |
+| `i32_wrap_i64`           | `val`                                      | i64 → i32 変換                     |
+| `i64_extend_i32_s`       | `val`                                      | i32 → i64 変換（符号拡張）         |
+| `f64_convert_i32_s`      | `val`                                      | i32 → f64 変換                     |
+| `i32_trunc_f64_s`        | `val`                                      | f64 → i32 変換（切り捨て）         |
+| `memory_size`            | —                                          | メモリサイズ（ページ数）           |
+| `memory_grow`            | `pages`                                    | メモリ拡張                         |
+| `memory_copy`            | `dst`, `src`, `len`                        | bulk memory: メモリコピー          |
+| `memory_fill`            | `dst`, `val`, `len`                        | bulk memory: メモリフィル          |
+| `memory_init`            | `segIdx`, `dst`, `src`, `len`              | bulk memory: data segment 初期化   |
+| `data_drop`              | `segIdx`                                   | bulk memory: data segment 破棄     |
+| `multi_value`            | `values: IRNode[]`                         | 多値パック（Tuple）                |
+| `stack_local_set`        | `i`, `stackPos`                            | 多値アンパック（stack → local）    |
+| `unreachable`            | —                                          | トラップ                           |
+| `nop`                    | —                                          | 何もしない                         |
+| `effect`                 | `tag: number`, `payload`                   | エフェクト発行                     |
 
 `binop` / `cmp` / `eqz` の `type` フィールドは省略可能で、デフォルトは `"i32"`（後方互換）。`"i32"` の場合はフィールド自体が省略される。
 
@@ -332,17 +348,21 @@ type CmpKind = "eq" | "ne" | "lt" | "gt" | "le" | "ge" | "lt_u" | "gt_u" | "le_u
 
 ### セクション構成
 
-| Section ID | 名前     | 内容                                                   |
-| ---------- | -------- | ------------------------------------------------------ |
-| 1          | Type     | 関数型定義（`0x60` + params + results）。重複排除あり  |
-| 2          | Import   | import 関数（module 名 + 関数名 + type index）         |
-| 3          | Function | ローカル関数の type index 参照                         |
-| 4          | Table    | `funcref` テーブル宣言（`call_indirect` 用）           |
-| 5          | Memory   | 線形メモリ宣言（min pages のみ）                       |
-| 7          | Export   | `memory` (kind=0x02) + 関数 export (kind=0x00)         |
-| 9          | Element  | テーブル初期化（関数インデックス列）                   |
-| 10         | Code     | 関数本体（locals 宣言 + IR emit + end）                |
-| 11         | Data     | 静的データセグメント（文字列・初期化データの埋め込み） |
+| Section ID | 名前       | 内容                                                       |
+| ---------- | ---------- | ---------------------------------------------------------- |
+| 1          | Type       | 関数型定義（`0x60` + params + results）。重複排除あり      |
+| 2          | Import     | import 関数（module 名 + 関数名 + type index）             |
+| 3          | Function   | ローカル関数の type index 参照                             |
+| 4          | Table      | `funcref` テーブル宣言（`call_indirect` 用、複数テーブル対応） |
+| 5          | Memory     | 線形メモリ宣言（min pages のみ）                           |
+| 6          | Global     | グローバル変数宣言（mutable globals 対応）                 |
+| 7          | Export     | `memory` (kind=0x02) + 関数 export (kind=0x00)             |
+| 8          | Start      | Start function（モジュール初期化時に自動実行）             |
+| 9          | Element    | テーブル初期化（関数インデックス列）                       |
+| 10         | Code       | 関数本体（locals 宣言 + IR emit + end）                    |
+| 11         | Data       | 静的データセグメント（active + passive 対応）              |
+| 12         | Data Count | Bulk memory 用のデータセグメント数（先行宣言）             |
+| —          | Name       | カスタムセクション：関数・ローカル変数名（debug 用）       |
 
 ### 型の重複排除
 
@@ -587,14 +607,22 @@ Pixel.size; // 4 bytes (1+1+1+1, align 1)
 
 Generator ファクトリパターンで実装された、再利用可能なデータ構造。`yield*` でローカル変数を内部に確保し、操作メソッドを持つハンドルを返す。
 
-| データ構造   | ファイル              | 生成方法                           | 主な操作                                            |
-| ------------ | --------------------- | ---------------------------------- | --------------------------------------------------- |
-| **Queue**    | `src/dsl/queue.ts`    | `yield* Queue(base)`               | `enqueue`, `dequeue`, `notEmpty`, `reset`           |
-| **Stack**    | `src/dsl/stack.ts`    | `yield* Stack(base)`               | `push`, `pop`, `peek`, `notEmpty`, `reset`          |
-| **RingBuffer** | `src/dsl/ringbuffer.ts` | `yield* RingBuffer(base, cap)`  | `write`, `read`, `isFull`, `isEmpty`, `reset`       |
-| **BitSet**   | `src/dsl/bitset.ts`   | `BitSet(base)`（plain function）   | `set`, `get`, `clear`, `clearAll`                   |
-| **MinHeap**  | `src/dsl/minheap.ts`  | `yield* MinHeap(base)`             | `insert`, `extractMin`, `peekPriority`, `notEmpty`  |
-| **HashMap**  | `src/dsl/hashmap.ts`  | `yield* HashMap(base, capacity)`   | `set`, `get`, `has`, `delete`, `clear`, `notEmpty`  |
+| データ構造       | ファイル                  | 生成方法                                  | 主な操作                                                  |
+| ---------------- | ------------------------ | ----------------------------------------- | --------------------------------------------------------- |
+| **Queue**        | `src/dsl/queue.ts`       | `yield* Queue(base)`                      | `enqueue`, `dequeue`, `notEmpty`, `reset`                 |
+| **Stack**        | `src/dsl/stack.ts`       | `yield* Stack(base)`                      | `push`, `pop`, `peek`, `notEmpty`, `reset`                |
+| **RingBuffer**   | `src/dsl/ringbuffer.ts`  | `yield* RingBuffer(base, cap)`            | `write`, `read`, `isFull`, `isEmpty`, `reset`             |
+| **BitSet**       | `src/dsl/bitset.ts`      | `BitSet(base)`（plain function）          | `set`, `get`, `clear`, `clearAll`                         |
+| **MinHeap**      | `src/dsl/minheap.ts`     | `yield* MinHeap(base)`                    | `insert`, `extractMin`, `peekPriority`, `notEmpty`        |
+| **MaxHeap**      | `src/dsl/maxheap.ts`     | `yield* MaxHeap(base)`                    | `insert`, `extractMax`, `peekPriority`, `notEmpty`        |
+| **HashMap**      | `src/dsl/hashmap.ts`     | `yield* HashMap(base, capacity)`          | `set`, `get`, `has`, `delete`, `clear`, `notEmpty`        |
+| **HashSet**      | `src/dsl/hashset.ts`     | `yield* HashSet(base, capacity)`          | `add`, `has`, `delete`, `clear`, `notEmpty`               |
+| **Deque**        | `src/dsl/deque.ts`       | `yield* Deque(base, capacity)`            | `pushFront`, `pushBack`, `popFront`, `popBack`, `isEmpty` |
+| **UnionFind**    | `src/dsl/union-find.ts`  | `yield* UnionFind(base, capacity)`        | `find`, `union`, `connected`                              |
+| **Graph**        | `src/dsl/graph.ts`       | `Graph(vertexBase, edgeBase)`（plain）    | `degree`, `edgeStart`, `edge`, `forEachNeighbor`          |
+| **SortedArray**  | `src/dsl/sorted-array.ts`| `yield* SortedArray(base, capacity)`      | `insert`, `delete`, `has`, `at`, `size`                   |
+| **SegmentTree**  | `src/dsl/segment-tree.ts`| `yield* SegmentTree(base, n)`             | `update`, `query`, `build`                                |
+| **LRUCache**     | `src/dsl/lru-cache.ts`   | `yield* LRUCache(base, capacity)`         | `get`, `set`, `has`, `notEmpty`                           |
 
 ```typescript
 // MinHeap: Dijkstra の priority queue として使用
@@ -657,15 +685,27 @@ JS 配列・文字列と Wasm 線形メモリ間の型安全なデータ転送�
 
 ## 10. 標準ライブラリ (stdlib)
 
-**ファイル:** `src/stdlib/mem.ts`, `src/stdlib/math.ts`, `src/stdlib/sort.ts`
+**ファイル:** `src/stdlib/`
 
 再利用可能な Wasm 関数を `Mod.use()` でモジュールに組み込み。
 
-| モジュール    | 関数                          | 説明                                                     |
-| ------------- | ----------------------------- | -------------------------------------------------------- |
-| `stdlib/mem`  | `memcpy`, `memset`, `memcmp`  | バイトレベルメモリ操作                                   |
-| `stdlib/math` | `pow`, `clamp`, `abs`, `lerp` | 整数/浮動小数点演算                                      |
-| `stdlib/sort` | `sortI32`, `sortWith`         | i32 特化 + コンパレータ付き汎用ソート（`call_indirect`） |
+| モジュール          | 関数                                                             | 説明                                                     |
+| ------------------- | ---------------------------------------------------------------- | -------------------------------------------------------- |
+| `stdlib/mem`        | `memcpy`, `memset`, `memcmp`                                     | バイトレベルメモリ操作                                   |
+| `stdlib/math`       | `pow`, `clamp`, `abs`, `lerp`, `gcd`, `lcm`, `gcdI64`           | 整数演算 + GCD/LCM                                      |
+| `stdlib/math-f64`   | `log`, `log2`, `exp`, `pow_f64`                                  | f64 超越関数（多項式近似）                               |
+| `stdlib/trig`       | `sin`, `cos`, `tan`, `atan2`                                     | f64 三角関数（Chebyshev/CORDIC）                         |
+| `stdlib/sort`       | `sortI32`, `sortWith`, `mergeSort`                               | i32 特化 + コンパレータ付き汎用ソート（`call_indirect`） |
+| `stdlib/sort-int`   | `countingSort`, `radixSort`                                      | 整数特化ソート（計数, 基数）                             |
+| `stdlib/search`     | `binarySearch`, `lowerBound`, `upperBound`                       | 配列探索（二分探索, 下界/上界）                          |
+| `stdlib/string-algo`| `kmpBuildFailure`, `kmpSearch`                                   | KMP 文字列パターンマッチング                             |
+| `stdlib/matrix`     | `matTranspose`, `matMulF64`, `matScale`                          | 行列演算（転置, f64 乗算, スカラ倍）                     |
+| `stdlib/color`      | `rgbToHsl`, `hslToRgb`                                           | RGB↔HSL 色空間変換                                       |
+| `stdlib/bits`       | `isPowerOf2`, `log2Floor`, `nextPowerOf2Func`, `bswap32`         | ビット演算ユーティリティ                                 |
+| `stdlib/fixed`      | `fixedFromInt`, `fixedFromF64`, `fixedToF64`, `fixedAdd/Sub/Mul/Div` | 固定小数点演算（16.16 形式）                         |
+| `stdlib/modular`    | `modpow`, `modinv`                                               | モジュラ演算（べき乗, 逆元）                             |
+| `stdlib/prng`       | `usePrng()`                                                      | 擬似乱数生成器（Xorshift）                              |
+| `stdlib/graph-algo` | `bfs()`, `dfs()`, `dijkstra()`                                   | グラフアルゴリズム（CSR 形式）                           |
 
 ```typescript
 import { sortI32 } from "@/stdlib/sort";
@@ -790,7 +830,8 @@ const Features = {
 - `func.results.length > 1` → `"multi-value"`
 - `convert` ノードの sign-extension 系 kind → `"sign-extension"`
 - `call_indirect` → `"reference-types"`
-- 将来: SIMD, bulk-memory, tail-call 等の IR ノード追加時に自動拡張
+- `memory_copy` / `memory_fill` / `memory_init` / `data_drop` → `"bulk-memory"`
+- `return_call` / `return_call_indirect` → `"tail-call"`
 
 ### ユーティリティ
 
@@ -819,7 +860,65 @@ compile(program); // target 省略 → validation なし
 
 ---
 
-## 14. パスエイリアス
+## 14. 静的検証・Diagnostics
+
+**ファイル:** `src/dsl/diagnostics.ts`
+
+`DiagnosticCollector` がコンパイル中に問題を収集し、`compileWithDiagnostics()` 経由で呼び出し元に返す。
+
+| 検出項目                | レベル    | 説明                                       |
+| ----------------------- | --------- | ------------------------------------------ |
+| 定数オーバーフロー      | `warning` | i32 範囲外のリテラル値を検出               |
+| 未使用ローカル変数      | `warning` | 宣言後に参照されないローカル変数           |
+| export 名衝突           | `error`   | 同名の関数を複数回 export                  |
+| struct フィールド typo  | `warning` | 未定義フィールドへのアクセス               |
+
+```typescript
+const { binary, diagnostics } = compileWithDiagnostics(program);
+for (const d of diagnostics) {
+  console.warn(`[${d.level}] ${d.message}`);
+}
+```
+
+---
+
+## 15. ツーリング拡張
+
+### Call Graph 解析
+
+**ファイル:** `src/wasm/call-graph.ts`
+
+IR の `call` / `call_indirect` ノードを走査して関数間呼び出しグラフを構築。再帰検出（`findRecursion`）と未使用関数検出（`findUnusedFunctions`）を提供。
+
+### Dead Code 検出
+
+**ファイル:** `src/wasm/dead-code.ts`
+
+`return` / `br` / `unreachable` / 終端 `if` の後にある到達不能コードを検出。`detectDeadCode(funcs)` → `DeadCodeEntry[]`。
+
+### Source Map 生成
+
+**ファイル:** `src/wasm/source-map.ts`
+
+Wasm バイナリオフセット ↔ DSL ソース位置のマッピングを Source Map v3 形式で生成。`SourceMapCollector` がコンパイル中にエントリを収集し、`compileWithSourceMap()` で統合。
+
+### ランタイム拡張
+
+| ファイル                   | 主要 API                                             | 用途                                       |
+| -------------------------- | ---------------------------------------------------- | ------------------------------------------ |
+| `runtime/instantiate.ts`   | `instantiateFromUrl`, `instantiateFromResponse`      | Streaming Wasm 読み込み                    |
+| `runtime/fuzz.ts`          | `fuzz()`, `Gen.*`                                    | プロパティベーステスト（入力生成 + 縮小）  |
+| `runtime/bench-history.ts` | `saveBenchmark`, `loadBenchmark`, `compareBenchmarks` | ベンチマーク履歴とリグレッション検出       |
+| `runtime/canvas.ts`        | `writeImageData`, `readImageData`, `syncCanvas`      | Canvas ↔ Wasm メモリのピクセル転送         |
+| `runtime/color.ts`         | `rgbToHex`, `hexToRgb`, `lerpColor`                  | JS 側カラーユーティリティ                  |
+| `runtime/debug-utils.ts`   | `dumpMemory`, `snapshotMemory`, `diffMemory`         | メモリダンプ・スナップショット・差分比較   |
+| `runtime/assertions.ts`    | `assertNoTraps`, `assertTraps`                       | テスト用トラップアサーション               |
+| `runtime/graph-marshal.ts` | `buildCSR`, `buildWeightedCSR`, `writeCSR`           | JS エッジリスト → CSR 形式のマーシャリング |
+| `runtime/mock.ts`          | `mockImports`                                        | テスト用 Wasm import モック                |
+
+---
+
+## 16. パスエイリアス
 
 `@` エイリアスで `src/` ディレクトリを参照可能。`tsconfig.json` の `paths` と `vite.config.ts` の `resolve.alias` で設定。
 

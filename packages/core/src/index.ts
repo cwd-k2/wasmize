@@ -22,6 +22,8 @@ export {
   type DiagnosticResult,
   param,
   local,
+  locals,
+  run,
   Type,
   ChainableExpr,
   ThenBuilder,
@@ -33,8 +35,10 @@ export {
   Mem,
   Ctrl,
   Loc,
+  Tuple,
   i32,
   i64,
+  f32,
   f64,
   Meta,
   RGBA,
@@ -42,6 +46,16 @@ export {
   Stack,
   RingBuffer,
   BitSet,
+  MinHeap,
+  MaxHeap,
+  HashMap,
+  UnionFind,
+  Deque,
+  HashSet,
+  Graph,
+  SortedArray,
+  SegmentTree,
+  LRUCache,
   WasmRef,
   type WasmBinary,
   type WasmVal,
@@ -53,8 +67,6 @@ export {
   type VoidStmt,
   type ModuleGen,
   type WasmProgram,
-  Deque,
-  HashSet,
   intercept,
   interceptIR,
   withTrace,
@@ -79,7 +91,7 @@ export { wasmFunc } from "./inline";
 export { wasmize } from "./declarative";
 
 // Runtime utilities
-export { instantiate } from "./runtime/instantiate";
+export { instantiate, instantiateFromUrl, instantiateFromResponse, type InstantiateResult } from "./runtime/instantiate";
 export {
   writeI32Array,
   readI32Array,
@@ -89,3 +101,17 @@ export {
   readString,
   roundtrip,
 } from "./runtime/marshal";
+export { fuzz, Gen, type InputGenerator, type FuzzOptions, type FuzzResult, type FuzzFailure } from "./runtime/fuzz";
+export { saveBenchmark, loadBenchmark, compareBenchmarks, type BenchmarkResult } from "./runtime/bench-history";
+export { writeImageData, readImageData, syncCanvas } from "./runtime/canvas";
+export { rgbToHex, hexToRgb, lerpColor } from "./runtime/color";
+export { dumpMemory, snapshotMemory, diffMemory, formatDiff, type MemoryDiff } from "./runtime/debug-utils";
+export { assertNoTraps, assertTraps, getLastAssertionError } from "./runtime/assertions";
+export { buildCSR, buildWeightedCSR, buildUndirectedCSR, writeCSR, type CSRData } from "./runtime/graph-marshal";
+export { mockImports } from "./runtime/mock";
+
+// Tooling
+export { buildCallGraph, findRecursion, findUnusedFunctions } from "./wasm/call-graph";
+export { detectDeadCode, formatDeadCode, type DeadCodeEntry } from "./wasm/dead-code";
+export { compileWithSourceMap, SourceMapCollector, buildSourceMap, type SourceMapEntry } from "./wasm/source-map";
+export { compileWithReport, formatReport } from "./wasm/optimizer-report";

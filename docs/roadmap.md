@@ -557,9 +557,9 @@ coverage を上げるために問題を追加するのではなく、「この�
 | 問題案            | 必要な命令                         | 状態                                                      |
 | ----------------- | ---------------------------------- | --------------------------------------------------------- |
 | SHA-256 / CRC32   | `i32.rotr`, `i32.xor`, `i32.shr_u` | ✅ CRC32 実装済（`showcase/examples/realworld/crc32.ts`） |
-| Newton 法 (sqrt)  | `f64.mul`, `f64.div`, `f64.sub`    |                                                           |
-| 文字列マッチング  | `i32.load8_s`, `i32.load16_u`      |                                                           |
-| 動的配列 (vector) | `memory.size`, `memory.grow`       |                                                           |
+| Newton 法 (sqrt)  | `f64.mul`, `f64.div`, `f64.sub`    | ✅ stdlib/math-f64 で超越関数実装済                       |
+| 文字列マッチング  | `i32.load8_s`, `i32.load16_u`      | ✅ stdlib/string-algo で KMP 実装済                       |
+| 動的配列 (vector) | `memory.size`, `memory.grow`       | ✅ Mem.size/grow + bulk memory (memory_copy/fill) 実装済  |
 
 ※ これらの命令は opcodes.ts に登録済みで codegen にも接続済み（100% カバレッジ）。
 
@@ -597,3 +597,21 @@ DSL 改善の方向性は「Wasm の構造を隠さず、セレモニーだけ�
 - `instantiate()` は **WebAssembly API の型の弱さを隠す**（`as any` の封じ込め）
 
 一方で、`yield*` による明示的な合成、`param` / `local` の型宣言、`Mem.load` / `Mem.store` による線形メモリの直接操作は **Wasm の本質的な特徴** であり、隠すべきではない。DSL が目指すのは「Wasm を書いている」実感を保ちつつ、定型パターンの記述コストを下げることにある。
+
+---
+
+## 8. Gap-Spec 完了サマリー
+
+`docs/gap-spec.md` に定義された **56 項目の全ギャップが実装完了**（feat/more-spec ブランチ、9 コミット）。
+
+### カテゴリ別サマリー
+
+| カテゴリ | 項目数 | 内容                                                                                           |
+| -------- | ------ | ---------------------------------------------------------------------------------------------- |
+| **W** (Wasm spec)   | 15 | sign-ext, bulk memory, passive segments, tail calls, multi-value, name section, multiple tables, start section, mutable globals 等 |
+| **D** (DSL 拡張)    | 8  | 短絡評価, 名前付きラベル, break/continue, Tuple, Mem.i8Array/i16Array 等                        |
+| **S** (stdlib + DS) | 27 | PRNG, GCD/LCM, sort variants (counting/radix/merge), trig, math-f64, fixed, modular, string-algo, matrix, color, bits, search, graph-algo, MaxHeap, UnionFind, Deque, HashSet, Graph, SortedArray, SegmentTree, LRUCache 等 |
+| **R** (ランタイム)  | 6  | streaming instantiation, fuzz, bench-history, canvas sync, mock, graph-marshal                  |
+| **T** (ツーリング)  | 6  | call graph, dead code, source map, fuzzing, bench history, diagnostics                          |
+| **V** (静的検証)    | 14 | 定数オーバーフロー, 未使用ローカル, export 衝突, struct typo, メモリバジェット, arity 等        |
+| **合計**            | **56** | **全項目完了**                                                                              |
