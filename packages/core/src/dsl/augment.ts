@@ -84,6 +84,9 @@ declare module "./types" {
     shlBy(this: WasmRef<IntType>, b: ExprInput): FuncGen<void>;
     shrBy(this: WasmRef<IntType>, b: ExprInput): FuncGen<void>;
 
+    // --- Float binary ---
+    copysign(this: WasmRef<FloatType>, b: ExprInput): ChainableExpr<T>;
+
     // --- Float unary ---
     neg(this: WasmRef<FloatType>): ChainableExpr<T>;
     abs(this: WasmRef<FloatType>): ChainableExpr<T>;
@@ -111,6 +114,12 @@ declare module "./types" {
     toI32(): ChainableExpr<"i32">;
     toI64(): ChainableExpr<"i64">;
     toF32(): ChainableExpr<"f32">;
+
+    // --- Saturating truncation (float → int) ---
+    toI32Sat(this: WasmRef<FloatType>): ChainableExpr<"i32">;
+    toI32SatU(this: WasmRef<FloatType>): ChainableExpr<"i32">;
+    toI64Sat(this: WasmRef<FloatType>): ChainableExpr<"i64">;
+    toI64SatU(this: WasmRef<FloatType>): ChainableExpr<"i64">;
   }
 }
 
@@ -242,6 +251,11 @@ function unary(kind: string, ref: WasmRef): any {
   return new ChainableExpr(makeUnary(kind as any, ref._valType)(ref), ref._valType);
 }
 
+// Float binary
+WasmRef.prototype.copysign = function (this: WasmRef, b: ExprInput) {
+  return binop("copysign", this, b);
+};
+
 // Float unary
 WasmRef.prototype.neg = function (this: WasmRef) {
   return unary("neg", this);
@@ -336,6 +350,38 @@ const SIGN_EXT_8: Record<string, ConvertKind> = {
 const SIGN_EXT_16: Record<string, ConvertKind> = {
   i32: "i32_extend16_s",
   i64: "i64_extend16_s",
+};
+
+// --- Saturating truncation ---
+
+const SAT_TRUNC_I32: Record<string, ConvertKind> = {
+  f32: "i32_trunc_sat_f32_s",
+  f64: "i32_trunc_sat_f64_s",
+};
+const SAT_TRUNC_I32_U: Record<string, ConvertKind> = {
+  f32: "i32_trunc_sat_f32_u",
+  f64: "i32_trunc_sat_f64_u",
+};
+const SAT_TRUNC_I64: Record<string, ConvertKind> = {
+  f32: "i64_trunc_sat_f32_s",
+  f64: "i64_trunc_sat_f64_s",
+};
+const SAT_TRUNC_I64_U: Record<string, ConvertKind> = {
+  f32: "i64_trunc_sat_f32_u",
+  f64: "i64_trunc_sat_f64_u",
+};
+
+WasmRef.prototype.toI32Sat = function (this: WasmRef): any {
+  return new ChainableExpr(makeConvert(SAT_TRUNC_I32[this._valType]!)(this), "i32");
+};
+WasmRef.prototype.toI32SatU = function (this: WasmRef): any {
+  return new ChainableExpr(makeConvert(SAT_TRUNC_I32_U[this._valType]!)(this), "i32");
+};
+WasmRef.prototype.toI64Sat = function (this: WasmRef): any {
+  return new ChainableExpr(makeConvert(SAT_TRUNC_I64[this._valType]!)(this), "i64");
+};
+WasmRef.prototype.toI64SatU = function (this: WasmRef): any {
+  return new ChainableExpr(makeConvert(SAT_TRUNC_I64_U[this._valType]!)(this), "i64");
 };
 
 WasmRef.prototype.extend8s = function (this: WasmRef): any {

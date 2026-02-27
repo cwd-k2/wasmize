@@ -55,11 +55,34 @@ export interface ElementDef {
   funcIndices: number[];
 }
 
+export interface MemoryImportDef {
+  module: string;
+  name: string;
+  min: number;
+  max?: number;
+  shared?: boolean;
+}
+
+export interface GlobalImportDef {
+  module: string;
+  name: string;
+  type: WasmValType;
+  mutable: boolean;
+}
+
+export interface GlobalExportDef {
+  name: string;
+  globalIdx: number;
+}
+
 export interface ModuleOptions {
   imports?: ImportDef[];
   memoryPages?: number;
+  memoryImport?: MemoryImportDef;
   exports?: ExportDef[];
   globals?: GlobalDef[];
+  globalImports?: GlobalImportDef[];
+  globalExports?: GlobalExportDef[];
   dataSegments?: DataSegment[];
   tables?: TableDef[];
   elements?: ElementDef[];
@@ -80,8 +103,11 @@ export function buildModule(
   {
     imports = [],
     memoryPages = 1,
+    memoryImport,
     exports: moduleExports = [],
     globals = [],
+    globalImports = [],
+    globalExports = [],
     dataSegments = [],
     tables = [],
     elements = [],
@@ -120,10 +146,11 @@ export function buildModule(
     });
   });
 
-  // Import section
-  if (imports.length) {
+  // Import section (func imports + optional memory import + global imports)
+  const totalImports = imports.length + (memoryImport ? 1 : 0) + globalImports.length;
+  if (totalImports > 0) {
     enc.section(2, (s) => {
-      s.u32(imports.length);
+      s.u32(totalImports);
       imports.forEach((im) => {
         const modBytes = new TextEncoder().encode(im.module);
         s.u32(modBytes.length);
@@ -133,6 +160,39 @@ export function buildModule(
         s.raw([...nameBytes]);
         s.byte(0x00); // func import
         s.u32(getTypeIdx(im.params, im.results));
+      });
+      if (memoryImport) {
+        const modBytes = new TextEncoder().encode(memoryImport.module);
+        s.u32(modBytes.length);
+        s.raw([...modBytes]);
+        const nameBytes = new TextEncoder().encode(memoryImport.name);
+        s.u32(nameBytes.length);
+        s.raw([...nameBytes]);
+        s.byte(0x02); // memory import
+        if (memoryImport.shared) {
+          // shared memory requires min + max (limits flag 0x03)
+          s.byte(0x03);
+          s.u32(memoryImport.min);
+          s.u32(memoryImport.max ?? memoryImport.min);
+        } else if (memoryImport.max != null) {
+          s.byte(0x01); // has max
+          s.u32(memoryImport.min);
+          s.u32(memoryImport.max);
+        } else {
+          s.byte(0x00); // no max
+          s.u32(memoryImport.min);
+        }
+      }
+      globalImports.forEach((gi) => {
+        const modBytes = new TextEncoder().encode(gi.module);
+        s.u32(modBytes.length);
+        s.raw([...modBytes]);
+        const nameBytes = new TextEncoder().encode(gi.name);
+        s.u32(nameBytes.length);
+        s.raw([...nameBytes]);
+        s.byte(0x03); // global import
+        s.byte(TYPE[gi.type]);
+        s.byte(gi.mutable ? 0x01 : 0x00);
       });
     });
   }
@@ -161,12 +221,14 @@ export function buildModule(
     });
   }
 
-  // Memory section
-  enc.section(5, (s) => {
-    s.u32(1);
-    s.byte(0x00);
-    s.u32(memoryPages);
-  });
+  // Memory section (skip if memory is imported)
+  if (!memoryImport) {
+    enc.section(5, (s) => {
+      s.u32(1);
+      s.byte(0x00);
+      s.u32(memoryPages);
+    });
+  }
 
   // Global section
   if (globals.length) {
@@ -199,11 +261,12 @@ export function buildModule(
     });
   }
 
-  // Export section
+  // Export section (skip memory export when memory is imported)
   enc.section(7, (s) => {
-    const allExports = [
-      { name: "memory", kind: 0x02, idx: 0 },
+    const allExports: { name: string; kind: number; idx: number }[] = [
+      ...(memoryImport ? [] : [{ name: "memory", kind: 0x02, idx: 0 }]),
       ...moduleExports.map((e) => ({ name: e.name, kind: 0x00, idx: e.idx })),
+      ...globalExports.map((e) => ({ name: e.name, kind: 0x03, idx: e.globalIdx })),
     ];
     s.u32(allExports.length);
     allExports.forEach((e) => {

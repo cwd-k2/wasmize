@@ -171,6 +171,18 @@ const convertTable: Record<string, number> = {
   i64_extend32_s: OP.i64_extend32_s,
 };
 
+/** Saturating truncation: 0xFC prefix + index byte */
+const satTruncTable: Record<string, number> = {
+  i32_trunc_sat_f32_s: OP.i32_trunc_sat_f32_s,
+  i32_trunc_sat_f32_u: OP.i32_trunc_sat_f32_u,
+  i32_trunc_sat_f64_s: OP.i32_trunc_sat_f64_s,
+  i32_trunc_sat_f64_u: OP.i32_trunc_sat_f64_u,
+  i64_trunc_sat_f32_s: OP.i64_trunc_sat_f32_s,
+  i64_trunc_sat_f32_u: OP.i64_trunc_sat_f32_u,
+  i64_trunc_sat_f64_s: OP.i64_trunc_sat_f64_s,
+  i64_trunc_sat_f64_u: OP.i64_trunc_sat_f64_u,
+};
+
 const memLoadInfo: Record<string, { opcode: number; align: number }> = {
   f32_load: { opcode: OP.f32_load, align: 2 },
   i32_load8_s: { opcode: OP.i32_load8_s, align: 0 },
@@ -249,10 +261,17 @@ export function emitIR(enc: WasmEncoder, node: IRNode | undefined): void {
       emitIR(enc, node.val);
       enc.byte(unaryTable[node.type || "i32"]![node.kind]!);
       break;
-    case "convert":
+    case "convert": {
       emitIR(enc, node.val);
-      enc.byte(convertTable[node.kind]!);
+      const satIdx = satTruncTable[node.kind];
+      if (satIdx !== undefined) {
+        enc.byte(OP.fc_prefix);
+        enc.u32(satIdx);
+      } else {
+        enc.byte(convertTable[node.kind]!);
+      }
       break;
+    }
     case "if":
       emitIR(enc, node.cond);
       enc.byte(OP.if_);

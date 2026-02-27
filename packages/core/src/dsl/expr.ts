@@ -196,6 +196,14 @@ export class ChainableExpr<T extends WasmValType = "i32"> {
     return new ChainableExpr(makeBinopTyped("rotr", this._type)(this._inner, b), this._type);
   }
 
+  // --- Float binary ops (copysign, min, max) ---
+
+  /** Copies the sign from `other` (`f32.copysign` / `f64.copysign`). Float types only. */
+  copysign(b: ExprInput): ChainableExpr<T> {
+    checkBinopTypes(this._type, b, "copysign");
+    return new ChainableExpr(makeBinopTyped("copysign", this._type)(this._inner, b), this._type);
+  }
+
   // --- Unary: float ops (permissive — TS constraints enforced at WasmRef level) ---
 
   /** Negates the value (`f32.neg` / `f64.neg`). Float types only at WasmRef level. */
@@ -368,6 +376,77 @@ export class ChainableExpr<T extends WasmValType = "i32"> {
       })(this._inner),
       this._type,
     );
+  }
+
+  // --- Short-circuit logical ops ---
+
+  /** Short-circuit logical AND. Returns i32. Second operand is not evaluated if this is falsy. */
+  logicalAnd(b: ExprInput): ChainableExpr<"i32"> {
+    return new ChainableExpr(
+      (function* (inner: Expr) {
+        const va = yield* resolve(inner);
+        const result: WasmVal | void = yield {
+          _type: "if" as const,
+          cond: va._node,
+          then_: function* () {
+            return yield* resolve(b);
+          },
+          else_: function* () {
+            return val(IR.const_i32(0));
+          },
+        };
+        return result as WasmVal;
+      })(this._inner),
+      "i32",
+    );
+  }
+
+  /** Short-circuit logical OR. Returns i32. Second operand is not evaluated if this is truthy. */
+  logicalOr(b: ExprInput): ChainableExpr<"i32"> {
+    return new ChainableExpr(
+      (function* (inner: Expr) {
+        const va = yield* resolve(inner);
+        const result: WasmVal | void = yield {
+          _type: "if" as const,
+          cond: va._node,
+          then_: function* () {
+            return val(IR.const_i32(1));
+          },
+          else_: function* () {
+            return yield* resolve(b);
+          },
+        };
+        return result as WasmVal;
+      })(this._inner),
+      "i32",
+    );
+  }
+
+  // --- Saturating truncation ---
+
+  /** Saturating truncation to i32 (clamps instead of trapping on overflow/NaN). Float types only. */
+  toI32Sat(): ChainableExpr<"i32"> {
+    const kind: ConvertKind =
+      this._type === "f32" ? "i32_trunc_sat_f32_s" : "i32_trunc_sat_f64_s";
+    return new ChainableExpr(makeConvert(kind)(this._inner), "i32");
+  }
+  /** Unsigned saturating truncation to i32. Float types only. */
+  toI32SatU(): ChainableExpr<"i32"> {
+    const kind: ConvertKind =
+      this._type === "f32" ? "i32_trunc_sat_f32_u" : "i32_trunc_sat_f64_u";
+    return new ChainableExpr(makeConvert(kind)(this._inner), "i32");
+  }
+  /** Saturating truncation to i64. Float types only. */
+  toI64Sat(): ChainableExpr<"i64"> {
+    const kind: ConvertKind =
+      this._type === "f32" ? "i64_trunc_sat_f32_s" : "i64_trunc_sat_f64_s";
+    return new ChainableExpr(makeConvert(kind)(this._inner), "i64");
+  }
+  /** Unsigned saturating truncation to i64. Float types only. */
+  toI64SatU(): ChainableExpr<"i64"> {
+    const kind: ConvertKind =
+      this._type === "f32" ? "i64_trunc_sat_f32_u" : "i64_trunc_sat_f64_u";
+    return new ChainableExpr(makeConvert(kind)(this._inner), "i64");
   }
 
   // --- Sign-extension ---

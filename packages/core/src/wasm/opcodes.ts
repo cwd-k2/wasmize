@@ -221,8 +221,16 @@ export const OP = {
   i64_extend16_s: 0xc3,
   i64_extend32_s: 0xc4,
 
-  // FC prefix (bulk memory)
+  // FC prefix (bulk memory + saturating truncation)
   fc_prefix: 0xfc,
+  i32_trunc_sat_f32_s: 0x00,
+  i32_trunc_sat_f32_u: 0x01,
+  i32_trunc_sat_f64_s: 0x02,
+  i32_trunc_sat_f64_u: 0x03,
+  i64_trunc_sat_f32_s: 0x04,
+  i64_trunc_sat_f32_u: 0x05,
+  i64_trunc_sat_f64_s: 0x06,
+  i64_trunc_sat_f64_u: 0x07,
   memory_init: 0x08,
   data_drop: 0x09,
   memory_copy: 0x0a,

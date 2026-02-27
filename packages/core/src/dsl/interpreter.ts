@@ -20,6 +20,8 @@ import type {
   ImportDef,
   ExportDef,
   GlobalDef,
+  GlobalImportDef,
+  GlobalExportDef,
   DataSegment,
   TableDef,
   ElementDef,
@@ -48,6 +50,7 @@ import {
   type FuncInstruction,
   type WasmProgram,
 } from "./types";
+import { _setAssertionsEnabled } from "./namespaces";
 
 // --- Type inference ---
 // Infers the Wasm value type of an IR node for determining function return
@@ -195,6 +198,7 @@ function interpretSubBody(
   body: FuncBody<FuncReturn>,
   ctx: FuncContext,
   nestingLevel = 0,
+  labelMap: Map<string, number> = new Map(),
 ): { nodes: IRNode[]; result: WasmVal | void } {
   const gen = body();
   const nodes: IRNode[] = [];
@@ -222,11 +226,33 @@ function interpretSubBody(
         next = gen.next();
         break;
       }
+      case "br_label": {
+        const storedLevel = labelMap.get(instr.label);
+        if (storedLevel === undefined) {
+          throw new Error(`Unknown label '${instr.label}' in br`);
+        }
+        const depth = nestingLevel - storedLevel - 1;
+        validateIRNode(IR.br(depth), nestingLevel, ctx);
+        nodes.push(IR.br(depth));
+        next = gen.next();
+        break;
+      }
+      case "br_if_label": {
+        const storedLevel = labelMap.get(instr.label);
+        if (storedLevel === undefined) {
+          throw new Error(`Unknown label '${instr.label}' in br_if`);
+        }
+        const depth = nestingLevel - storedLevel - 1;
+        validateIRNode(IR.br_if(depth, instr.cond), nestingLevel, ctx);
+        nodes.push(IR.br_if(depth, instr.cond));
+        next = gen.next();
+        break;
+      }
       case "if": {
-        const thenResult = interpretSubBody(instr.then_, ctx, nestingLevel + 1);
+        const thenResult = interpretSubBody(instr.then_, ctx, nestingLevel + 1, labelMap);
         const hasElse = instr.else_ != null;
         const elseResult = hasElse
-          ? interpretSubBody(instr.else_!, ctx, nestingLevel + 1)
+          ? interpretSubBody(instr.else_!, ctx, nestingLevel + 1, labelMap)
           : { nodes: [] as IRNode[], result: undefined as WasmVal | void };
 
         const thenVal = isVal(thenResult.result) ? thenResult.result : null;
@@ -250,13 +276,29 @@ function interpretSubBody(
         break;
       }
       case "loop": {
-        const loopResult = interpretSubBody(instr.body as FuncBody<FuncReturn>, ctx, nestingLevel + 1);
+        const childLabelMap = instr.label
+          ? new Map([...labelMap, [instr.label, nestingLevel]])
+          : labelMap;
+        const loopResult = interpretSubBody(
+          instr.body as FuncBody<FuncReturn>,
+          ctx,
+          nestingLevel + 1,
+          childLabelMap,
+        );
         nodes.push(IR.loop(loopResult.nodes));
         next = gen.next();
         break;
       }
       case "block": {
-        const blockResult = interpretSubBody(instr.body as FuncBody<FuncReturn>, ctx, nestingLevel + 1);
+        const childLabelMap = instr.label
+          ? new Map([...labelMap, [instr.label, nestingLevel]])
+          : labelMap;
+        const blockResult = interpretSubBody(
+          instr.body as FuncBody<FuncReturn>,
+          ctx,
+          nestingLevel + 1,
+          childLabelMap,
+        );
         nodes.push(IR.block(blockResult.nodes));
         next = gen.next();
         break;
@@ -265,6 +307,117 @@ function interpretSubBody(
   }
 
   return { nodes, result: coerceReturn(next.value) };
+}
+
+// --- V-13: Static constant address bounds check ---
+
+/** Returns the constant address value from an IR node, or undefined if dynamic. */
+function getConstAddr(node: IRNode): number | undefined {
+  if (node.op === "const_i32") return node.v;
+  if (node.op === "binop" && node.kind === "add") {
+    const a = getConstAddr(node.a);
+    const b = getConstAddr(node.b);
+    if (a !== undefined && b !== undefined) return a + b;
+  }
+  if (node.op === "binop" && node.kind === "mul") {
+    const a = getConstAddr(node.a);
+    const b = getConstAddr(node.b);
+    if (a !== undefined && b !== undefined) return a * b;
+  }
+  return undefined;
+}
+
+/** Size in bytes for each memory operation. */
+function memOpSize(op: string, kind?: string): number {
+  switch (op) {
+    case "store_i32":
+    case "load_i32":
+      return 4;
+    case "store_i32_8":
+    case "load_i32_8u":
+      return 1;
+    case "load_i64":
+    case "store_i64":
+      return 8;
+    case "load_f64":
+    case "store_f64":
+      return 8;
+    case "mem_load":
+    case "mem_store":
+      if (!kind) return 0;
+      if (kind.includes("8")) return 1;
+      if (kind.includes("16")) return 2;
+      if (kind.includes("32") || kind.startsWith("f32") || kind.startsWith("i32")) return 4;
+      if (kind.startsWith("f64") || kind.startsWith("i64")) return 8;
+      return 0;
+    default:
+      return 0;
+  }
+}
+
+/** Recursively checks IR nodes for constant-address memory accesses that exceed bounds. */
+function checkConstantAddressBounds(nodes: IRNode[], maxBytes: number): void {
+  for (const node of nodes) {
+    switch (node.op) {
+      case "store_i32":
+      case "load_i32":
+      case "store_i32_8":
+      case "load_i32_8u":
+      case "load_i64":
+      case "store_i64":
+      case "load_f64":
+      case "store_f64": {
+        const addr = getConstAddr(node.addr);
+        if (addr !== undefined) {
+          const size = memOpSize(node.op);
+          if (addr + size > maxBytes) {
+            throw new Error(
+              `Static memory access out of bounds: address ${addr} + ${size} bytes exceeds ${maxBytes} bytes (${maxBytes / 65536} pages)`,
+            );
+          }
+        }
+        break;
+      }
+      case "mem_load": {
+        const addr = getConstAddr(node.addr);
+        if (addr !== undefined) {
+          const size = memOpSize(node.op, node.kind);
+          if (addr + size > maxBytes) {
+            throw new Error(
+              `Static memory access out of bounds: address ${addr} + ${size} bytes exceeds ${maxBytes} bytes (${maxBytes / 65536} pages)`,
+            );
+          }
+        }
+        break;
+      }
+      case "mem_store": {
+        const addr = getConstAddr(node.addr);
+        if (addr !== undefined) {
+          const size = memOpSize(node.op, node.kind);
+          if (addr + size > maxBytes) {
+            throw new Error(
+              `Static memory access out of bounds: address ${addr} + ${size} bytes exceeds ${maxBytes} bytes (${maxBytes / 65536} pages)`,
+            );
+          }
+        }
+        break;
+      }
+    }
+    // Recurse into children
+    switch (node.op) {
+      case "if":
+        checkConstantAddressBounds(node.then, maxBytes);
+        checkConstantAddressBounds(node.else, maxBytes);
+        break;
+      case "loop":
+      case "block":
+        checkConstantAddressBounds(node.body, maxBytes);
+        break;
+      case "seq":
+        checkConstantAddressBounds(node.stmts, maxBytes);
+        break;
+    }
+  }
 }
 
 // --- Module interpreter ---
@@ -282,11 +435,15 @@ function collectAndInterpret(
   const declaredResultsPerFunc: (WasmValType[] | undefined)[] = [];
   const exports_: ExportDef[] = [];
   const globals: GlobalDef[] = [];
+  const globalImports: GlobalImportDef[] = [];
+  const globalExports: GlobalExportDef[] = [];
   const dataSegments: DataSegment[] = [];
   const tables: TableDef[] = [];
   const elementsArr: ElementDef[] = [];
   let memoryPages = 1;
   let memoryDeclared = false;
+  let memoryImported = false;
+  let memoryImport: { module: string; name: string; min: number; max?: number; shared?: boolean } | undefined;
   let funcIdx = 0;
   let startFuncIdx: number | undefined;
   const exportNames = new Set<string>();
@@ -325,15 +482,56 @@ function collectAndInterpret(
         break;
       }
       case "global": {
-        const idx = globals.length;
+        // Global index space: imported globals first, then module globals
+        const idx = globalImports.length + globals.length;
         globals.push({ type: instr.valType, mutable: instr.mutable, init: instr.init });
         const gr = globalRef(idx, instr.valType, instr.mutable);
         next = gen.next(gr);
         break;
       }
+      case "import_global": {
+        const idx = globalImports.length;
+        globalImports.push({
+          module: instr.module,
+          name: instr.name,
+          type: instr.valType,
+          mutable: instr.mutable,
+        });
+        const gr = globalRef(idx, instr.valType, instr.mutable);
+        next = gen.next(gr);
+        break;
+      }
+      case "export_global": {
+        if (exportNames.has(instr.name)) {
+          throw new Error(`Duplicate export name: '${instr.name}'`);
+        }
+        exportNames.add(instr.name);
+        globalExports.push({ name: instr.name, globalIdx: instr.globalIdx });
+        next = gen.next();
+        break;
+      }
       case "memory": {
+        if (memoryImported) {
+          throw new Error("Cannot declare memory: memory is already imported");
+        }
         memoryPages = instr.pages;
         memoryDeclared = true;
+        next = gen.next();
+        break;
+      }
+      case "import_memory": {
+        if (memoryDeclared) {
+          throw new Error("Cannot import memory: memory is already declared");
+        }
+        memoryImported = true;
+        memoryPages = instr.min;
+        memoryImport = {
+          module: instr.module,
+          name: instr.name,
+          min: instr.min,
+          max: instr.max,
+          shared: instr.shared,
+        };
         next = gen.next();
         break;
       }
@@ -417,6 +615,14 @@ function collectAndInterpret(
     }
   }
 
+  // V-13: Static constant address bounds check
+  {
+    const maxBytes = memoryPages * 65536;
+    for (const f of funcs) {
+      checkConstantAddressBounds(f.body, maxBytes);
+    }
+  }
+
   // Phase 2.5: optimize IR
   if (shouldOptimize) {
     for (const f of funcs) {
@@ -429,13 +635,16 @@ function collectAndInterpret(
     memoryPages,
     exports: exports_,
     globals,
+    globalImports,
+    globalExports,
     dataSegments,
     tables,
     elements: elementsArr,
     startFuncIdx,
+    memoryImport,
   };
 
-  return { funcs, moduleOptions, memoryDeclared };
+  return { funcs, moduleOptions, memoryDeclared, memoryImported };
 }
 
 /**
@@ -471,6 +680,8 @@ export interface CompileOptions extends DiagnosticOptions {
   target?: FeatureSet;
   /** BumpAllocator(s) to validate against declared memory pages. */
   allocator?: BumpAllocator | BumpAllocator[];
+  /** When false, all Ctrl.assert() calls become no-ops (default: true). */
+  assertions?: boolean;
 }
 
 /** Result of `compileWithDiagnostics()`. */
@@ -483,54 +694,31 @@ export function compile<T = Record<string, unknown>>(
   program: WasmProgram,
   options?: CompileOptions,
 ): WasmBinary<T> {
-  const collector = options?.diagnostics
-    ? new DiagnosticCollector({ strict: options?.strict, warnings: options?.warnings })
-    : undefined;
+  // D-08: Set assertions flag before running the program
+  _setAssertionsEnabled(options?.assertions !== false);
 
-  const { funcs, moduleOptions, memoryDeclared } = collectAndInterpret(
-    program,
-    options?.optimize !== false,
-    options?.optimizerConfig,
-    collector,
-  );
+  try {
+    const collector = options?.diagnostics
+      ? new DiagnosticCollector({ strict: options?.strict, warnings: options?.warnings })
+      : undefined;
 
-  // V-01: Memory budget validation
-  if (options?.allocator) {
-    const allocators = Array.isArray(options.allocator) ? options.allocator : [options.allocator];
-    const maxRequired = Math.max(...allocators.map((a) => a.requiredPages));
+    const { funcs, moduleOptions, memoryDeclared, memoryImported } = collectAndInterpret(
+      program,
+      options?.optimize !== false,
+      options?.optimizerConfig,
+      collector,
+    );
 
-    if (!memoryDeclared) {
-      // Auto-adopt allocator's requiredPages when Mod.memory() is omitted
-      moduleOptions.memoryPages = maxRequired;
-    } else if (maxRequired > moduleOptions.memoryPages) {
-      const msg = `Memory budget exceeded: allocations require ${maxRequired} pages but only ${moduleOptions.memoryPages} pages declared`;
-      if (collector) {
-        collector.add({ level: "error", code: "V-01", message: msg });
-      } else {
-        throw new Error(msg);
-      }
-    }
-  }
+    // V-01: Memory budget validation
+    if (options?.allocator) {
+      const allocators = Array.isArray(options.allocator) ? options.allocator : [options.allocator];
+      const maxRequired = Math.max(...allocators.map((a) => a.requiredPages));
 
-  // V-08: Allocator region overlap detection
-  if (options?.allocator) {
-    const allocators = Array.isArray(options.allocator) ? options.allocator : [options.allocator];
-    const overlaps = checkRegionOverlaps(allocators);
-    for (const msg of overlaps) {
-      if (collector) {
-        collector.add({ level: "error", code: "V-08", message: msg });
-      } else {
-        throw new Error(msg);
-      }
-    }
-  }
-
-  // V-01: Data segment bounds validation
-  {
-    const maxBytes = moduleOptions.memoryPages * 65536;
-    for (const seg of moduleOptions.dataSegments ?? []) {
-      if (seg.offset + seg.init.length > maxBytes) {
-        const msg = `Data segment out of bounds: offset ${seg.offset} + ${seg.init.length} bytes exceeds ${moduleOptions.memoryPages} pages (${maxBytes} bytes)`;
+      if (!memoryDeclared && !memoryImported) {
+        // Auto-adopt allocator's requiredPages when Mod.memory() is omitted
+        moduleOptions.memoryPages = maxRequired;
+      } else if (maxRequired > moduleOptions.memoryPages) {
+        const msg = `Memory budget exceeded: allocations require ${maxRequired} pages but only ${moduleOptions.memoryPages} pages declared`;
         if (collector) {
           collector.add({ level: "error", code: "V-01", message: msg });
         } else {
@@ -538,27 +726,58 @@ export function compile<T = Record<string, unknown>>(
         }
       }
     }
-  }
 
-  if (options?.target) {
-    const result = validateFeatures(funcs, options.target);
-    if (!result.valid) {
-      const details = result.missing.map((f) => `  - ${f}: ${describeFeature(f)}`).join("\n");
-      const suggestion = suggestTarget(funcs);
-      const msg = `Target does not support required features:\n${details}\nSuggested target: Features.${suggestion.name}`;
-      if (collector) {
-        collector.add({ level: "error", code: "W-TARGET", message: msg });
-      } else {
-        throw new Error(msg);
+    // V-08: Allocator region overlap detection
+    if (options?.allocator) {
+      const allocators = Array.isArray(options.allocator) ? options.allocator : [options.allocator];
+      const overlaps = checkRegionOverlaps(allocators);
+      for (const msg of overlaps) {
+        if (collector) {
+          collector.add({ level: "error", code: "V-08", message: msg });
+        } else {
+          throw new Error(msg);
+        }
       }
     }
-  }
 
-  if (collector?.hasErrors) {
-    throw new Error(collector.errors[0]!.message);
-  }
+    // V-01: Data segment bounds validation
+    {
+      const maxBytes = moduleOptions.memoryPages * 65536;
+      for (const seg of moduleOptions.dataSegments ?? []) {
+        if (seg.offset + seg.init.length > maxBytes) {
+          const msg = `Data segment out of bounds: offset ${seg.offset} + ${seg.init.length} bytes exceeds ${moduleOptions.memoryPages} pages (${maxBytes} bytes)`;
+          if (collector) {
+            collector.add({ level: "error", code: "V-01", message: msg });
+          } else {
+            throw new Error(msg);
+          }
+        }
+      }
+    }
 
-  return buildModule(funcs, moduleOptions) as WasmBinary<T>;
+    if (options?.target) {
+      const result = validateFeatures(funcs, options.target);
+      if (!result.valid) {
+        const details = result.missing.map((f) => `  - ${f}: ${describeFeature(f)}`).join("\n");
+        const suggestion = suggestTarget(funcs);
+        const msg = `Target does not support required features:\n${details}\nSuggested target: Features.${suggestion.name}`;
+        if (collector) {
+          collector.add({ level: "error", code: "W-TARGET", message: msg });
+        } else {
+          throw new Error(msg);
+        }
+      }
+    }
+
+    if (collector?.hasErrors) {
+      throw new Error(collector.errors[0]!.message);
+    }
+
+    return buildModule(funcs, moduleOptions) as WasmBinary<T>;
+  } finally {
+    // Restore assertions flag to default
+    _setAssertionsEnabled(true);
+  }
 }
 
 /**
@@ -580,6 +799,7 @@ export function compileWithDiagnostics<T = Record<string, unknown>>(
   let moduleOptions: ReturnType<typeof collectAndInterpret>["moduleOptions"];
 
   let memoryDeclared = false;
+  let memoryImported = false;
 
   try {
     const result = collectAndInterpret(
@@ -591,6 +811,7 @@ export function compileWithDiagnostics<T = Record<string, unknown>>(
     funcs = result.funcs;
     moduleOptions = result.moduleOptions;
     memoryDeclared = result.memoryDeclared;
+    memoryImported = result.memoryImported;
   } catch (e) {
     collector.add({
       level: "error",
@@ -605,7 +826,7 @@ export function compileWithDiagnostics<T = Record<string, unknown>>(
     const allocators = Array.isArray(options.allocator) ? options.allocator : [options.allocator];
     const maxRequired = Math.max(...allocators.map((a) => a.requiredPages));
 
-    if (!memoryDeclared) {
+    if (!memoryDeclared && !memoryImported) {
       moduleOptions.memoryPages = maxRequired;
     } else if (maxRequired > moduleOptions.memoryPages) {
       collector.add({

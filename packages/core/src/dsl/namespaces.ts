@@ -77,6 +77,15 @@ import { param as declareParam, local as declareLocal, Type } from "./declaratio
 
 // --- Helpers ---
 
+// --- Compile-time configuration ---
+/** Internal flag: when false, Ctrl.assert() becomes a no-op. Set by compile(). */
+let _assertionsEnabled = true;
+
+/** Sets the assertions flag. Called from compile() before running the program. */
+export function _setAssertionsEnabled(enabled: boolean): void {
+  _assertionsEnabled = enabled;
+}
+
 /** Normalizes a VoidBody (generator or array form) into a FuncBody<void>. */
 function toBody(body: VoidBody): FuncBody<void> {
   return function* () {
@@ -87,6 +96,24 @@ function toBody(body: VoidBody): FuncBody<void> {
       yield* r;
     }
   };
+}
+
+/** Auto-incrementing counter for unique loop labels. */
+let loopLabelCounter = 0;
+
+/** Handle passed to loop body for break/continue support. */
+export interface LoopHandle {
+  /** Breaks out of the loop (br to outer block). */
+  break(): FuncGen<void>;
+  /** Continues to the next iteration (br to loop head). */
+  continue(): FuncGen<void>;
+}
+
+/** Detects if body is a function expecting a LoopHandle (has 1 parameter). */
+function isLoopBodyWithHandle(
+  body: VoidBody | ((loop: LoopHandle) => Generator<FuncInstruction, void, any>),
+): body is (loop: LoopHandle) => Generator<FuncInstruction, void, any> {
+  return typeof body === "function" && body.length === 1;
 }
 
 /** Builds a FuncBody from either a plain body or a params record + callback. */
@@ -194,6 +221,12 @@ interface ModNamespace {
 
   memory(pages: number): ModuleGen<void>;
 
+  importMemory(
+    module: string,
+    name: string,
+    opts: { min: number; max?: number; shared?: boolean },
+  ): ModuleGen<void>;
+
   start(funcRef: FuncRef): ModuleGen<void>;
 
   global<GT extends WasmValType = "i32">(
@@ -201,9 +234,26 @@ interface ModNamespace {
     init: number,
     mutable?: boolean,
   ): ModuleGen<{
+    _globalIdx: number;
     get(): ChainableExpr<GT>;
     set(value: ExprInput): FuncGen<void>;
   }>;
+
+  importGlobal<GT extends WasmValType = "i32">(
+    module: string,
+    name: string,
+    type: GT,
+    mutable?: boolean,
+  ): ModuleGen<{
+    _globalIdx: number;
+    get(): ChainableExpr<GT>;
+    set(value: ExprInput): FuncGen<void>;
+  }>;
+
+  exportGlobal(
+    name: string,
+    globalHandle: { _globalIdx: number },
+  ): ModuleGen<void>;
 }
 
 /** Module-level declarations: functions, exports, imports, memory, globals. */
@@ -445,6 +495,23 @@ export const Mod = {
       yield { _type: "memory", pages } as ModuleInstruction;
     })();
   },
+  /** Imports memory from the host environment. Mutually exclusive with `Mod.memory()`. */
+  importMemory(
+    module: string,
+    name: string,
+    opts: { min: number; max?: number; shared?: boolean },
+  ): ModuleGen<void> {
+    return (function* () {
+      yield {
+        _type: "import_memory",
+        module,
+        name,
+        min: opts.min,
+        max: opts.max,
+        shared: opts.shared,
+      } as ModuleInstruction;
+    })();
+  },
   /** Sets the start function, which is called automatically on module instantiation. */
   start(funcRef: FuncRef): ModuleGen<void> {
     return (function* () {
@@ -461,6 +528,7 @@ export const Mod = {
         mutable,
       } as ModuleInstruction;
       return {
+        _globalIdx: ref._idx,
         get() {
           return new ChainableExpr(
             (function* () {
@@ -476,6 +544,45 @@ export const Mod = {
           })();
         },
       };
+    })();
+  },
+  /** Imports a global variable from the host environment. */
+  importGlobal(module: string, name: string, type: WasmValType, mutable: boolean = false) {
+    return (function* () {
+      const ref: GlobalRef = yield {
+        _type: "import_global",
+        module,
+        name,
+        valType: type,
+        mutable,
+      } as ModuleInstruction;
+      return {
+        _globalIdx: ref._idx,
+        get() {
+          return new ChainableExpr(
+            (function* () {
+              return val(IR.global_get(ref._idx));
+            })(),
+            type,
+          );
+        },
+        set(value: ExprInput): FuncGen<void> {
+          return (function* () {
+            const vv = yield* resolve(value);
+            yield { _type: "stmt", node: IR.global_set(ref._idx, vv._node) } as FuncInstruction;
+          })();
+        },
+      };
+    })();
+  },
+  /** Exports a global variable with the given name. */
+  exportGlobal(name: string, globalHandle: { _globalIdx: number }): ModuleGen<void> {
+    return (function* () {
+      yield {
+        _type: "export_global",
+        name,
+        globalIdx: globalHandle._globalIdx,
+      } as ModuleInstruction;
     })();
   },
 } as unknown as ModNamespace;
@@ -704,6 +811,15 @@ export const Op = {
         "i64_extend8_s",
         "i64_extend16_s",
         "i64_extend32_s",
+        // Saturating truncation
+        "i32_trunc_sat_f32_s",
+        "i32_trunc_sat_f32_u",
+        "i32_trunc_sat_f64_s",
+        "i32_trunc_sat_f64_u",
+        "i64_trunc_sat_f32_s",
+        "i64_trunc_sat_f32_u",
+        "i64_trunc_sat_f64_s",
+        "i64_trunc_sat_f64_u",
       ] as ConvertKind[]
     ).map((k) => [k, makeConvert(k)]),
   ) as Record<ConvertKind, (a: ExprInput) => FuncGen<WasmVal>>,
@@ -1292,29 +1408,50 @@ export const Ctrl = {
   if(cond: ExprInput): IfBuilder {
     return new IfBuilder(cond);
   },
-  /** Raw Wasm loop block. Prefer `Ctrl.for` or `Ctrl.while` for structured loops. */
-  loop(body: VoidBody): FuncGen<void> {
+  /** Raw Wasm loop block. Optionally accepts a label string as first argument (D-02). */
+  loop(labelOrBody: string | VoidBody, maybeBody?: VoidBody): FuncGen<void> {
+    if (typeof labelOrBody === "string") {
+      return (function* () {
+        yield { _type: "loop", body: toBody(maybeBody!), label: labelOrBody };
+      })();
+    }
     return (function* () {
-      yield { _type: "loop", body: toBody(body) };
+      yield { _type: "loop", body: toBody(labelOrBody) };
     })();
   },
-  /** Raw Wasm block. Use `br(depth)` to break out. */
-  block(body: VoidBody): FuncGen<void> {
+  /** Raw Wasm block. Optionally accepts a label string as first argument (D-02). */
+  block(labelOrBody: string | VoidBody, maybeBody?: VoidBody): FuncGen<void> {
+    if (typeof labelOrBody === "string") {
+      return (function* () {
+        yield { _type: "block", body: toBody(maybeBody!), label: labelOrBody };
+      })();
+    }
     return (function* () {
-      yield { _type: "block", body: toBody(body) };
+      yield { _type: "block", body: toBody(labelOrBody) };
     })();
   },
-  /** Unconditional branch to the enclosing block/loop at the given depth. */
-  br(depth: number): FuncGen<void> {
+  /** Unconditional branch. Accepts a numeric depth or a label string (D-02). */
+  br(depthOrLabel: number | string): FuncGen<void> {
+    if (typeof depthOrLabel === "string") {
+      return (function* () {
+        yield { _type: "br_label", label: depthOrLabel } as FuncInstruction;
+      })();
+    }
     return (function* () {
-      yield { _type: "stmt", node: IR.br(depth) };
+      yield { _type: "stmt", node: IR.br(depthOrLabel) };
     })();
   },
-  /** Conditional branch. Branches if `cond` is truthy. */
-  br_if(depth: number, cond: ExprInput): FuncGen<void> {
+  /** Conditional branch. Accepts a numeric depth or a label string (D-02). */
+  br_if(depthOrLabel: number | string, cond: ExprInput): FuncGen<void> {
+    if (typeof depthOrLabel === "string") {
+      return (function* () {
+        const vc = yield* resolve(cond);
+        yield { _type: "br_if_label", label: depthOrLabel, cond: vc._node } as FuncInstruction;
+      })();
+    }
     return (function* () {
       const vc = yield* resolve(cond);
-      yield { _type: "stmt", node: IR.br_if(depth, vc._node) };
+      yield { _type: "stmt", node: IR.br_if(depthOrLabel, vc._node) };
     })();
   },
   /** Multi-way branch table. Branches to `labels[expr]` or `default_` if out of range. */
@@ -1324,15 +1461,38 @@ export const Ctrl = {
       yield { _type: "stmt", node: IR.br_table(labels, default_, ve._node) };
     })();
   },
-  /** While loop. Repeats `body` as long as `cond` is truthy. Expands to `block { loop { br_if; ...; br } }`. */
-  while(cond: ExprInput, body: VoidBody): FuncGen<void> {
-    const nb = toBody(body);
+  /**
+   * While loop. Repeats `body` as long as `cond` is truthy. Expands to `block { loop { br_if; ...; br } }`.
+   *
+   * Body can optionally receive a `loop` handle with `.break()` and `.continue()` methods:
+   * ```ts
+   * Ctrl.while(cond, function* (loop) {
+   *   yield* loop.break();     // → br(1) to outer block
+   *   yield* loop.continue();  // → br(0) to loop head
+   * })
+   * ```
+   */
+  while(cond: ExprInput, body: VoidBody | ((loop: LoopHandle) => Generator<FuncInstruction, void, any>)): FuncGen<void> {
+    const id = loopLabelCounter++;
+    const blockLabel = `__while_block_${id}`;
+    const loopLabel = `__while_loop_${id}`;
+    const handle: LoopHandle = {
+      break: () => (function* () {
+        yield { _type: "br_label" as const, label: blockLabel } as FuncInstruction;
+      })(),
+      continue: () => (function* () {
+        yield { _type: "br_label" as const, label: loopLabel } as FuncInstruction;
+      })(),
+    };
+    const nb = isLoopBodyWithHandle(body) ? () => body(handle) : toBody(body as VoidBody);
     return (function* () {
       yield {
         _type: "block" as const,
+        label: blockLabel,
         body: function* () {
           yield {
             _type: "loop" as const,
+            label: loopLabel,
             body: function* () {
               const vc = yield* resolve(cond);
               yield { _type: "stmt" as const, node: IR.br_if(1, IR.eqz(vc._node)) };
@@ -1347,27 +1507,43 @@ export const Ctrl = {
   /**
    * For loop sugar. `Ctrl.for(i, 0, i.lt(n), i.add(1), body)` is equivalent to `for (i = 0; i < n; i++)`.
    *
+   * Body can optionally receive a `loop` handle with `.break()` and `.continue()` methods.
+   * Note: `loop.continue()` jumps to the step+condition, not the loop head.
+   *
    * @param variable - Loop variable (must be a declared local)
    * @param start - Initial value
    * @param cond - Continue condition (checked before each iteration)
    * @param step - Step expression (applied after each iteration)
-   * @param body - Loop body
+   * @param body - Loop body (or function receiving LoopHandle)
    */
   for(
     variable: WasmRef,
     start: ExprInput,
     cond: ExprInput,
     step: ExprInput,
-    body: VoidBody,
+    body: VoidBody | ((loop: LoopHandle) => Generator<FuncInstruction, void, any>),
   ): FuncGen<void> {
-    const nb = toBody(body);
+    const id = loopLabelCounter++;
+    const blockLabel = `__for_block_${id}`;
+    const loopLabel = `__for_loop_${id}`;
+    const handle: LoopHandle = {
+      break: () => (function* () {
+        yield { _type: "br_label" as const, label: blockLabel } as FuncInstruction;
+      })(),
+      continue: () => (function* () {
+        yield { _type: "br_label" as const, label: loopLabel } as FuncInstruction;
+      })(),
+    };
+    const nb = isLoopBodyWithHandle(body) ? () => body(handle) : toBody(body as VoidBody);
     return (function* () {
       yield* set(variable, start);
       yield {
         _type: "block" as const,
+        label: blockLabel,
         body: function* () {
           yield {
             _type: "loop" as const,
+            label: loopLabel,
             body: function* () {
               const vc = yield* resolve(cond);
               yield { _type: "stmt" as const, node: IR.br_if(1, IR.eqz(vc._node)) };
@@ -1468,6 +1644,81 @@ export const Ctrl = {
   unreachable(): FuncGen<void> {
     return (function* () {
       yield { _type: "stmt", node: IR.unreachable() };
+    })();
+  },
+  /**
+   * Short-circuit logical AND. `if(a) { return b } else { return 0 }`.
+   * Returns `ChainableExpr<"i32">`. The second argument is not evaluated if the first is falsy.
+   */
+  logicalAnd(a: ExprInput, b: ExprInput): ChainableExpr<"i32"> {
+    return new ChainableExpr(
+      (function* () {
+        const va = yield* resolve(a);
+        const result: WasmVal | void = yield {
+          _type: "if" as const,
+          cond: va._node,
+          then_: function* () {
+            return yield* resolve(b);
+          },
+          else_: function* () {
+            return val(IR.const_i32(0));
+          },
+        };
+        return result as WasmVal;
+      })(),
+      "i32",
+    );
+  },
+  /**
+   * Short-circuit logical OR. `if(a) { return 1 } else { return b }`.
+   * Returns `ChainableExpr<"i32">`. The second argument is not evaluated if the first is truthy.
+   */
+  logicalOr(a: ExprInput, b: ExprInput): ChainableExpr<"i32"> {
+    return new ChainableExpr(
+      (function* () {
+        const va = yield* resolve(a);
+        const result: WasmVal | void = yield {
+          _type: "if" as const,
+          cond: va._node,
+          then_: function* () {
+            return val(IR.const_i32(1));
+          },
+          else_: function* () {
+            return yield* resolve(b);
+          },
+        };
+        return result as WasmVal;
+      })(),
+      "i32",
+    );
+  },
+  /**
+   * Debug assertion. If `cond` is false (zero), emits `unreachable` trap.
+   * Optionally writes `errorCode` to memory[0] before trapping.
+   *
+   * Use `compile({ assertions: false })` to strip all asserts from production builds.
+   *
+   * @param cond - Condition that must be truthy
+   * @param errorCode - Optional error code written to memory[0] before trap
+   */
+  assert(cond: ExprInput, errorCode?: number): FuncGen<void> {
+    if (!_assertionsEnabled) {
+      return (function* () {
+        // assertions disabled — no-op
+      })();
+    }
+    return (function* () {
+      const vc = yield* resolve(cond);
+      yield {
+        _type: "if" as const,
+        cond: IR.eqz(vc._node),
+        then_: function* () {
+          if (errorCode !== undefined) {
+            yield { _type: "stmt" as const, node: IR.store_i32(IR.const_i32(0), IR.const_i32(errorCode)) };
+          }
+          yield { _type: "stmt" as const, node: IR.unreachable() };
+        },
+      };
     })();
   },
   /**
