@@ -113,8 +113,9 @@ packages/
     examples/
       problems/           # 15 アルゴリズム問題
       realworld/          # 11 実用例（画像処理、シミュレーション等）
-      layer2/, layer3/    # 高レベル API 使用例
-      advanced/           # データ構造・最適化・プロファイリング使用例
+      declarative/        # wasmize() 宣言的 API デモ
+      inline/             # wasmFunc() インライン API デモ
+      features/           # DSL 機能デモ（Struct, stdlib, intercept, optimizer 等）
     game/                 # Space Shooter（Wasm DSL ゲーム）
     bench/                # パフォーマンスベンチマーク
     e2e/                  # Playwright E2E テスト

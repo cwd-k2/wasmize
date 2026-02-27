@@ -1,8 +1,8 @@
 import { describe, test, expect } from "vitest";
-import { fibonacci } from "../layer3/fibonacci";
-import { gcd } from "../layer3/gcd";
+import { fibonacci } from "../inline/fibonacci";
+import { gcd } from "../inline/gcd";
 
-describe("Layer 3: wasmFunc()", () => {
+describe("Inline API: wasmFunc()", () => {
   describe("fibonacci", () => {
     test.each([
       [0, 0],

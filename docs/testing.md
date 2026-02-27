@@ -116,9 +116,9 @@ const {
 | `packages/core/src/stdlib/__tests__/mem.test.ts`              | memcpy/memset/memcmp                                                                                                   |
 | `packages/core/src/stdlib/__tests__/math.test.ts`             | pow/clamp/abs/lerp                                                                                                     |
 | `packages/core/src/stdlib/__tests__/sort.test.ts`             | sortI32/sortWith                                                                                                       |
-| `packages/showcase/examples/__tests__/layer3.test.ts`    | Layer 3 使用例（fibonacci, gcd）                                                                                       |
-| `packages/showcase/examples/__tests__/layer2.test.ts`    | Layer 2 使用例（kadane, binary-search, array-stats）                                                                   |
-| `packages/showcase/examples/__tests__/advanced.test.ts`  | 高度機能使用例（struct, stdlib sort, bench）                                                                           |
+| `packages/showcase/examples/__tests__/inline.test.ts`      | Inline API 使用例（fibonacci, gcd）                                                                                    |
+| `packages/showcase/examples/__tests__/declarative.test.ts` | Declarative API 使用例（kadane, binary-search, array-stats）                                                           |
+| `packages/showcase/examples/__tests__/features.test.ts`    | DSL 機能使用例（struct, stdlib sort, bench）                                                                           |
 | `packages/showcase/examples/__tests__/realworld.test.ts` | Realworld 使用例（grayscale, CRC32, Game of Life, particles）                                                          |
 
 ---

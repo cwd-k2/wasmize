@@ -89,17 +89,21 @@ packages/
       __tests__/          # ライブラリテスト
       index.ts, debug.ts, inline.ts, declarative.ts, bench.ts, optimizer.ts, worker.ts
   showcase/               # @wasmize/showcase（private、core に依存）
-    app/                  # ブラウザアプリ
-    ui/                   # ブラウザ UI
+    app/                  # エントリスクリプト（landing, problems, demos）
+    ui/                   # ブラウザ UI（renderer, realworld, nav, styles）
     examples/             # 実例・アルゴリズム実装
       problems/           #   18 アルゴリズム問題
       realworld/          #   画像処理・シミュレーション（10 例）
-      advanced/           #   上級機能デモ（intercept, optimizer, struct 等）
-      layer2/, layer3/    #   段階的サンプル
+      features/           #   DSL 機能デモ（intercept, optimizer, struct 等）
+      declarative/        #   wasmize() 宣言的 API デモ
+      inline/             #   wasmFunc() インライン API デモ
     game/                 # Space Shooter（Wasm DSL）
     bench/                # パフォーマンスベンチマーク
     e2e/                  # Playwright E2E テスト
-    index.html, game.html
+    index.html            # ランディング
+    problems.html         # アルゴリズム問題ページ
+    demos.html            # Realworld デモページ
+    game.html             # Space Shooter
 docs/                     # 技術ドキュメント
 ```
 
